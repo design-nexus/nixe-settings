@@ -2,6 +2,7 @@
 
 mod backend;
 mod cmd;
+mod fangraph;
 mod paths;
 mod prefs;
 mod sections;
@@ -21,6 +22,7 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --volume STEP  change the output volume, allowing past 100% up to the maximum set in Sound\n\
   --eq ACTION    turn the preamp/equalizer on or off, or print whether it's running\n\
   --kbd-timeout S  turn the keyboard backlight off after S idle seconds (off to disable)\n\
+  --aura-sync    (internal) re-apply the saved keyboard lighting; run by the theme-set hook\n\
   --kbd-idle     (internal) turn the keyboard backlight off when idle; run by the settings-kbd-idle service\n\
   --apply        rewrite ~/.config/hypr/settings.lua from saved state and exit\n";
 
@@ -50,6 +52,15 @@ fn main() -> glib::ExitCode {
             return glib::ExitCode::FAILURE;
         };
         return match backend::kbdidle::apply(&backend::kbdidle::Config { timeout_secs }) {
+            Ok(()) => glib::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("settings: {e:#}");
+                glib::ExitCode::FAILURE
+            }
+        };
+    }
+    if args.iter().any(|a| a == "--aura-sync") {
+        return match backend::asus::sync_after_theme() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("settings: {e:#}");
@@ -108,7 +119,12 @@ fn main() -> glib::ExitCode {
         return glib::ExitCode::SUCCESS;
     }
 
-    let app = gtk::Application::builder().application_id(APP_ID).flags(gio::ApplicationFlags::HANDLES_COMMAND_LINE).build();
+    let mut flags = gio::ApplicationFlags::HANDLES_COMMAND_LINE;
+    // Snapshots render in their own process, so they never hand off to an open window.
+    if std::env::var_os("SETTINGS_SNAPSHOT").is_some() {
+        flags |= gio::ApplicationFlags::NON_UNIQUE;
+    }
+    let app = gtk::Application::builder().application_id(APP_ID).flags(flags).build();
     app.connect_command_line(|app, cl| {
         let argv: Vec<String> = cl.arguments().iter().map(|a| a.to_string_lossy().to_string()).collect();
         let section = argv.iter().position(|a| a == "--section").and_then(|i| argv.get(i + 1)).cloned();

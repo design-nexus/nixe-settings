@@ -10,6 +10,7 @@ pub mod asus;
 pub mod audio;
 pub mod aura;
 pub mod bar;
+pub mod barlayout;
 pub mod connectivity;
 pub mod displays;
 pub mod idle;

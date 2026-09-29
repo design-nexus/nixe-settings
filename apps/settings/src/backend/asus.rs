@@ -101,6 +101,13 @@ fn kbd_backlight_only() -> bool {
     !support().brightness.is_empty()
 }
 
+/// Effects worth offering, as kebab-case names. Rainbow wave travels across
+/// lighting zones; keyboards that report none (lit as one piece) list it but
+/// show a single colour or nothing, ignoring speed, direction and brightness.
+pub fn usable_modes(s: &Support) -> Vec<String> {
+    s.modes.iter().map(|m| kebab(m)).filter(|m| !(m == "rainbow-wave" && s.zones.is_empty())).collect()
+}
+
 pub fn has_aura() -> bool {
     !support().modes.is_empty() || support().has_core("Aura")
 }
@@ -336,6 +343,118 @@ pub fn power_args(zone_kebab: &str, s: PowerStates) -> Vec<String> {
         }
     }
     a
+}
+
+// ----- Saved lighting choice, kept across Omarchy theme changes -----
+
+/// Omarchy resets ASUS keyboards to a static theme colour on every theme
+/// change. Settings saves what the user picked and re-applies it from a
+/// theme-set hook: with the new theme colour when following the theme, or
+/// exactly as chosen otherwise.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct AuraChoice {
+    pub mode: String,
+    pub colour1: String,
+    pub colour2: String,
+    pub speed: String,
+    pub direction: String,
+    pub follow_theme: bool,
+}
+
+impl Default for AuraChoice {
+    fn default() -> Self {
+        Self {
+            mode: "static".into(),
+            colour1: "#7aa2f7".into(),
+            colour2: "#000000".into(),
+            speed: "med".into(),
+            direction: "right".into(),
+            follow_theme: true,
+        }
+    }
+}
+
+pub fn aura_file() -> std::path::PathBuf {
+    crate::paths::app_dir().join("aura.toml")
+}
+
+pub fn load_aura() -> Option<AuraChoice> {
+    std::fs::read_to_string(aura_file()).ok().and_then(|t| toml::from_str(&t).ok())
+}
+
+pub fn save_aura(c: &AuraChoice) -> Result<()> {
+    cmd::atomic_write(&aura_file(), &toml::to_string_pretty(c)?)
+}
+
+/// The keyboard colour the current Omarchy theme asks for (its `keyboard.rgb`,
+/// else its accent).
+pub fn theme_keyboard_colour() -> Option<String> {
+    let dir = crate::paths::omarchy_theme_dir();
+    let from_file = std::fs::read_to_string(dir.join("keyboard.rgb")).ok().map(|t| t.trim().to_lowercase());
+    let valid = |c: &String| c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit());
+    from_file.filter(valid).or_else(|| crate::theme::omarchy_palette().map(|p| p.accent.to_lowercase()).filter(valid))
+}
+
+/// The colours the keyboard should actually show for a choice.
+pub fn resolved(c: &AuraChoice) -> AuraChoice {
+    let mut c = c.clone();
+    if c.follow_theme
+        && let Some(t) = theme_keyboard_colour()
+    {
+        c.colour1 = t;
+    }
+    c
+}
+
+pub fn apply_aura(c: &AuraChoice) -> Result<()> {
+    let r = resolved(c);
+    run_owned(effect_args(&r.mode, &hex6(&r.colour1), &hex6(&r.colour2), &r.speed, &r.direction))?;
+    Ok(())
+}
+
+/// `settings --aura-sync`, run from the theme-set hook.
+pub fn sync_after_theme() -> Result<()> {
+    if !installed() || !has_aura() {
+        return Ok(());
+    }
+    // Nothing saved yet: follow the theme with the default static effect,
+    // which is what Omarchy itself just did.
+    let mut c = load_aura().unwrap_or_default();
+    // A saved effect this keyboard can't show properly falls back to static.
+    if !usable_modes(support()).contains(&c.mode) {
+        c.mode = "static".into();
+    }
+    apply_aura(&c)
+}
+
+pub fn hook_file() -> std::path::PathBuf {
+    crate::paths::omarchy_config().join("hooks/theme-set.d/50-settings-aura")
+}
+
+pub fn hook_script(self_cmd: &str) -> String {
+    format!(
+        "#!/bin/bash\n# Installed by Settings: re-apply the keyboard lighting you chose after Omarchy\n\
+         # resets it for a new theme. Settings puts it back when it starts; to stop it,\n\
+         # uninstall Settings (or remove ~/.config/settings/aura.toml to just follow the theme).\n\
+         exec {self_cmd} --aura-sync\n"
+    )
+}
+
+/// Install (or refresh) the theme-set hook. Only on machines with Aura lighting.
+pub fn ensure_hook() {
+    if !installed() || !has_aura() {
+        return;
+    }
+    let want = hook_script(&crate::backend::hypr::self_command());
+    let path = hook_file();
+    if std::fs::read_to_string(&path).is_ok_and(|t| t == want) {
+        return;
+    }
+    if cmd::atomic_write(&path, &want).is_ok() {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
+    }
 }
 
 // ----- Slash -----
@@ -618,6 +737,14 @@ Supported Aura Power Zones:
     }
 
     #[test]
+    fn hides_rainbow_wave_without_zones() {
+        let mut s = parse_supported(SUPPORTED);
+        assert_eq!(usable_modes(&s), ["static", "breathe", "rainbow-cycle", "pulse"]);
+        s.zones = vec!["Key1".into(), "Key2".into()];
+        assert!(usable_modes(&s).contains(&"rainbow-wave".to_string()));
+    }
+
+    #[test]
     fn unsupported_machine_has_nothing() {
         let s = parse_supported("asusctl v6.5.0\n\nSupported Core Functions:\n[]\n");
         assert!(s.core.is_empty() && s.modes.is_empty());
@@ -670,6 +797,28 @@ Supported Aura Power Zones:
             ["aura", "power", "keyboard", "--boot", "--awake", "--shutdown"]
         );
         assert_eq!(power_args("logo", [false; 4]), ["aura", "power", "logo"]);
+    }
+
+    #[test]
+    fn hook_calls_sync() {
+        let h = hook_script("/home/u/.local/bin/settings");
+        assert!(h.starts_with("#!/bin/bash\n"));
+        assert!(h.ends_with("exec /home/u/.local/bin/settings --aura-sync\n"));
+    }
+
+    #[test]
+    fn aura_choice_defaults_follow_theme() {
+        let c: AuraChoice = toml::from_str("mode = \"breathe\"").unwrap();
+        assert_eq!(c.mode, "breathe");
+        assert!(c.follow_theme);
+        let round: AuraChoice = toml::from_str(&toml::to_string_pretty(&c).unwrap()).unwrap();
+        assert_eq!(round, c);
+    }
+
+    #[test]
+    fn not_following_keeps_colours() {
+        let c = AuraChoice { follow_theme: false, colour1: "#123456".into(), ..AuraChoice::default() };
+        assert_eq!(resolved(&c).colour1, "#123456");
     }
 
     #[test]

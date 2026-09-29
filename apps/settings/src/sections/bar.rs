@@ -48,12 +48,29 @@ pub fn build(page: &Page) {
         run(&["omarchy-toggle-bar"])
     });
     g.add(&r);
-    let (r, _) = widgets::button_row(
-        "Widgets",
-        "Rearrange what the bar shows from the Plugins page, or reset to Omarchy's layout.",
-        "Reset layout",
-        |_| run(&["omarchy-bar", "reset"]),
+
+    let g = page.group("Widgets");
+    g.note("Drag a widget to reorder it or move it to another section, or use the arrows and the ⋯ menu.");
+    let editor = super::barlayout::editor();
+    g.add(&editor);
+    widgets::keywords("widgets reorder order move arrange layout left center right section plugins drag add remove");
+    let (r, b) = widgets::button_row(
+        "Restore Omarchy's default bar",
+        "Puts Omarchy's own widgets back in their places and takes every other plugin widget off the bar. \
+         The bar's position and transparency reset too.",
+        "Restore",
+        |b| {
+            // Two clicks: this throws away the whole layout.
+            if !b.has_css_class("armed") {
+                b.add_css_class("armed");
+                b.set_label("Click again to restore");
+                return;
+            }
+            run(&["omarchy-bar", "defaults"]);
+            gtk::glib::timeout_add_local_once(std::time::Duration::from_millis(600), || window::rebuild("bar"));
+        },
     );
+    b.add_css_class("destructive-action");
     g.add(&r);
 
     let g = page.group("Shell text");

@@ -33,6 +33,9 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
     and pinch in/out does, with **reverse left/right** and **reverse up/down**;
   - **looping workspace swipes**: the smooth, finger-tracking swipe continues
     from 5 back to 1, and from 1 to 5.
+- **Bar layout**: drag widgets to reorder them or move them between the left,
+  center and right sections; add widgets, remove them, and add as many
+  **spacers** as you like, each with its own width.
 - **Everything else**:
   - look & feel: gaps, borders, rounding, opacity, blur, shadows, animations,
     cursor;
@@ -44,12 +47,14 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
     and updates.
 - **ASUS laptops** (needs `asusctl`; these pages only appear on ASUS hardware, and
   each control only appears if your model supports it):
-  - **ASUS:** performance profiles, battery charge limit, **fan curve editor**
-    (per profile, per fan), firmware settings such as GPU mode, panel overdrive
-    and CPU/GPU power limits, and Screenpad.
-  - **Aura Lighting:** keyboard backlight brightness, effects and colours, which
-    power states light the keyboard, the **Slash lightbar**, and (where present)
-    the AniMe Matrix, XG Mobile light and drive lights.
+  - **ASUS:** performance profiles, battery charge limit, a **fan curve graph**
+    you drag (per profile and fan, with presets), firmware settings such as GPU
+    mode and panel overdrive, and CPU/GPU power limits under Advanced.
+  - **Aura Lighting:** a live keyboard preview, effects, an inline colour picker,
+    and **Follow Omarchy theme**, which keeps your effect across theme changes
+    in the theme's colour. Also which power states light the keyboard, the
+    **Slash lightbar**, and (where present) the AniMe Matrix, XG Mobile light and
+    drive lights.
 - **Keyboard backlight timeout** (any laptop with a keyboard backlight): turn it
   off after a set time without typing or touching the trackpad, and back on with
   the next key press.
@@ -61,6 +66,8 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 | ![Look & Feel](docs/look.png) | ![Keybindings](docs/keybindings.png) |
 | **Aura Lighting** (ASUS) | **ASUS** performance, fans and firmware |
 | ![Aura Lighting](docs/aura.png) | ![ASUS](docs/asus.png) |
+| **Bar layout** | |
+| ![Bar layout](docs/bar.png) | |
 
 ## Install
 

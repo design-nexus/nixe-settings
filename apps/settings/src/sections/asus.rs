@@ -23,10 +23,7 @@ fn after_colon(text: &str) -> String {
 pub fn build(page: &Page) {
     let sup = asus::support();
     if !sup.product.is_empty() {
-        page.banner(
-            &format!("<b>{}</b> · {}", glib::markup_escape_text(&sup.product), glib::markup_escape_text(&sup.board)),
-            false,
-        );
+        page.subtitle(&format!("<b>{}</b> · {}", glib::markup_escape_text(&sup.product), glib::markup_escape_text(&sup.board)));
     }
 
     let profiles: Vec<(String, String)> = cmd::output(&["asusctl", "profile", "list"])
@@ -52,6 +49,7 @@ pub fn build(page: &Page) {
     if asus::has_screenpad() {
         screenpad(page);
     }
+    advanced(page);
 }
 
 // ----- Performance -----
@@ -64,12 +62,14 @@ fn performance(page: &Page, profiles: &[(String, String)]) {
             .map(|l| l.trim_start()[prefix.len()..].trim().trim_start_matches(':').trim().to_string())
             .unwrap_or_default()
     };
-    let g = page.group("Performance profile");
-    g.note("Sets fan behaviour and power limits. Changing it also changes the fan curve shown below.");
-    let (r, _) = widgets::choice_row("Right now", "", profiles.to_vec(), &find("Active profile"), |p| {
+    let g = page.group("Performance");
+    g.note("Sets fan behaviour and power limits. Each profile also has its own fan curves, below.");
+    let now = widgets::segmented(profiles, &find("Active profile"), |p| {
         asus::apply(vec!["profile".into(), "set".into(), p]);
+        glib::timeout_add_local_once(std::time::Duration::from_millis(700), || window::rebuild("asus"));
     });
-    g.add(&r);
+    g.add(&widgets::row("Right now", "", Some(now.upcast_ref())));
+    widgets::keywords("quiet balanced performance profile mode");
     let (r, _) = widgets::choice_row("When plugged in", "", profiles.to_vec(), &find("AC profile"), |p| {
         asus::apply(vec!["profile".into(), "set".into(), "-a".into(), p]);
     });
@@ -78,46 +78,52 @@ fn performance(page: &Page, profiles: &[(String, String)]) {
         asus::apply(vec!["profile".into(), "set".into(), "-b".into(), p]);
     });
     g.add(&r);
-    if let Some(t) = cmd::output(&["asusctl", "profile", "tuning"]).and_then(|t| t.contains("Profile tuning:").then_some(t)) {
-        let on = after_colon(&t) == "true";
-        let (r, _) =
-            widgets::switch_row("Profile tuning", "Apply per-profile power tuning (advanced; off by default).", on, |on| {
-                asus::apply(vec!["profile".into(), "tuning".into(), on.to_string()]);
-            });
-        g.add(&r);
-    }
 }
 
 // ----- Battery -----
+
+fn set_limit(v: i64) {
+    asus::apply(vec!["battery".into(), "limit".into(), v.to_string()]);
+}
 
 fn battery(page: &Page) {
     let g = page.group("Battery care");
     let limit = cmd::output(&["asusctl", "battery", "info"])
         .map(|s| after_colon(&s).trim_end_matches('%').parse::<f64>().unwrap_or(100.0))
         .unwrap_or(100.0);
-    let (r, s) = widgets::slider_row(
-        "Charge limit",
-        "Stop charging at this level. 80% keeps the battery healthy if you're usually plugged in.",
-        (20.0, 100.0, 5.0),
-        limit,
-        0,
-        "%",
-        |_| {},
-    );
+    let (slider_box, s) = widgets::slider(20.0, 100.0, 5.0, limit, 0, "%");
     // Apply on release, not on every step.
     let click = gtk::GestureClick::new();
     let scale = s.scale.clone();
-    click.connect_released(move |_, _, _, _| {
-        asus::apply(vec!["battery".into(), "limit".into(), (scale.value().round() as i64).to_string()]);
-    });
+    click.connect_released(move |_, _, _, _| set_limit(scale.value().round() as i64));
     s.scale.add_controller(click);
     let key = gtk::EventControllerKey::new();
     let scale = s.scale.clone();
-    key.connect_key_released(move |_, _, _, _| {
-        asus::apply(vec!["battery".into(), "limit".into(), (scale.value().round() as i64).to_string()]);
-    });
+    key.connect_key_released(move |_, _, _, _| set_limit(scale.value().round() as i64));
     s.scale.add_controller(key);
-    g.add(&r);
+    slider_box.set_hexpand(true);
+    s.scale.set_hexpand(true);
+
+    // Quick picks, kept in step with the slider.
+    let line = widgets::hbox(12);
+    line.append(&slider_box);
+    for v in [60, 80, 100] {
+        let b = gtk::Button::with_label(&format!("{v}%"));
+        b.add_css_class("chip");
+        b.set_valign(gtk::Align::Center);
+        let scale = s.scale.clone();
+        b.connect_clicked(move |_| {
+            scale.set_value(v as f64);
+            set_limit(v);
+        });
+        line.append(&b);
+    }
+    g.add(&widgets::stacked_row(
+        "Charge limit",
+        "Stop charging at this level. 80% keeps the battery healthy if you're usually plugged in.",
+        line.upcast_ref(),
+    ));
+    widgets::keywords("battery charge limit 80 health");
     let (r, _) =
         widgets::button_row("Charge to full once", "Ignore the limit until the next full charge.", "Charge to 100%", |_| {
             asus::apply(vec!["battery".into(), "oneshot".into()]);
@@ -126,6 +132,21 @@ fn battery(page: &Page) {
 }
 
 // ----- Fan curves -----
+
+fn send_curve(profile: &str, fan: &str, c: &asus::FanCurve) {
+    match asus::fan_data(&c.temp, &c.pwm) {
+        Ok(data) => asus::apply(vec![
+            "fan-curve".into(),
+            "--mod-profile".into(),
+            profile.into(),
+            "--fan".into(),
+            fan.to_lowercase(),
+            "--data".into(),
+            data,
+        ]),
+        Err(e) => window::toast(&format!("{fan} curve not applied: {e}")),
+    }
+}
 
 fn fan_curves(page: &Page, profiles: &[(String, String)]) {
     let active = cmd::output(&["asusctl", "profile", "get"])
@@ -137,10 +158,6 @@ fn fan_curves(page: &Page, profiles: &[(String, String)]) {
     });
 
     let g = page.group("Fan curves");
-    g.note(
-        "Set how fast each fan runs at each temperature. <b>Fans running too slowly can overheat the laptop</b> — the \
-         firmware still protects it, but keep speeds rising with temperature.",
-    );
     let (r, _) = widgets::choice_row(
         "Profile to edit",
         "Each performance profile has its own curves.",
@@ -181,76 +198,121 @@ fn fan_curves(page: &Page, profiles: &[(String, String)]) {
     );
     g.add(&r);
     g.add(&curves_box);
+
+    let curves = Rc::new(RefCell::new(curves));
+    let selected = Rc::new(std::cell::Cell::new(0usize));
+    let debounces: Rc<Vec<Debounce>> = Rc::new((0..curves.borrow().len()).map(|_| Debounce::default()).collect());
+    let send_later = {
+        let (curves, debounces, profile) = (curves.clone(), debounces.clone(), profile.clone());
+        Rc::new(move |i: usize| {
+            let (curves, profile) = (curves.clone(), profile.clone());
+            debounces[i].call(500, move || {
+                let c = curves.borrow()[i].clone();
+                send_curve(&profile, &c.fan, &c);
+            });
+        })
+    };
+
+    let points = |c: &asus::FanCurve| c.temp.iter().copied().zip(c.pwm.iter().copied()).collect::<crate::fangraph::Points>();
+    let graph = {
+        let first = points(&curves.borrow()[0]);
+        let (curves, selected, send_later) = (curves.clone(), selected.clone(), send_later.clone());
+        crate::fangraph::fan_graph(first, move |p| {
+            let i = selected.get();
+            {
+                let mut all = curves.borrow_mut();
+                all[i].temp = p.iter().map(|x| x.0).collect();
+                all[i].pwm = p.iter().map(|x| x.1).collect();
+            }
+            send_later(i);
+        })
+    };
+    let graph = Rc::new(graph);
+
+    // Header: which fan, then presets and copy.
+    let head = widgets::hbox(10);
+    let fans: Vec<(String, String)> =
+        curves.borrow().iter().enumerate().map(|(i, c)| (i.to_string(), format!("{} fan", c.fan))).collect();
+    let copy = gtk::Button::with_label("");
+    let copy_label = {
+        let curves = curves.clone();
+        move |i: usize| {
+            let all = curves.borrow();
+            let other = all.iter().enumerate().find(|(j, _)| *j != i).map(|(_, c)| c.fan.clone()).unwrap_or_default();
+            format!("Copy to {other}")
+        }
+    };
+    copy.set_label(&copy_label(0));
+    copy.set_visible(fans.len() > 1);
+    {
+        let (graph, curves, selected, copy, copy_label) =
+            (graph.clone(), curves.clone(), selected.clone(), copy.clone(), copy_label.clone());
+        let switcher = widgets::segmented(&fans, "0", move |id| {
+            let i: usize = id.parse().unwrap_or(0);
+            selected.set(i);
+            graph.set(points(&curves.borrow()[i]));
+            copy.set_label(&copy_label(i));
+        });
+        head.append(&switcher);
+    }
+    let spacer = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    spacer.set_hexpand(true);
+    head.append(&spacer);
+    for (id, label) in [("quiet", "Quiet"), ("balanced", "Balanced"), ("max", "Maximum")] {
+        let b = gtk::Button::with_label(label);
+        b.add_css_class("chip");
+        b.set_tooltip_text(Some("Set this fan's speeds to a preset shape (temperatures stay as they are)"));
+        let (graph, curves, selected, send_later) = (graph.clone(), curves.clone(), selected.clone(), send_later.clone());
+        b.connect_clicked(move |_| {
+            let i = selected.get();
+            {
+                let mut all = curves.borrow_mut();
+                let n = all[i].pwm.len();
+                all[i].pwm = crate::fangraph::preset(id, n).into_iter().map(asus::percent_to_pwm).collect();
+            }
+            graph.set(points(&curves.borrow()[i]));
+            send_later(i);
+        });
+        head.append(&b);
+    }
+    {
+        let (curves, selected, send_later) = (curves.clone(), selected.clone(), send_later.clone());
+        copy.add_css_class("chip");
+        copy.connect_clicked(move |_| {
+            let i = selected.get();
+            let others: Vec<usize> = (0..curves.borrow().len()).filter(|j| *j != i).collect();
+            for j in others {
+                {
+                    let mut all = curves.borrow_mut();
+                    let (t, p) = (all[i].temp.clone(), all[i].pwm.clone());
+                    all[j].temp = t;
+                    all[j].pwm = p;
+                }
+                send_later(j);
+            }
+            window::toast("Copied");
+        });
+    }
+    head.append(&copy);
+
+    let body = widgets::vbox(10);
+    body.append(&head);
+    body.append(&graph.area);
+    let hint = widgets::label(
+        "Drag a point up or down for fan speed, left or right for temperature. Speeds can't drop as it gets hotter.",
+        "dim",
+    );
+    hint.set_wrap(true);
+    body.append(&hint);
+    curves_box.append(&widgets::stacked_row("", "", body.upcast_ref()));
+    widgets::keywords("fan curve speed temperature cooling cpu gpu graph quiet");
+
     if profile == active {
         let (r, _) = widgets::button_row("Reset to the firmware's curves", "For the active profile.", "Reset", |_| {
             asus::apply(vec!["fan-curve".into(), "--default".into()]);
             glib::timeout_add_local_once(std::time::Duration::from_millis(900), || window::rebuild("asus"));
         });
         curves_box.append(&r);
-    }
-
-    for curve in curves {
-        let fan = curve.fan.clone();
-        let pwm = Rc::new(RefCell::new(curve.pwm.clone()));
-        let temp = Rc::new(RefCell::new(curve.temp.clone()));
-        let debounce = Debounce::default();
-        let send = {
-            let (pwm, temp, debounce, profile, fan) = (pwm.clone(), temp.clone(), debounce.clone(), profile.clone(), fan.clone());
-            Rc::new(move || {
-                let (pwm, temp, profile, fan) = (pwm.clone(), temp.clone(), profile.clone(), fan.clone());
-                debounce.call(700, move || match asus::fan_data(&temp.borrow(), &pwm.borrow()) {
-                    Ok(data) => asus::apply(vec![
-                        "fan-curve".into(),
-                        "--mod-profile".into(),
-                        profile,
-                        "--fan".into(),
-                        fan.to_lowercase(),
-                        "--data".into(),
-                        data,
-                    ]),
-                    Err(e) => window::toast(&format!("{fan} curve not applied: {e}")),
-                });
-            })
-        };
-
-        let row = widgets::hbox(4);
-        for i in 0..curve.pwm.len() {
-            let col = widgets::vbox(6);
-            col.set_hexpand(true);
-            let (f, scale) = widgets::vfader("", (0.0, 100.0), asus::pwm_to_percent(curve.pwm[i]) as f64, |v| {
-                format!("{}%", v.round() as i64)
-            });
-            scale.set_size_request(-1, 130);
-            {
-                let (pwm, send) = (pwm.clone(), send.clone());
-                scale.connect_value_changed(move |s| {
-                    pwm.borrow_mut()[i] = asus::percent_to_pwm(s.value().round() as u32);
-                    send();
-                });
-            }
-            col.append(&f);
-            // Shown in the chosen unit; the laptop always gets whole °C.
-            let spin = gtk::SpinButton::with_range(units::from_celsius(0.0), units::from_celsius(110.0), units::step());
-            spin.set_value(units::from_celsius(curve.temp[i] as f64));
-            spin.set_width_chars(3);
-            spin.set_tooltip_text(Some(&format!("Temperature ({})", units::symbol())));
-            {
-                let (temp, send) = (temp.clone(), send.clone());
-                spin.connect_value_changed(move |s| {
-                    temp.borrow_mut()[i] = units::to_celsius(s.value()).max(0) as u32;
-                    send();
-                });
-            }
-            col.append(&spin);
-            row.append(&col);
-        }
-        let head = widgets::hbox(8);
-        head.append(&widgets::label(&format!("Speed above, temperature ({}) below", units::symbol()), "dim"));
-        let body = widgets::vbox(8);
-        body.append(&head);
-        body.append(&row);
-        curves_box.append(&widgets::stacked_row(&format!("{} fan", curve.fan), "", body.upcast_ref()));
-        widgets::keywords("fan curve speed temperature cooling");
     }
 }
 
@@ -270,7 +332,7 @@ fn meta(name: &str) -> Meta {
         "boot_sound" => m("Boot sound", "Play the ASUS startup sound when the laptop powers on.", "", false, false),
         "dgpu_disable" => m(
             "Turn off the dedicated GPU",
-            "Use only the integrated GPU: cooler and longer battery life, but no NVIDIA graphics. Applies after a restart.",
+            "Use only the integrated GPU: cooler and longer battery life, but no NVIDIA graphics.",
             "",
             true,
             false,
@@ -278,7 +340,7 @@ fn meta(name: &str) -> Meta {
         "gpu_mux_mode" => m(
             "GPU mode",
             "Hybrid lets the integrated GPU drive the screen and saves battery. Dedicated sends everything through the NVIDIA \
-             GPU for lower latency. Applies after a restart.",
+             GPU for lower latency.",
             "",
             true,
             false,
@@ -325,30 +387,55 @@ fn title_for(name: &str, m: &Meta) -> String {
 
 fn firmware(page: &Page) {
     let attrs = asus::armoury();
-    if attrs.is_empty() {
-        return;
-    }
-    let (basic, advanced): (Vec<&Attribute>, Vec<&Attribute>) = attrs.iter().partition(|a| !meta(&a.name).advanced);
-
+    let basic: Vec<&Attribute> = attrs.iter().filter(|a| !meta(&a.name).advanced).collect();
     if !basic.is_empty() {
         let g = page.group("Firmware");
         for a in basic {
             g.add(&attribute_row(a));
         }
     }
-    if !advanced.is_empty() {
-        let g = page.group("Power limits (advanced)");
-        g.note(
-            "Higher limits make the laptop hotter and louder and drain the battery faster. Ranges come from the firmware, \
-             and each value has a reset to its default.",
-        );
-        for a in advanced {
-            g.add(&attribute_row(a));
-        }
+}
+
+/// Power limits and profile tuning, folded away: most people never need them.
+fn advanced(page: &Page) {
+    let attrs = if asus::has_armoury() { asus::armoury() } else { vec![] };
+    let limits: Vec<&Attribute> = attrs.iter().filter(|a| meta(&a.name).advanced).collect();
+    let tuning = asus::has_platform_profile()
+        .then(|| cmd::output(&["asusctl", "profile", "tuning"]))
+        .flatten()
+        .filter(|t| t.contains("Profile tuning:"));
+    if limits.is_empty() && tuning.is_none() {
+        return;
     }
+    let g = page.group("Advanced");
+    let (wrapper, content) = widgets::disclosure(
+        "Power limits and tuning",
+        "Higher limits make the laptop hotter and louder and drain the battery faster. Each value can be reset to the \
+         firmware default.",
+    );
+    widgets::keywords("power limit tgp ppt pl1 pl2 boost watts gpu cpu tuning advanced");
+    if let Some(t) = tuning {
+        let on = after_colon(&t) == "true";
+        let (r, _) = widgets::switch_row("Profile tuning", "Apply per-profile power tuning.", on, |on| {
+            asus::apply(vec!["profile".into(), "tuning".into(), on.to_string()]);
+        });
+        content.append(&r);
+    }
+    for a in limits {
+        content.append(&attribute_row(a));
+    }
+    g.add(&wrapper);
 }
 
 fn attribute_row(a: &Attribute) -> gtk::Box {
+    let r = attribute_row_inner(a);
+    if meta(&a.name).restart {
+        widgets::tag_row(&r, "Restart needed");
+    }
+    r
+}
+
+fn attribute_row_inner(a: &Attribute) -> gtk::Box {
     let m = meta(&a.name);
     let title = title_for(&a.name, &m);
     let desc = m.desc.to_string();

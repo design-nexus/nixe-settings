@@ -53,6 +53,8 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     }
     // Bring the keyboard backlight timeout helper back if it isn't running.
     crate::cmd::background(crate::backend::kbdidle::ensure_running, |_| {});
+    // Keep the theme hook that re-applies the chosen keyboard lighting in place.
+    crate::cmd::background(crate::backend::asus::ensure_hook, |_| {});
     crate::sections::system::maybe_offer_cleanup();
 }
 

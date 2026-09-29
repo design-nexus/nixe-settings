@@ -110,6 +110,16 @@ impl Page {
         Group { wrapper, list }
     }
 
+    /// A dim line under the page description (e.g. the machine's model).
+    pub fn subtitle(&self, text: &str) {
+        if let Some(desc) = self.body.first_child().and_then(|h| h.first_child()).and_then(|t| t.last_child())
+            && let Some(label) = desc.downcast_ref::<gtk::Label>()
+        {
+            label.set_markup(&format!("{}\n{}", label.label(), text));
+            label.set_use_markup(true);
+        }
+    }
+
     pub fn banner(&self, text: &str, warning: bool) -> gtk::Box {
         let b = banner(text, warning);
         self.body.append(&b);
@@ -657,27 +667,240 @@ pub fn chip_toggles(labels: &[&str], states: &[bool], on_change: impl Fn(Vec<boo
     bx
 }
 
-/// A vertical slider with a value above and a label below (the equalizer look).
-pub fn vfader(label: &str, range: (f64, f64), value: f64, show: impl Fn(f64) -> String + 'static) -> (gtk::Box, gtk::Scale) {
-    let b = vbox(6);
-    b.add_css_class("fader");
-    b.set_hexpand(true);
-    let v = gtk::Label::new(Some(&show(value)));
-    v.add_css_class("fader-value");
-    v.add_css_class("mono");
-    let scale = gtk::Scale::with_range(gtk::Orientation::Vertical, range.0, range.1, 1.0);
-    scale.add_css_class("fader-scale");
-    scale.set_inverted(true);
-    scale.set_draw_value(false);
-    scale.set_value(value);
-    scale.set_vexpand(true);
-    scale.set_halign(gtk::Align::Center);
-    let vl = v.clone();
-    scale.connect_value_changed(move |s| vl.set_text(&show(s.value())));
-    let l = gtk::Label::new(Some(label));
-    l.add_css_class("fader-label");
-    b.append(&v);
-    b.append(&scale);
-    b.append(&l);
-    (b, scale)
+// ---------- Segmented control, swatches, disclosure, tags ----------
+
+/// Buttons joined into one control; exactly one is selected.
+pub fn segmented(options: &[(String, String)], current: &str, on_change: impl Fn(String) + 'static) -> gtk::Box {
+    let bx = hbox(0);
+    bx.add_css_class("segmented");
+    bx.set_valign(gtk::Align::Center);
+    let mut first: Option<gtk::ToggleButton> = None;
+    let on_change = Rc::new(on_change);
+    for (id, label) in options {
+        let b = gtk::ToggleButton::with_label(label);
+        b.add_css_class("segment");
+        if let Some(f) = &first {
+            b.set_group(Some(f));
+        } else {
+            first = Some(b.clone());
+        }
+        b.set_active(id == current);
+        let id = id.clone();
+        let cb = on_change.clone();
+        b.connect_toggled(move |b| {
+            if b.is_active() {
+                cb(id.clone());
+            }
+        });
+        bx.append(&b);
+    }
+    bx
+}
+
+/// Set a widget's background to a colour (for swatches and previews).
+pub fn paint(widget: &impl IsA<gtk::Widget>, css_colour: &str) {
+    let provider = gtk::CssProvider::new();
+    provider.load_from_string(&format!("* {{ background: {css_colour}; }}"));
+    #[allow(deprecated)]
+    widget.style_context().add_provider(&provider, gtk::STYLE_PROVIDER_PRIORITY_USER);
+}
+
+pub const PRESET_COLOURS: &[(&str, &str)] = &[
+    ("#ffffff", "White"),
+    ("#ff3b30", "Red"),
+    ("#ff8c1a", "Orange"),
+    ("#ffd60a", "Yellow"),
+    ("#34c759", "Green"),
+    ("#32d7e6", "Cyan"),
+    ("#0a84ff", "Blue"),
+    ("#8e5cf7", "Purple"),
+    ("#ff4fa3", "Pink"),
+];
+
+/// Inline colour picker: optional "Theme" swatch, presets, a custom picker and a hex field.
+/// `theme` is (label, colour) for the theme swatch.
+pub struct ColourPicker {
+    pub widget: gtk::Box,
+    set: Rc<dyn Fn(&str)>,
+}
+
+impl ColourPicker {
+    /// Change the shown colour without calling back.
+    pub fn show(&self, hex: &str) {
+        (self.set)(hex);
+    }
+}
+
+pub fn colour_picker(current: &str, theme: Option<(&str, &str)>, on_change: impl Fn(String) + 'static) -> ColourPicker {
+    let outer = hbox(6);
+    outer.add_css_class("swatches");
+    let swatches: Rc<RefCell<Vec<(String, gtk::Button)>>> = Rc::default();
+    let entry = gtk::Entry::new();
+    entry.add_css_class("mono");
+    entry.set_width_chars(8);
+    entry.set_max_length(7);
+    let guard = Rc::new(Cell::new(false));
+    let on_change: Rc<dyn Fn(String)> = Rc::new(on_change);
+
+    let mark: Rc<dyn Fn(&str)> = {
+        let swatches = swatches.clone();
+        let entry = entry.clone();
+        let guard = guard.clone();
+        Rc::new(move |hex: &str| {
+            let hex = hex.to_lowercase();
+            for (c, b) in swatches.borrow().iter() {
+                if *c == hex {
+                    b.add_css_class("selected");
+                } else {
+                    b.remove_css_class("selected");
+                }
+            }
+            guard.set(true);
+            entry.set_text(&hex);
+            guard.set(false);
+        })
+    };
+
+    let pick: Rc<dyn Fn(String)> = {
+        let mark = mark.clone();
+        let on_change = on_change.clone();
+        Rc::new(move |hex: String| {
+            mark(&hex);
+            on_change(hex);
+        })
+    };
+
+    let add_swatch = |hex: &str, tip: &str, extra_class: Option<&str>| {
+        let b = gtk::Button::new();
+        b.add_css_class("swatch-button");
+        if let Some(c) = extra_class {
+            b.add_css_class(c);
+        }
+        b.set_tooltip_text(Some(tip));
+        let dot = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        dot.add_css_class("swatch-dot");
+        paint(&dot, hex);
+        b.set_child(Some(&dot));
+        let h = hex.to_lowercase();
+        let pick = pick.clone();
+        let h2 = h.clone();
+        b.connect_clicked(move |_| pick(h2.clone()));
+        outer.append(&b);
+        swatches.borrow_mut().push((h, b));
+    };
+    if let Some((label, hex)) = theme {
+        add_swatch(hex, &format!("{label} ({hex})"), Some("theme-swatch"));
+    }
+    for (hex, name) in PRESET_COLOURS {
+        add_swatch(hex, name, None);
+    }
+
+    // Custom: the full picker.
+    let custom = gtk::Button::from_icon_name("color-select-symbolic");
+    custom.add_css_class("swatch-button");
+    custom.set_tooltip_text(Some("Custom colour…"));
+    {
+        let pick = pick.clone();
+        let entry = entry.clone();
+        custom.connect_clicked(move |b| {
+            let dialog = gtk::ColorDialog::new();
+            dialog.set_with_alpha(false);
+            let start = gtk::gdk::RGBA::parse(entry.text().as_str()).unwrap_or(gtk::gdk::RGBA::WHITE);
+            let window = b.root().and_downcast::<gtk::Window>();
+            let pick = pick.clone();
+            dialog.choose_rgba(window.as_ref(), Some(&start), gtk::gio::Cancellable::NONE, move |r| {
+                if let Ok(c) = r {
+                    pick(format!(
+                        "#{:02x}{:02x}{:02x}",
+                        (c.red() * 255.0).round() as u8,
+                        (c.green() * 255.0).round() as u8,
+                        (c.blue() * 255.0).round() as u8
+                    ));
+                }
+            });
+        });
+    }
+    outer.append(&custom);
+
+    {
+        let pick = pick.clone();
+        let guard = guard.clone();
+        let apply = move |e: &gtk::Entry| {
+            if guard.get() {
+                return;
+            }
+            let t = e.text().trim().to_lowercase();
+            let t = if t.starts_with('#') { t } else { format!("#{t}") };
+            if t.len() == 7 && t[1..].chars().all(|c| c.is_ascii_hexdigit()) {
+                pick(t);
+            } else {
+                e.add_css_class("error");
+            }
+        };
+        let a2 = apply.clone();
+        entry.connect_activate(move |e| a2(e));
+        let focus = gtk::EventControllerFocus::new();
+        let e2 = entry.clone();
+        focus.connect_leave(move |_| apply(&e2));
+        entry.add_controller(focus);
+        entry.connect_changed(|e| e.remove_css_class("error"));
+    }
+    outer.append(&entry);
+    mark(current);
+    ColourPicker { widget: outer, set: mark }
+}
+
+/// A row that reveals more rows when clicked (collapsed by default).
+pub fn disclosure(title: &str, desc: &str) -> (gtk::Box, gtk::Box) {
+    let content = vbox(6);
+    content.set_visible(false);
+    let arrow = gtk::Image::from_icon_name("pan-end-symbolic");
+    let button = gtk::Button::new();
+    button.add_css_class("flat");
+    button.add_css_class("disclosure");
+    let inner = hbox(10);
+    inner.append(&arrow);
+    let text = vbox(2);
+    text.set_hexpand(true);
+    let t = label(title, "settings-option-title");
+    text.append(&t);
+    if !desc.is_empty() {
+        let d = label(desc, "settings-option-description");
+        d.set_wrap(true);
+        text.append(&d);
+    }
+    inner.append(&text);
+    button.set_child(Some(&inner));
+    let c = content.clone();
+    button.connect_clicked(move |_| {
+        let open = !c.is_visible();
+        c.set_visible(open);
+        arrow.set_icon_name(Some(if open { "pan-down-symbolic" } else { "pan-end-symbolic" }));
+    });
+    let wrapper = vbox(6);
+    wrapper.append(&button);
+    wrapper.append(&content);
+    register(&button, title, desc, "");
+    (wrapper, content)
+}
+
+/// A small pill label, e.g. "Restart needed".
+pub fn tag(text: &str) -> gtk::Label {
+    let l = gtk::Label::new(Some(text));
+    l.add_css_class("tag");
+    l.set_valign(gtk::Align::Center);
+    l
+}
+
+/// Put a tag right after a row's title.
+pub fn tag_row(row: &gtk::Box, text: &str) {
+    if let Some(title) = row.first_child().and_then(|t| t.first_child())
+        && let (Some(parent), Some(t)) = (title.parent().and_downcast::<gtk::Box>(), title.downcast_ref::<gtk::Label>())
+    {
+        let line = hbox(8);
+        parent.insert_child_after(&line, Some(t));
+        parent.remove(t);
+        line.append(t);
+        line.append(&tag(text));
+    }
 }

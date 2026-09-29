@@ -1,5 +1,7 @@
+pub mod appearance;
 pub mod asus;
 pub mod audio;
+pub mod chroma;
 pub mod cleanup;
 pub mod gestures;
 pub mod hypr;
@@ -8,3 +10,4 @@ pub mod lua;
 pub mod shell;
 pub mod state;
 pub mod store;
+pub mod themehook;

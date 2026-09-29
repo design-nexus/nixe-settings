@@ -16,6 +16,10 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   Devices and System, and <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
   every page.
 - **Open config** on every page opens the underlying file in your default editor.
+- **Apps follow the theme**: GTK, libadwaita, Qt and KDE windows and dialogs
+  take the Omarchy theme's colours (through
+  [hyprchroma](https://github.com/NobleDoodle/hyprchroma), if installed), plus
+  the interface font and an icon theme that stays put when you change themes.
 - **Units**: show temperatures in °C or °F (Theme → This window).
 - **Themes**: Dracula, Catppuccin (Mocha, Macchiato, Frappé, Latte), Tokyo Night
   (Night, Storm, Moon), One Dark Pro, Nord, Gruvbox, Rosé Pine, Everforest,
@@ -136,6 +140,11 @@ Settings never parses or rewrites your own config files:
   (`~/.config/pipewire/settings-eq.conf`, the `settings-eq` user service). Its
   sink feeds your speakers, and Omarchy's volume keys still control real
   loudness.
+- **App theming**: Settings drives hyprchroma's own commands and never edits
+  GTK or KDE files itself. The interface font and icon theme are the usual GNOME
+  settings (`gsettings`). If you pick your own icons, a theme-set hook,
+  `~/.config/omarchy/hooks/theme-set.d/50-settings-theme`, puts them back after
+  each theme change. It also restores your ASUS keyboard lighting.
 - **Omarchy features** (themes, fonts, the bar, idle, night light, default apps,
   plugins) are changed through Omarchy's own commands and config.
 
@@ -180,6 +189,10 @@ light = false
 ```sh
 curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/uninstall.sh | bash
 ```
+
+This removes the app, the keyboard backlight timeout service, and the theme-set
+hook. These all run the app, so they can't stay behind without it. Your
+settings are kept, so reinstalling brings the timeout back.
 
 Add `-s -- --purge` to also remove everything Settings configured: its
 Hyprland file and the line that loads it, the equalizer service, and its saved

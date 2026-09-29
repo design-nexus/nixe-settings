@@ -413,7 +413,7 @@ pub fn apply_aura(c: &AuraChoice) -> Result<()> {
     Ok(())
 }
 
-/// `settings --aura-sync`, run from the theme-set hook.
+/// Re-apply the saved lighting; part of `settings --theme-sync`.
 pub fn sync_after_theme() -> Result<()> {
     if !installed() || !has_aura() {
         return Ok(());
@@ -426,35 +426,6 @@ pub fn sync_after_theme() -> Result<()> {
         c.mode = "static".into();
     }
     apply_aura(&c)
-}
-
-pub fn hook_file() -> std::path::PathBuf {
-    crate::paths::omarchy_config().join("hooks/theme-set.d/50-settings-aura")
-}
-
-pub fn hook_script(self_cmd: &str) -> String {
-    format!(
-        "#!/bin/bash\n# Installed by Settings: re-apply the keyboard lighting you chose after Omarchy\n\
-         # resets it for a new theme. Settings puts it back when it starts; to stop it,\n\
-         # uninstall Settings (or remove ~/.config/settings/aura.toml to just follow the theme).\n\
-         exec {self_cmd} --aura-sync\n"
-    )
-}
-
-/// Install (or refresh) the theme-set hook. Only on machines with Aura lighting.
-pub fn ensure_hook() {
-    if !installed() || !has_aura() {
-        return;
-    }
-    let want = hook_script(&crate::backend::hypr::self_command());
-    let path = hook_file();
-    if std::fs::read_to_string(&path).is_ok_and(|t| t == want) {
-        return;
-    }
-    if cmd::atomic_write(&path, &want).is_ok() {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
-    }
 }
 
 // ----- Slash -----
@@ -797,13 +768,6 @@ Supported Aura Power Zones:
             ["aura", "power", "keyboard", "--boot", "--awake", "--shutdown"]
         );
         assert_eq!(power_args("logo", [false; 4]), ["aura", "power", "logo"]);
-    }
-
-    #[test]
-    fn hook_calls_sync() {
-        let h = hook_script("/home/u/.local/bin/settings");
-        assert!(h.starts_with("#!/bin/bash\n"));
-        assert!(h.ends_with("exec /home/u/.local/bin/settings --aura-sync\n"));
     }
 
     #[test]

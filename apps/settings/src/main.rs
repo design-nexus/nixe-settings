@@ -22,7 +22,7 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --volume STEP  change the output volume, allowing past 100% up to the maximum set in Sound\n\
   --eq ACTION    turn the preamp/equalizer on or off, or print whether it's running\n\
   --kbd-timeout S  turn the keyboard backlight off after S idle seconds (off to disable)\n\
-  --aura-sync    (internal) re-apply the saved keyboard lighting; run by the theme-set hook\n\
+  --theme-sync   (internal) re-apply the icon theme and keyboard lighting you chose; run by the theme-set hook\n\
   --kbd-idle     (internal) turn the keyboard backlight off when idle; run by the settings-kbd-idle service\n\
   --apply        rewrite ~/.config/hypr/settings.lua from saved state and exit\n";
 
@@ -59,8 +59,9 @@ fn main() -> glib::ExitCode {
             }
         };
     }
-    if args.iter().any(|a| a == "--aura-sync") {
-        return match backend::asus::sync_after_theme() {
+    // --aura-sync is the name older hooks used.
+    if args.iter().any(|a| a == "--theme-sync" || a == "--aura-sync") {
+        return match backend::themehook::sync() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("settings: {e:#}");

@@ -1,0 +1,597 @@
+/* Settings — styled after Strata's settings dialog. Every colour comes from the
+ * @theme_* tokens defined by the active palette (see theme.rs). */
+
+window.settings-window {
+  background: @theme_bg;
+  color: @theme_text;
+}
+
+window.settings-window,
+window.settings-window popover,
+window.settings-window dialog {
+  font-size: 1.0em;
+}
+
+.mono,
+.value-readout {
+  font-family: "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
+  font-feature-settings: "tnum";
+}
+
+/* ---------- Sidebar ---------- */
+
+.settings-navigation {
+  background: @theme_surface;
+  min-width: 240px;
+  padding: 20px 15px 14px;
+  border-right: 1px solid alpha(@theme_border, 0.55);
+}
+
+.settings-navigation.compact {
+  min-width: 64px;
+  padding: 16px 8px;
+}
+
+.settings-navigation .menu-heading {
+  margin: 2px 10px 14px;
+  font-size: 0.875em;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: @theme_dim_text;
+}
+
+.settings-navigation .nav-group {
+  margin: 16px 10px 6px;
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: alpha(@theme_dim_text, 0.85);
+}
+
+.settings-navigation button.nav-item {
+  min-height: 38px;
+  padding: 0 12px;
+  margin: 1px 0;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: alpha(@theme_text, 0.78);
+  transition: background 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.settings-navigation button.nav-item image {
+  color: @theme_dim_text;
+}
+
+.settings-navigation button.nav-item:hover {
+  background: alpha(@theme_highlight, 0.55);
+  color: @theme_text;
+}
+
+.settings-navigation button.nav-item.active {
+  background: alpha(@theme_accent, 0.16);
+  color: @theme_text;
+  box-shadow: inset 0 0 0 1px alpha(@theme_accent, 0.42);
+}
+
+.settings-navigation button.nav-item.active image {
+  color: @theme_accent;
+}
+
+.settings-navigation button.nav-item .nav-label {
+  font-weight: 600;
+}
+
+.settings-navigation .nav-footer {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid alpha(@theme_border, 0.45);
+}
+
+/* ---------- Search ---------- */
+
+entry.settings-search,
+searchbar entry,
+entry.settings-search > text {
+  min-height: 34px;
+}
+
+entry.settings-search {
+  margin: 0 0 6px;
+  padding: 0 10px;
+  border-radius: 7px;
+  background: alpha(@theme_bg, 0.7);
+  border: 1px solid alpha(@theme_border, 0.7);
+  box-shadow: none;
+  color: @theme_text;
+  outline: none;
+}
+
+entry.settings-search:focus-within {
+  border-color: alpha(@theme_accent, 0.8);
+  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.38);
+}
+
+entry.settings-search image {
+  color: @theme_dim_text;
+}
+
+/* ---------- Content ---------- */
+
+.settings-content {
+  background: @theme_bg;
+}
+
+.settings-page {
+  padding: 30px 36px 48px;
+}
+
+.settings-page.narrow {
+  padding: 22px 18px 40px;
+}
+
+.section-header {
+  margin-bottom: 8px;
+}
+
+.section-title {
+  font-size: 1.62em;
+  font-weight: 800;
+  color: @theme_text;
+}
+
+.section-description {
+  margin-top: 2px;
+  color: @theme_dim_text;
+}
+
+.group-title {
+  margin: 24px 2px 8px;
+  font-size: 0.76em;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  color: @theme_dim_text;
+}
+
+.group-note {
+  margin: -2px 2px 10px;
+  font-size: 0.88em;
+  color: @theme_dim_text;
+}
+
+.settings-group {
+  /* the rows provide the chrome */
+}
+
+.settings-option {
+  background: mix(@theme_bg, @theme_muted, 0.25);
+  border: 1px solid alpha(@theme_border, 0.55);
+  border-radius: 6px;
+  min-height: 60px;
+  padding: 10px 14px;
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out, background 150ms ease-out;
+}
+
+.settings-option:hover {
+  border-color: alpha(@theme_border, 0.95);
+}
+
+.settings-option.search-hit {
+  border-color: alpha(@theme_accent, 0.72);
+  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.38), 0 0 14px alpha(@theme_glow, 0.24);
+}
+
+.settings-option.tall {
+  padding: 14px 16px;
+}
+
+.settings-option-title {
+  color: @theme_text;
+  font-weight: 700;
+}
+
+.settings-option-description {
+  color: @theme_dim_text;
+  font-size: 0.88em;
+}
+
+.settings-option-description link {
+  color: @theme_accent;
+}
+
+.settings-option .managed-dot {
+  min-width: 6px;
+  min-height: 6px;
+  border-radius: 999px;
+  background: @theme_accent;
+  margin-right: 2px;
+}
+
+.value-readout {
+  color: @theme_text;
+  min-width: 64px;
+}
+
+.dim {
+  color: @theme_dim_text;
+}
+
+.danger-text {
+  color: @theme_danger;
+}
+
+.accent-text {
+  color: @theme_accent;
+}
+
+/* ---------- Buttons ---------- */
+
+window.settings-window button {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: alpha(@theme_muted, 0.32);
+  border: 1px solid alpha(@theme_border, 0.8);
+  box-shadow: none;
+  color: @theme_text;
+  transition: background 150ms ease-out, border-color 150ms ease-out;
+}
+
+window.settings-window button:hover {
+  background: alpha(@theme_muted, 0.55);
+  border-color: alpha(@theme_accent, 0.55);
+}
+
+window.settings-window button:active {
+  background: alpha(@theme_accent, 0.22);
+}
+
+window.settings-window button:disabled {
+  opacity: 0.45;
+}
+
+window.settings-window button.suggested-action {
+  background: @theme_accent;
+  border-color: @theme_accent;
+  color: @theme_on_accent;
+  font-weight: 700;
+}
+
+window.settings-window button.suggested-action:hover {
+  background: mix(@theme_accent, @theme_text, 0.12);
+}
+
+window.settings-window button.destructive-action {
+  background: alpha(@theme_danger, 0.12);
+  border-color: alpha(@theme_danger, 0.55);
+  color: @theme_danger;
+}
+
+window.settings-window button.flat {
+  background: transparent;
+  border-color: transparent;
+}
+
+window.settings-window button.flat:hover {
+  background: alpha(@theme_highlight, 0.55);
+}
+
+window.settings-window button.reset-button {
+  min-height: 26px;
+  min-width: 26px;
+  padding: 0;
+  border-radius: 999px;
+  color: @theme_dim_text;
+}
+
+window.settings-window button.open-config {
+  min-height: 34px;
+  padding: 0 14px;
+  font-weight: 600;
+}
+
+window.settings-window button.open-config image {
+  color: @theme_accent;
+}
+
+window.settings-window button.chip {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.9em;
+}
+
+window.settings-window button.chip.selected {
+  background: alpha(@theme_accent, 0.2);
+  border-color: alpha(@theme_accent, 0.8);
+  color: @theme_text;
+}
+
+/* ---------- Inputs ---------- */
+
+window.settings-window entry,
+window.settings-window spinbutton {
+  min-height: 32px;
+  border-radius: 5px;
+  background: alpha(@theme_bg, 0.65);
+  border: 1px solid alpha(@theme_border, 0.8);
+  box-shadow: none;
+  color: @theme_text;
+}
+
+window.settings-window entry:focus-within,
+window.settings-window spinbutton:focus-within {
+  border-color: @theme_accent;
+  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.38);
+}
+
+window.settings-window dropdown > button {
+  min-width: 160px;
+}
+
+window.settings-window popover > contents {
+  background: @theme_surface;
+  border: 1px solid alpha(@theme_border, 0.7);
+  border-radius: 9px;
+  box-shadow: 0 4px 16px alpha(@theme_shadow, 0.5);
+  color: @theme_text;
+  padding: 4px;
+}
+
+window.settings-window popover listview > row,
+window.settings-window popover list > row {
+  border-radius: 5px;
+  padding: 6px 10px;
+  color: @theme_text;
+}
+
+window.settings-window popover listview > row:hover,
+window.settings-window popover list > row:hover,
+window.settings-window popover listview > row:selected {
+  background: alpha(@theme_accent, 0.18);
+}
+
+window.settings-window switch {
+  min-width: 40px;
+  min-height: 22px;
+  border-radius: 999px;
+  background: alpha(@theme_muted, 0.85);
+  border: 1px solid alpha(@theme_border, 0.9);
+  box-shadow: none;
+}
+
+window.settings-window switch:checked {
+  background: @theme_accent;
+  border-color: @theme_accent;
+}
+
+window.settings-window switch > slider {
+  min-width: 18px;
+  min-height: 18px;
+  margin: 1px;
+  border-radius: 999px;
+  background: @theme_text;
+  border: none;
+  box-shadow: 0 1px 3px alpha(@theme_shadow, 0.5);
+}
+
+window.settings-window switch:checked > slider {
+  background: @theme_on_accent;
+}
+
+window.settings-window scale {
+  padding: 8px 4px;
+}
+
+window.settings-window scale > trough {
+  min-height: 4px;
+  min-width: 4px;
+  border-radius: 999px;
+  background: alpha(@theme_muted, 0.8);
+  border: none;
+}
+
+window.settings-window scale > trough > highlight {
+  border-radius: 999px;
+  background: @theme_accent;
+}
+
+window.settings-window scale > trough > slider,
+window.settings-window scale.marks-before > trough > slider,
+window.settings-window scale.marks-after > trough > slider {
+  -gtk-icon-source: none;
+  background-image: none;
+  min-width: 16px;
+  min-height: 16px;
+  margin: -7px;
+  border-radius: 999px;
+  background: @theme_text;
+  border: 2px solid @theme_accent;
+  box-shadow: 0 0 10px alpha(@theme_glow, 0.35);
+}
+
+window.settings-window scale:disabled {
+  opacity: 0.5;
+}
+
+window.settings-window scale marks {
+  color: alpha(@theme_dim_text, 0.7);
+}
+
+window.settings-window scrollbar {
+  background: transparent;
+}
+
+window.settings-window scrollbar slider {
+  min-width: 6px;
+  border-radius: 999px;
+  background: alpha(@theme_muted, 0.9);
+}
+
+/* ---------- Equalizer ---------- */
+
+.eq-panel {
+  background: mix(@theme_bg, @theme_surface, 0.5);
+  border: 1px solid alpha(@theme_border, 0.55);
+  border-radius: 9px;
+  padding: 18px 18px 12px;
+}
+
+.eq-panel.bypassed .fader-scale {
+  opacity: 0.45;
+}
+
+.fader {
+  min-width: 30px;
+}
+
+.fader-scale {
+  min-height: 190px;
+}
+
+window.settings-window .fader-scale > trough {
+  min-width: 6px;
+  background: alpha(@theme_muted, 0.65);
+}
+
+window.settings-window .fader-scale > trough > slider,
+window.settings-window .fader-scale.marks-after > trough > slider {
+  -gtk-icon-source: none;
+  min-width: 26px;
+  min-height: 12px;
+  margin: -6px -10px;
+  border-radius: 4px;
+  background: @theme_text;
+  border: none;
+  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.72), 0 0 10px alpha(@theme_glow, 0.4);
+}
+
+.fader.preamp .fader-scale {
+  min-height: 190px;
+}
+
+window.settings-window .fader.preamp .fader-scale > trough > highlight {
+  background: linear-gradient(to top, @theme_accent, mix(@theme_accent, @theme_danger, 0.6));
+}
+
+.fader-label {
+  font-size: 0.78em;
+  font-weight: 700;
+  color: @theme_dim_text;
+}
+
+.fader-value {
+  font-size: 0.82em;
+}
+
+.eq-divider {
+  min-width: 1px;
+  margin: 6px 10px;
+  background: alpha(@theme_border, 0.7);
+}
+
+.headroom-ok { color: @theme_accent; }
+.headroom-warn { color: mix(@theme_accent, @theme_danger, 0.5); }
+.headroom-hot { color: @theme_danger; }
+
+/* ---------- Cards (themes, gestures) ---------- */
+
+.theme-card {
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid alpha(@theme_border, 0.6);
+  background: mix(@theme_bg, @theme_muted, 0.2);
+}
+
+.theme-card:hover {
+  border-color: alpha(@theme_accent, 0.6);
+}
+
+.theme-card.selected {
+  border-color: @theme_accent;
+  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.72), 0 0 14px alpha(@theme_glow, 0.24);
+}
+
+.theme-card picture {
+  border-radius: 7px 7px 0 0;
+}
+
+.theme-card .theme-card-name {
+  padding: 8px 10px;
+  font-weight: 600;
+}
+
+.swatch {
+  min-width: 16px;
+  min-height: 16px;
+  border-radius: 4px;
+  border: 1px solid alpha(@theme_shadow, 0.4);
+}
+
+.gesture-grid {
+  background: mix(@theme_bg, @theme_muted, 0.25);
+  border: 1px solid alpha(@theme_border, 0.55);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.gesture-grid .direction {
+  font-weight: 700;
+  color: @theme_dim_text;
+}
+
+/* ---------- Banners and dialogs ---------- */
+
+.banner {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: alpha(@theme_accent, 0.12);
+  border: 1px solid alpha(@theme_accent, 0.45);
+  margin-bottom: 14px;
+}
+
+.banner.warning {
+  background: alpha(@theme_danger, 0.1);
+  border-color: alpha(@theme_danger, 0.45);
+}
+
+.toast {
+  margin: 18px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: @theme_surface;
+  border: 1px solid alpha(@theme_border, 0.8);
+  box-shadow: 0 4px 16px alpha(@theme_shadow, 0.5), 0 0 14px alpha(@theme_glow, 0.14);
+}
+
+.dialog-card {
+  background: @theme_bg;
+  border: 1px solid alpha(@theme_border, 0.65);
+  border-radius: 14px;
+  box-shadow: 0 0 28px alpha(@theme_glow, 0.08);
+  padding: 24px;
+}
+
+.code-block {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.86em;
+  background: alpha(@theme_shadow, 0.35);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: @theme_text;
+}
+
+textview.code-block > text {
+  background: transparent;
+  color: @theme_text;
+}
+
+.key-cap {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: alpha(@theme_muted, 0.55);
+  border: 1px solid alpha(@theme_border, 0.9);
+}

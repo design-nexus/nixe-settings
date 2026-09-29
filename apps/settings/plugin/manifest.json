@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "design-nexus.settings-gear",
+  "name": "Settings button",
+  "version": "1.0.0",
+  "author": "Ken",
+  "license": "MIT",
+  "description": "A gear in the bar that opens the Settings app.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Settings",
+    "description": "Opens Settings. Right-click for Sound.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

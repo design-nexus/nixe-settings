@@ -51,6 +51,8 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     if let Some(ui) = ui() {
         ui.borrow().window.present();
     }
+    // Bring the keyboard backlight timeout helper back if it isn't running.
+    crate::cmd::background(crate::backend::kbdidle::ensure_running, |_| {});
     crate::sections::system::maybe_offer_cleanup();
 }
 

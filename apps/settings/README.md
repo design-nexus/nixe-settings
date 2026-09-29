@@ -59,6 +59,8 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 | ![Trackpad](docs/trackpad.png) | ![Theme](docs/theme.png) |
 | **Look & Feel** | **Keybindings** |
 | ![Look & Feel](docs/look.png) | ![Keybindings](docs/keybindings.png) |
+| **Aura Lighting** (ASUS) | **ASUS** performance, fans and firmware |
+| ![Aura Lighting](docs/aura.png) | ![ASUS](docs/asus.png) |
 
 ## Install
 

@@ -122,7 +122,7 @@ pub fn generate_unit(self_cmd: &str) -> String {
          Type=simple\n\
          ExecStart={self_cmd} --kbd-idle\n\
          ExecStopPost={self_cmd} --kbd-idle-restore\n\
-         Restart=on-failure\n\
+         Restart=always\n\
          RestartSec=3\n\
          TimeoutStopSec=10\n\
          \n\
@@ -147,6 +147,29 @@ pub fn apply(cfg: &Config) -> Result<()> {
     cmd::run(&["systemctl", "--user", "enable", UNIT])?;
     cmd::run(&["systemctl", "--user", "restart", UNIT])?;
     Ok(())
+}
+
+pub fn running() -> bool {
+    cmd::output(&["systemctl", "--user", "is-active", UNIT]).is_some_and(|s| s.trim() == "active")
+}
+
+/// Keep the service in step with the saved timeout: rewrite a stale unit (an
+/// older version, or a moved binary) and start the helper if it isn't running.
+/// Does nothing when no timeout is set.
+pub fn ensure_running() {
+    if load().timeout_secs == 0 || !available() {
+        return;
+    }
+    let want = generate_unit(&super::hypr::self_command());
+    let stale = std::fs::read_to_string(unit_file()).map_or(true, |t| t != want);
+    if stale {
+        let _ = cmd::atomic_write(&unit_file(), &want);
+        let _ = cmd::run(&["systemctl", "--user", "daemon-reload"]);
+        let _ = cmd::run(&["systemctl", "--user", "enable", UNIT]);
+    }
+    if stale || !running() {
+        let _ = cmd::run(&["systemctl", "--user", "restart", UNIT]);
+    }
 }
 
 // ----- The helper itself -----
@@ -247,6 +270,7 @@ mod tests {
         assert!(u.contains("ExecStopPost=/home/u/.local/bin/settings --kbd-idle-restore\n"));
         assert!(u.contains("WantedBy=graphical-session.target"));
         assert!(u.contains("TimeoutStopSec=10"));
+        assert!(u.contains("Restart=always"));
     }
 
     #[test]

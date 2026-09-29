@@ -1,5 +1,5 @@
 use crate::backend::audio::{self, Eq};
-use crate::backend::store;
+use crate::backend::{store, streams};
 use crate::widgets::{self, Page};
 use crate::{cmd, window};
 use gtk::glib;
@@ -571,10 +571,11 @@ pub fn build(page: &Page) {
     });
     g.add(&r);
 
+    apps_group(page);
+
     // ----- More -----
     let g = page.group("More");
     let buttons = widgets::hbox(8);
-    buttons.append(&widgets::command_button("Audio panel", &["omarchy-shell", "shell", "toggle", "omarchy.audio"]));
     let restart = gtk::Button::with_label("Restart audio");
     restart.connect_clicked(|b| {
         b.set_sensitive(false);
@@ -594,4 +595,89 @@ pub fn build(page: &Page) {
         "Restart PipeWire if sound stops or a device goes missing.",
         Some(buttons.upcast_ref()),
     ));
+}
+
+// ----- Apps -----
+
+fn app_row(s: &streams::Stream, outputs: &[(String, String)]) -> gtk::Box {
+    let index = s.index;
+    let (slider, sl) = widgets::slider(0.0, 150.0, 1.0, s.volume as f64, 0, "%");
+    sl.scale.set_hexpand(true);
+    slider.set_hexpand(true);
+    sl.scale.connect_value_changed(move |sc| streams::set_volume(index, sc.value().round() as u32));
+    let r = widgets::hbox(10);
+    r.append(&slider);
+    if outputs.len() > 1 {
+        let dd = widgets::dropdown(outputs, &s.sink);
+        dd.set_valign(gtk::Align::Center);
+        dd.set_tooltip_text(Some("Plays through"));
+        let outputs = outputs.to_vec();
+        dd.connect_selected_notify(move |d| {
+            let Some((name, _)) = outputs.get(d.selected() as usize).cloned() else { return };
+            cmd::background(move || streams::move_to(index, &name), |r| {
+                if let Err(e) = r {
+                    window::toast(&format!("Couldn't move the app: {e}"));
+                }
+            });
+        });
+        r.append(&dd);
+    }
+    let mute = gtk::ToggleButton::new();
+    let icon = |m: bool| if m { "audio-volume-muted-symbolic" } else { "audio-volume-high-symbolic" };
+    mute.set_icon_name(icon(s.muted));
+    mute.set_active(s.muted);
+    mute.set_tooltip_text(Some("Mute"));
+    mute.set_valign(gtk::Align::Center);
+    mute.connect_toggled(move |b| {
+        streams::set_mute(index, b.is_active());
+        b.set_icon_name(icon(b.is_active()));
+    });
+    r.append(&mute);
+    widgets::stacked_row(&s.app, &glib::markup_escape_text(&s.media), r.upcast_ref())
+}
+
+/// Volume, mute and output for each app playing sound. Rows are rebuilt only
+/// when apps start or stop, so a slider being dragged is never replaced.
+fn apps_group(page: &Page) {
+    let g = page.group("Apps");
+    g.note("Apps playing sound right now.");
+    widgets::keywords("per app application volume mixer stream mute firefox spotify");
+    let list = widgets::vbox(6);
+    g.add(&list);
+    let shown: Rc<RefCell<Vec<u32>>> = Rc::new(RefCell::new(vec![u32::MAX]));
+    let refresh = {
+        let (list, shown) = (list.clone(), shown.clone());
+        move || {
+            let now = streams::list();
+            let ids: Vec<u32> = now.iter().map(|s| s.index).collect();
+            if *shown.borrow() == ids {
+                return;
+            }
+            *shown.borrow_mut() = ids;
+            while let Some(c) = list.first_child() {
+                list.remove(&c);
+            }
+            if now.is_empty() {
+                list.append(&widgets::row("Nothing playing", "Apps show up here while they play sound.", None));
+                return;
+            }
+            let mut outputs: Vec<(String, String)> =
+                audio::hardware_sinks().into_iter().map(|s| (s.name, s.description)).collect();
+            if audio::running() {
+                outputs.insert(0, (audio::SINK.to_string(), "Equalizer".to_string()));
+            }
+            for s in &now {
+                list.append(&app_row(s, &outputs));
+            }
+        }
+    };
+    refresh();
+    let weak = list.downgrade();
+    glib::timeout_add_seconds_local(2, move || {
+        let Some(l) = weak.upgrade() else { return glib::ControlFlow::Break };
+        if l.is_mapped() {
+            refresh();
+        }
+        glib::ControlFlow::Continue
+    });
 }

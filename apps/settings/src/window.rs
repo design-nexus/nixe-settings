@@ -447,7 +447,8 @@ fn snapshot_and_quit(app: &gtk::Application, out: std::path::PathBuf) {
     );
     window.present();
     let app = app.clone();
-    glib::timeout_add_local_once(std::time::Duration::from_millis(1800), move || {
+    let wait = std::env::var("SETTINGS_SNAPSHOT_WAIT").ok().and_then(|v| v.parse().ok()).unwrap_or(1800);
+    glib::timeout_add_local_once(std::time::Duration::from_millis(wait), move || {
         // SETTINGS_SNAPSHOT_PAGE=1 renders the whole current page, not just what fits.
         let target = if std::env::var_os("SETTINGS_SNAPSHOT_PAGE").is_some() {
             UI.with(|cell| cell.borrow().clone()).and_then(|u| {

@@ -409,6 +409,30 @@ pub fn command_button(label: &str, args: &'static [&'static str]) -> gtk::Button
     b
 }
 
+/// A button that needs a second click within a few seconds, for things that
+/// can't be undone (restart, shut down, removing something).
+pub fn confirm_button(label: &str, confirm: &str, on_confirm: impl Fn(&gtk::Button) + 'static) -> gtk::Button {
+    let b = gtk::Button::with_label(label);
+    let (label, confirm) = (label.to_string(), confirm.to_string());
+    b.connect_clicked(move |b| {
+        if !b.has_css_class("armed") {
+            b.add_css_class("armed");
+            b.set_label(&confirm);
+            let (weak, label) = (b.downgrade(), label.clone());
+            glib::timeout_add_seconds_local_once(4, move || {
+                if let Some(b) = weak.upgrade() {
+                    b.remove_css_class("armed");
+                    b.set_label(&label);
+                }
+            });
+            return;
+        }
+        b.remove_css_class("armed");
+        on_confirm(b);
+    });
+    b
+}
+
 pub fn hbox(spacing: i32) -> gtk::Box {
     gtk::Box::new(gtk::Orientation::Horizontal, spacing)
 }

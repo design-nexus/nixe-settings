@@ -66,11 +66,32 @@ fn read_brightness(led: &str) -> Option<u32> {
     std::fs::read_to_string(format!("/sys/class/leds/{led}/brightness")).ok()?.trim().parse().ok()
 }
 
-fn set_brightness(led: &str, value: u32) {
+fn brightnessctl(args: &[&str]) {
     let _ = std::process::Command::new("brightnessctl")
-        .args(["-q", "-d", led, "set", &value.to_string()])
+        .args(args)
         .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
         .status();
+}
+
+fn set_brightness(led: &str, value: u32) {
+    brightnessctl(&["-q", "-d", led, "set", &value.to_string()]);
+}
+
+// Omarchy's lock screen turns the backlight off with `brightnessctl -s … set 0`
+// and its wake step puts back whatever `brightnessctl -s` last saved. If the
+// lock blanks while this helper has the light off, that saved level is 0, and
+// waking would switch the light off again right after this turned it back on.
+// So both directions keep brightnessctl's saved level at the real one.
+
+/// Turn a light off, saving its level for brightnessctl's restore.
+fn switch_off(led: &str) {
+    brightnessctl(&["-q", "-s", "-d", led, "set", "0"]);
+}
+
+/// Save the light's current level for brightnessctl's restore.
+fn save_level(led: &str) {
+    brightnessctl(&["-q", "-s", "-d", led, "get"]);
 }
 
 fn saved_file() -> PathBuf {
@@ -85,7 +106,7 @@ fn dim() {
     for led in leds() {
         if let Some(v) = read_brightness(&led).filter(|v| *v > 0) {
             saved.push((led.clone(), v));
-            set_brightness(&led, 0);
+            switch_off(&led);
         }
     }
     if !saved.is_empty()
@@ -104,6 +125,9 @@ pub fn restore() -> Result<()> {
         // Don't fight a brightness the user has already set since.
         if read_brightness(&led) == Some(0) {
             set_brightness(&led, value);
+        }
+        if read_brightness(&led).is_some_and(|v| v > 0) {
+            save_level(&led);
         }
     }
     let _ = std::fs::remove_file(path);

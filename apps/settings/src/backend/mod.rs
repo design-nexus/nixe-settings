@@ -1,13 +1,17 @@
 pub mod appearance;
 pub mod asus;
 pub mod audio;
+pub mod bt;
 pub mod chroma;
 pub mod cleanup;
 pub mod gestures;
 pub mod hypr;
 pub mod kbdidle;
 pub mod lua;
+pub mod net;
+pub mod notify;
 pub mod shell;
 pub mod state;
 pub mod store;
+pub mod streams;
 pub mod themehook;

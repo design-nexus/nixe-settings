@@ -109,16 +109,7 @@ pub fn ago(rfc3339: &str) -> String {
         return String::new();
     };
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(then);
-    human_ago(now - then)
-}
-
-pub fn human_ago(secs: i64) -> String {
-    match secs.max(0) {
-        0..=59 => "just now".into(),
-        s @ 60..=3599 => format!("{} min ago", s / 60),
-        s @ 3600..=86_399 => format!("{} h ago", s / 3600),
-        s => format!("{} days ago", s / 86_400),
-    }
+    crate::units::ago(now - then)
 }
 
 fn run(args: &[&str]) -> Result<String> {
@@ -191,13 +182,5 @@ mod tests {
         assert_eq!(target("qtKde").unwrap().cli, "qt-kde");
         assert_eq!(target("dark-reader").unwrap().key, "darkReader");
         assert!(target("nope").is_none());
-    }
-
-    #[test]
-    fn human_times() {
-        assert_eq!(human_ago(5), "just now");
-        assert_eq!(human_ago(150), "2 min ago");
-        assert_eq!(human_ago(7200), "2 h ago");
-        assert_eq!(human_ago(3 * 86_400), "3 days ago");
     }
 }

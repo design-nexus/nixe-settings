@@ -186,9 +186,28 @@ pub fn build(page: &Page) {
 
     // ----- Lid & buttons -----
     let g = page.group("Session");
-    let buttons = widgets::hbox(8);
-    buttons.append(&widgets::command_button("Power menu", &["omarchy-shell", "shell", "toggle", "omarchy.power"]));
-    g.add(&widgets::row("Shut down, restart, sleep", "", Some(buttons.upcast_ref())));
+    let now = widgets::hbox(8);
+    now.append(&widgets::command_button("Lock", &["omarchy-system-lock"]));
+    // Omarchy hides these when suspend is switched off or hibernation isn't set up.
+    if cmd::run(&["omarchy-toggle-enabled", "suspend-off"]).is_err() {
+        now.append(&widgets::command_button("Suspend", &["systemctl", "suspend"]));
+    }
+    if cmd::run(&["omarchy-hibernation-available"]).is_ok() {
+        now.append(&widgets::command_button("Hibernate", &["systemctl", "hibernate"]));
+    }
+    g.add(&widgets::row("Lock or sleep", "", Some(now.upcast_ref())));
+    let end = widgets::hbox(8);
+    for (label, confirm, command) in [
+        ("Log out", "Click again to log out", "omarchy-system-logout"),
+        ("Restart", "Click again to restart", "omarchy-system-reboot"),
+        ("Shut down", "Click again to shut down", "omarchy-system-shutdown"),
+    ] {
+        let b = widgets::confirm_button(label, confirm, move |_| cmd::spawn(&[command]));
+        b.add_css_class("destructive-action");
+        end.append(&b);
+    }
+    g.add(&widgets::row("End the session", "Open apps are closed. Each needs a second click.", Some(end.upcast_ref())));
+    widgets::keywords("shut down shutdown power off restart reboot log out logout suspend sleep hibernate lock");
 }
 
 #[cfg(test)]

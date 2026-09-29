@@ -24,6 +24,7 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --kbd-timeout S  turn the keyboard backlight off after S idle seconds (off to disable)\n\
   --theme-sync   (internal) re-apply the icon theme and keyboard lighting you chose; run by the theme-set hook\n\
   --kbd-idle     (internal) turn the keyboard backlight off when idle; run by the settings-kbd-idle service\n\
+  --remove-old-panels [--dry-run]  remove the settings panels this app replaces (backed up first)\n\
   --apply        rewrite ~/.config/hypr/settings.lua from saved state and exit\n";
 
 fn main() -> glib::ExitCode {
@@ -99,6 +100,30 @@ fn main() -> glib::ExitCode {
         let result = if on { audio::install_and_start(&eq) } else { audio::save(&eq).and_then(|_| audio::stop(&eq)) };
         return match result {
             Ok(()) => glib::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("settings: {e:#}");
+                glib::ExitCode::FAILURE
+            }
+        };
+    }
+    if args.iter().any(|a| a == "--remove-old-panels") {
+        use backend::cleanup;
+        let plan = cleanup::plan();
+        if plan.is_empty() {
+            println!("Nothing to remove.");
+            return glib::ExitCode::SUCCESS;
+        }
+        print!("{}", cleanup::describe(&plan));
+        if args.iter().any(|a| a == "--dry-run") {
+            return glib::ExitCode::SUCCESS;
+        }
+        // Our own file first, so Hyprland still has it once theirs are gone.
+        let _ = backend::hypr::write(&backend::state::State::load(&paths::state_file()));
+        return match cleanup::execute(&plan) {
+            Ok(out) => {
+                println!("Removed. Backup: {}", paths::pretty(&out.backup));
+                glib::ExitCode::SUCCESS
+            }
             Err(e) => {
                 eprintln!("settings: {e:#}");
                 glib::ExitCode::FAILURE

@@ -34,9 +34,27 @@ pub fn fahrenheit_to_celsius(f: f64) -> i64 {
     ((f - 32.0) * 5.0 / 9.0).round() as i64
 }
 
+/// "just now", "5 min ago", "2 h ago", "3 days ago".
+pub fn ago(secs: i64) -> String {
+    match secs.max(0) {
+        0..=59 => "just now".into(),
+        s @ 60..=3599 => format!("{} min ago", s / 60),
+        s @ 3600..=86_399 => format!("{} h ago", s / 3600),
+        s => format!("{} days ago", s / 86_400),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ago_text() {
+        assert_eq!(ago(5), "just now");
+        assert_eq!(ago(150), "2 min ago");
+        assert_eq!(ago(7200), "2 h ago");
+        assert_eq!(ago(3 * 86_400), "3 days ago");
+    }
 
     #[test]
     fn converts() {

@@ -40,6 +40,10 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 - **Bar layout**: drag widgets to reorder them or move them between the left,
   center and right sections; add widgets, remove them, and add as many
   **spacers** as you like, each with its own width.
+- **No hand-offs**: Wi-Fi (join, disconnect, forget, connection details),
+  Bluetooth (find, pair, connect, forget), per-app volume and output,
+  notification history with Do not disturb, and lock / suspend / log out /
+  restart / shut down all work inside Settings instead of opening a panel.
 - **Everything else**:
   - look & feel: gaps, borders, rounding, opacity, blur, shadows, animations,
     cursor;

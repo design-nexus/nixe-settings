@@ -85,17 +85,101 @@ pub fn build(page: &Page) {
     widgets::keywords("font size bigger smaller scale");
     g.add(&r);
 
+    notifications(page);
+}
+
+// ----- Notifications -----
+
+fn notifications(page: &Page) {
+    use crate::backend::notify;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
     let g = page.group("Notifications");
-    let (r, _) = widgets::button_row(
+    // `syncing` stops the switch echoing a change it's only mirroring.
+    let syncing = Rc::new(Cell::new(false));
+    let (r, sw) = widgets::switch_row(
         "Do not disturb",
         "Silence notifications until you turn it back on. Also <tt>Super Ctrl ,</tt>.",
-        "Toggle",
-        |_| run(&["omarchy-toggle-notification-silencing"]),
+        notify::dnd(),
+        {
+            let syncing = syncing.clone();
+            move |on| {
+                if syncing.get() {
+                    return;
+                }
+                cmd::background(move || notify::set_dnd(on), |r| {
+                    if let Err(e) = r {
+                        window::toast(&format!("Couldn't change Do not disturb: {e}"));
+                    }
+                });
+            }
+        },
     );
     widgets::keywords("dnd silence mute notifications quiet");
     g.add(&r);
+    // It can also change from the keyboard shortcut or the bar.
+    let weak = sw.downgrade();
+    gtk::glib::timeout_add_seconds_local(3, move || {
+        let Some(sw) = weak.upgrade() else { return gtk::glib::ControlFlow::Break };
+        if sw.is_mapped() {
+            let on = notify::dnd();
+            if sw.is_active() != on {
+                syncing.set(true);
+                sw.set_active(on);
+                syncing.set(false);
+            }
+        }
+        gtk::glib::ControlFlow::Continue
+    });
+
+    let g = page.group("Recent notifications");
+    widgets::keywords("notification history centre center recent");
+    let list = widgets::vbox(6);
+    g.add(&list);
+    let fill: Rc<dyn Fn()> = {
+        let list = list.clone();
+        Rc::new(move || {
+            while let Some(c) = list.first_child() {
+                list.remove(&c);
+            }
+            let entries = notify::history();
+            if entries.is_empty() {
+                list.append(&widgets::row("Nothing yet", "Notifications you've had appear here after they close.", None));
+                return;
+            }
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0);
+            for e in entries.iter().take(20) {
+                let when = crate::units::ago((now - e.timestamp) / 1000);
+                let meta = if e.app.is_empty() || e.app == "omarchy-action" { when } else { format!("{} · {when}", e.app) };
+                let mut desc = gtk::glib::markup_escape_text(&e.body).to_string();
+                if !desc.is_empty() {
+                    desc.push('\n');
+                }
+                desc.push_str(&format!("<small>{}</small>", gtk::glib::markup_escape_text(&meta)));
+                let title = if e.summary.is_empty() { e.app.as_str() } else { e.summary.as_str() };
+                list.append(&widgets::row(title, &desc, None));
+            }
+        })
+    };
+    fill();
     let buttons = widgets::hbox(8);
-    buttons.append(&widgets::command_button("History", &["omarchy-shell", "notifications", "showHistory"]));
     buttons.append(&widgets::command_button("Dismiss all", &["omarchy-shell", "notifications", "dismissAll"]));
-    g.add(&widgets::row("Notification centre", "", Some(buttons.upcast_ref())));
+    let clear = widgets::confirm_button("Clear history", "Click again to clear", move |_| {
+        let fill = fill.clone();
+        cmd::background(notify::clear_history, move |r| match r {
+            // The shell clears in the background; give it a moment.
+            Ok(_) => {
+                let fill = fill.clone();
+                gtk::glib::timeout_add_local_once(std::time::Duration::from_millis(400), move || fill());
+            }
+            Err(e) => window::toast(&format!("Couldn't clear history: {e}")),
+        });
+    });
+    buttons.append(&clear);
+    g.add(&widgets::row(
+        "On screen and history",
+        "Dismiss the notifications showing now, or forget the history.",
+        Some(buttons.upcast_ref()),
+    ));
 }

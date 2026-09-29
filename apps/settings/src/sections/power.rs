@@ -45,41 +45,39 @@ fn remember(source: &str, profile: &str, in_use: bool) -> anyhow::Result<()> {
     cmd::atomic_write(&state_file(source), &format!("{profile}\n"))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn all() -> Vec<String> {
-        ["power-saver", "balanced", "performance"].iter().map(|s| s.to_string()).collect()
-    }
-
-    #[test]
-    fn uses_the_saved_profile() {
-        assert_eq!(effective_profile(Some("power-saver"), "battery", &all()), "power-saver");
-        assert_eq!(effective_profile(Some("balanced"), "ac", &all()), "balanced");
-    }
-
-    #[test]
-    fn falls_back_like_omarchy() {
-        assert_eq!(effective_profile(None, "ac", &all()), "performance");
-        assert_eq!(effective_profile(None, "battery", &all()), "balanced");
-        let no_perf: Vec<String> = vec!["power-saver".into(), "balanced".into()];
-        assert_eq!(effective_profile(None, "ac", &no_perf), "balanced");
-        // A saved profile this machine doesn't offer is ignored.
-        assert_eq!(effective_profile(Some("performance"), "ac", &no_perf), "balanced");
-    }
-
-    #[test]
-    fn records_the_other_source_without_running_omarchy() {
-        let dir = std::env::temp_dir().join(format!("settings-power-test-{}", std::process::id()));
-        // SAFETY: no other test reads or writes this variable.
-        unsafe { std::env::set_var("OMARCHY_POWERPROFILES_STATE_DIR", &dir) };
-        remember("battery", "power-saver", false).unwrap();
-        assert_eq!(read_saved("battery").as_deref(), Some("power-saver"));
-        assert!(read_saved("ac").is_none());
-        let _ = std::fs::remove_dir_all(&dir);
-        unsafe { std::env::remove_var("OMARCHY_POWERPROFILES_STATE_DIR") };
-    }
+/// The Status and Time remaining lines, from `omarchy-battery-status --shell`
+/// (tab-separated fields). Empty fields are left out.
+fn battery_lines(shell: &str) -> (String, String) {
+    let get = |k: &str| {
+        shell.lines().find_map(|l| l.split_once('\t').filter(|(key, _)| *key == k).map(|(_, v)| v.trim().to_string())).unwrap_or_default()
+    };
+    let (state, time, rate, size) = (get("state"), get("time"), get("rate"), get("size"));
+    let word = match state.as_str() {
+        "charging" => "Charging".to_string(),
+        "discharging" => "On battery".to_string(),
+        "fully-charged" => "Fully charged".to_string(),
+        "holding" => match get("threshold") {
+            t if t.is_empty() => "Holding charge".to_string(),
+            t => format!("Holding at {t}"),
+        },
+        "pending-charge" => "Plugged in, not charging".to_string(),
+        _ => String::new(),
+    };
+    let drawing = rate.trim_end_matches('W').parse::<f64>().is_ok_and(|r| r > 0.0);
+    let draw = match (drawing, size.is_empty()) {
+        (true, false) => format!("{rate} / {size}"),
+        (true, true) => rate,
+        (false, _) => size,
+    };
+    let status = [get("percentage"), word, draw].into_iter().filter(|p| !p.is_empty()).collect::<Vec<_>>().join("  ·  ");
+    let remaining = match state.as_str() {
+        "discharging" | "charging" if time.is_empty() => "Estimating…".to_string(),
+        "discharging" => format!("{time} left"),
+        "charging" => format!("{time} to full"),
+        "" => String::new(),
+        _ => "Plugged in".to_string(),
+    };
+    (status, remaining)
 }
 
 pub fn build(page: &Page) {
@@ -133,11 +131,31 @@ pub fn build(page: &Page) {
     // ----- Battery -----
     if cmd::output(&["omarchy-battery-present"]).is_some() || std::path::Path::new("/sys/class/power_supply/BAT0").exists() {
         let g = page.group("Battery");
-        let status = cmd::output(&["omarchy-battery-status"]).unwrap_or_else(|| "Unknown".into());
-        let (r, _) = widgets::info_row("Status", status.lines().next().unwrap_or(""));
+        let read = || {
+            let (status, time) = battery_lines(&cmd::output(&["omarchy-battery-status", "--shell"]).unwrap_or_default());
+            let or_unknown = |s: String| if s.is_empty() { "Unknown".to_string() } else { s };
+            (or_unknown(status), or_unknown(time))
+        };
+        let (status, time) = read();
+        let (r, label) = widgets::info_row("Status", &status);
+        label.set_wrap(false);
         g.add(&r);
-        let (r, _) = widgets::button_row("Time remaining", "", "Show", |_| cmd::spawn(&["omarchy-notification-battery"]));
+        let (r, time_label) = widgets::info_row("Time remaining", &time);
+        time_label.set_wrap(false);
         g.add(&r);
+        // Keep it current while the page exists.
+        let (weak, weak_time) = (label.downgrade(), time_label.downgrade());
+        gtk::glib::timeout_add_seconds_local(10, move || match (weak.upgrade(), weak_time.upgrade()) {
+            (Some(l), Some(t)) => {
+                if l.is_mapped() {
+                    let (status, time) = read();
+                    l.set_text(&status);
+                    t.set_text(&time);
+                }
+                gtk::glib::ControlFlow::Continue
+            }
+            _ => gtk::glib::ControlFlow::Break,
+        });
     }
 
     // ----- Brightness -----
@@ -171,4 +189,54 @@ pub fn build(page: &Page) {
     let buttons = widgets::hbox(8);
     buttons.append(&widgets::command_button("Power menu", &["omarchy-shell", "shell", "toggle", "omarchy.power"]));
     g.add(&widgets::row("Shut down, restart, sleep", "", Some(buttons.upcast_ref())));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn battery_lines_skip_empty_parts() {
+        let full = "percentage\t100%\nstate\tfully-charged\nrate\t0W\nsize\t90Wh\ntime\t\ncycles\t0\nthreshold\t75-80%\n";
+        assert_eq!(battery_lines(full), ("100%  ·  Fully charged  ·  90Wh".into(), "Plugged in".into()));
+        let on_battery = "percentage\t64%\nstate\tdischarging\nrate\t12.3W\nsize\t90Wh\ntime\t3h 5m\n";
+        assert_eq!(battery_lines(on_battery), ("64%  ·  On battery  ·  12.3W / 90Wh".into(), "3h 5m left".into()));
+        let charging = "percentage\t40%\nstate\tcharging\nrate\t45W\nsize\t90Wh\ntime\t\n";
+        assert_eq!(battery_lines(charging).1, "Estimating…");
+        let holding = "percentage\t80%\nstate\tholding\nrate\t0W\nsize\t90Wh\ntime\t\nthreshold\t75-80%\n";
+        assert_eq!(battery_lines(holding).0, "80%  ·  Holding at 75-80%  ·  90Wh");
+        assert_eq!(battery_lines(""), (String::new(), String::new()));
+    }
+
+    fn all() -> Vec<String> {
+        ["power-saver", "balanced", "performance"].iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn uses_the_saved_profile() {
+        assert_eq!(effective_profile(Some("power-saver"), "battery", &all()), "power-saver");
+        assert_eq!(effective_profile(Some("balanced"), "ac", &all()), "balanced");
+    }
+
+    #[test]
+    fn falls_back_like_omarchy() {
+        assert_eq!(effective_profile(None, "ac", &all()), "performance");
+        assert_eq!(effective_profile(None, "battery", &all()), "balanced");
+        let no_perf: Vec<String> = vec!["power-saver".into(), "balanced".into()];
+        assert_eq!(effective_profile(None, "ac", &no_perf), "balanced");
+        // A saved profile this machine doesn't offer is ignored.
+        assert_eq!(effective_profile(Some("performance"), "ac", &no_perf), "balanced");
+    }
+
+    #[test]
+    fn records_the_other_source_without_running_omarchy() {
+        let dir = std::env::temp_dir().join(format!("settings-power-test-{}", std::process::id()));
+        // SAFETY: no other test reads or writes this variable.
+        unsafe { std::env::set_var("OMARCHY_POWERPROFILES_STATE_DIR", &dir) };
+        remember("battery", "power-saver", false).unwrap();
+        assert_eq!(read_saved("battery").as_deref(), Some("power-saver"));
+        assert!(read_saved("ac").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+        unsafe { std::env::remove_var("OMARCHY_POWERPROFILES_STATE_DIR") };
+    }
 }

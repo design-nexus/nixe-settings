@@ -204,4 +204,17 @@ pub fn build(page: &Page) {
             theme::apply();
         });
     g.add(&r);
+    let unit = if prefs::get().temp_unit == prefs::TempUnit::Fahrenheit { "f" } else { "c" };
+    let (r, _) = widgets::choice_row(
+        "Temperature unit",
+        "How temperatures are shown, such as fan curves and GPU limits.",
+        widgets::opts(&[("c", "Celsius (°C)"), ("f", "Fahrenheit (°F)")]),
+        unit,
+        |v| {
+            prefs::update(|p| p.temp_unit = if v == "f" { prefs::TempUnit::Fahrenheit } else { prefs::TempUnit::Celsius });
+            crate::window::rebuild_if_built("asus");
+        },
+    );
+    widgets::keywords("fahrenheit celsius degrees units temperature");
+    g.add(&r);
 }

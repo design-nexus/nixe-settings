@@ -16,6 +16,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   Devices and System, and <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
   every page.
 - **Open config** on every page opens the underlying file in your default editor.
+- **Units**: show temperatures in °C or °F (Theme → This window).
 - **Themes**: Dracula, Catppuccin (Mocha, Macchiato, Frappé, Latte), Tokyo Night
   (Night, Storm, Moon), One Dark Pro, Nord, Gruvbox, Rosé Pine, Everforest,
   Solarized and Kanagawa. Or **Follow Omarchy**, which restyles live whenever you
@@ -39,8 +40,19 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
     lock, and a night light schedule;
   - keyboard layouts and Caps Lock, mouse settings (per-device too), and
     displays (with a 15-second "keep these settings?" safety revert);
-  - Wi-Fi & Bluetooth, power profiles and brightness, ASUS laptops (via
-    `asusctl`), default apps, plugins, and updates.
+  - Wi-Fi & Bluetooth, power profiles and brightness, default apps, plugins,
+    and updates.
+- **ASUS laptops** (needs `asusctl`; these pages only appear on ASUS hardware, and
+  each control only appears if your model supports it):
+  - **ASUS:** performance profiles, battery charge limit, **fan curve editor**
+    (per profile, per fan), firmware settings such as GPU mode, panel overdrive
+    and CPU/GPU power limits, and Screenpad.
+  - **Aura Lighting:** keyboard backlight brightness, effects and colours, which
+    power states light the keyboard, the **Slash lightbar**, and (where present)
+    the AniMe Matrix, XG Mobile light and drive lights.
+- **Keyboard backlight timeout** (any laptop with a keyboard backlight): turn it
+  off after a set time without typing or touching the trackpad, and back on with
+  the next key press.
 
 | Trackpad gestures | Themes |
 | --- | --- |
@@ -94,6 +106,7 @@ Open **Settings** from the app launcher, or run `settings`.
 | `settings --section audio` | Open (or jump) to a page: `theme`, `look`, `trackpad`, `audio`, `displays`, `keybindings`, … |
 | `settings --eq on\|off\|toggle\|status` | Turn the preamp and equalizer on or off, e.g. from a keybinding |
 | `settings --volume raise\|lower\|+N\|-N` | Change volume, going past 100% up to the maximum set in Sound |
+| `settings --kbd-timeout 30\|off` | Turn the keyboard backlight off after 30 idle seconds (or stop doing that) |
 | `settings --apply` | Regenerate the Hyprland file from saved settings |
 
 ## How it changes your config
@@ -107,6 +120,9 @@ Settings never parses or rewrites your own config files:
   default.
 - **Saved state**: `~/.config/settings/state.json`. The generated file is always
   rebuilt from this.
+- **Keyboard backlight timeout**: a small user service, `settings-kbd-idle`, that
+  asks the compositor when there's been no input (the Wayland idle-notify
+  protocol). It exists only while a timeout is set.
 - **Equalizer**: a PipeWire filter-chain running in its own client
   (`~/.config/pipewire/settings-eq.conf`, the `settings-eq` user service). Its
   sink feeds your speakers, and Omarchy's volume keys still control real

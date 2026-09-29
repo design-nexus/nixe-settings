@@ -287,6 +287,14 @@ pub fn rebuild(id: &'static str) {
     }
 }
 
+/// Rebuild a page only if it has been opened already (its content is stale otherwise).
+pub fn rebuild_if_built(id: &'static str) {
+    let built = ui().is_some_and(|u| u.borrow().pages.contains_key(id));
+    if built {
+        rebuild(id);
+    }
+}
+
 fn filter(query: &str) {
     let Some(ui) = ui() else { return };
     let q = query.trim().to_lowercase();

@@ -586,3 +586,98 @@ pub fn hypr_entry(key: &'static str, title: &str, desc: &str, placeholder: &str)
     *reset_slot.borrow_mut() = Some(reset);
     r
 }
+
+// ---------- Shared helpers for hardware pages ----------
+
+/// Runs the last call after things have been quiet for a while.
+#[derive(Clone, Default)]
+pub struct Debounce(Rc<Cell<Option<glib::SourceId>>>);
+
+impl Debounce {
+    pub fn call(&self, ms: u64, f: impl FnOnce() + 'static) {
+        if let Some(id) = self.0.take() {
+            id.remove();
+        }
+        let slot = self.0.clone();
+        self.0.set(Some(glib::timeout_add_local_once(std::time::Duration::from_millis(ms), move || {
+            slot.set(None);
+            f();
+        })));
+    }
+}
+
+/// A colour picker button starting at `hex` (`#rrggbb`).
+pub fn colour_button(hex: &str, on_change: impl Fn(String) + 'static) -> gtk::ColorDialogButton {
+    let b = gtk::ColorDialogButton::new(Some(gtk::ColorDialog::new()));
+    b.set_rgba(&gtk::gdk::RGBA::parse(hex).unwrap_or(gtk::gdk::RGBA::WHITE));
+    b.connect_rgba_notify(move |b| {
+        let c = b.rgba();
+        on_change(format!(
+            "#{:02x}{:02x}{:02x}",
+            (c.red() * 255.0).round() as u8,
+            (c.green() * 255.0).round() as u8,
+            (c.blue() * 255.0).round() as u8
+        ));
+    });
+    b
+}
+
+/// A row of small on/off chips, e.g. "Boot / Awake / Sleep / Shutdown".
+pub fn chip_toggles(labels: &[&str], states: &[bool], on_change: impl Fn(Vec<bool>) + 'static) -> gtk::Box {
+    let bx = hbox(6);
+    let buttons: Rc<Vec<gtk::ToggleButton>> = Rc::new(
+        labels
+            .iter()
+            .zip(states)
+            .map(|(l, on)| {
+                let b = gtk::ToggleButton::with_label(l);
+                b.add_css_class("chip");
+                b.set_active(*on);
+                if *on {
+                    b.add_css_class("selected");
+                }
+                b
+            })
+            .collect(),
+    );
+    let on_change = Rc::new(on_change);
+    for b in buttons.iter() {
+        bx.append(b);
+        let all = buttons.clone();
+        let cb = on_change.clone();
+        b.connect_toggled(move |b| {
+            if b.is_active() {
+                b.add_css_class("selected");
+            } else {
+                b.remove_css_class("selected");
+            }
+            cb(all.iter().map(|x| x.is_active()).collect());
+        });
+    }
+    bx
+}
+
+/// A vertical slider with a value above and a label below (the equalizer look).
+pub fn vfader(label: &str, range: (f64, f64), value: f64, show: impl Fn(f64) -> String + 'static) -> (gtk::Box, gtk::Scale) {
+    let b = vbox(6);
+    b.add_css_class("fader");
+    b.set_hexpand(true);
+    let v = gtk::Label::new(Some(&show(value)));
+    v.add_css_class("fader-value");
+    v.add_css_class("mono");
+    let scale = gtk::Scale::with_range(gtk::Orientation::Vertical, range.0, range.1, 1.0);
+    scale.add_css_class("fader-scale");
+    scale.set_inverted(true);
+    scale.set_draw_value(false);
+    scale.set_value(value);
+    scale.set_vexpand(true);
+    scale.set_halign(gtk::Align::Center);
+    let vl = v.clone();
+    scale.connect_value_changed(move |s| vl.set_text(&show(s.value())));
+    let l = gtk::Label::new(Some(label));
+    l.add_css_class("fader-label");
+    b.append(&v);
+    b.append(&scale);
+    b.append(&l);
+    (b, scale)
+}

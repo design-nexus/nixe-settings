@@ -8,6 +8,7 @@ pub mod about;
 pub mod apps;
 pub mod asus;
 pub mod audio;
+pub mod aura;
 pub mod bar;
 pub mod connectivity;
 pub mod displays;
@@ -97,7 +98,7 @@ pub fn all() -> Vec<Section> {
         Section {
             id: "keybindings",
             title: "Keybindings",
-            icon: "preferences-desktop-keyboard-shortcuts-symbolic",
+            icon: "preferences-desktop-keyboard-symbolic",
             group: "Desktop",
             description: "Every shortcut you have, plus your own. Turn any of them off.",
             keywords: "shortcuts keys hotkeys bind unbind super",
@@ -211,11 +212,22 @@ pub fn all() -> Vec<Section> {
             title: "ASUS",
             icon: "input-gaming-symbolic",
             group: "Devices",
-            description: "Fan profile, charge limit and keyboard lighting via asusctl.",
-            keywords: "asus rog zephyrus fan profile aura rgb keyboard charge limit asusctl",
+            description: "Performance profile, fan curves, battery limit and firmware settings via asusctl.",
+            keywords: "asus rog zephyrus fan curve profile performance charge limit battery gpu mux dgpu overdrive power limit tgp asusctl screenpad",
             files: Vec::new,
             build: asus::build,
             visible: asus::available,
+        },
+        Section {
+            id: "aura",
+            title: "Aura Lighting",
+            icon: "keyboard-brightness-symbolic",
+            group: "Devices",
+            description: "Keyboard backlight and effects, the Slash lightbar and other ASUS lights.",
+            keywords: "aura rgb keyboard backlight lighting effects slash lightbar timeout idle led anime matrix rainbow colour",
+            files: || vec![crate::backend::kbdidle::config_file()],
+            build: aura::build,
+            visible: crate::backend::asus::lighting_available,
         },
         // ----- System -----
         Section {

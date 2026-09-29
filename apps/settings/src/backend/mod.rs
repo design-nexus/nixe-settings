@@ -1,7 +1,9 @@
+pub mod asus;
 pub mod audio;
 pub mod cleanup;
 pub mod gestures;
 pub mod hypr;
+pub mod kbdidle;
 pub mod lua;
 pub mod shell;
 pub mod state;

@@ -6,6 +6,7 @@ mod paths;
 mod prefs;
 mod sections;
 mod theme;
+mod units;
 mod widgets;
 mod window;
 
@@ -19,6 +20,8 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --section ID   open (or switch the open window) to a page, e.g. audio, trackpad\n\
   --volume STEP  change the output volume, allowing past 100% up to the maximum set in Sound\n\
   --eq ACTION    turn the preamp/equalizer on or off, or print whether it's running\n\
+  --kbd-timeout S  turn the keyboard backlight off after S idle seconds (off to disable)\n\
+  --kbd-idle     (internal) turn the keyboard backlight off when idle; run by the settings-kbd-idle service\n\
   --apply        rewrite ~/.config/hypr/settings.lua from saved state and exit\n";
 
 fn main() -> glib::ExitCode {
@@ -35,6 +38,37 @@ fn main() -> glib::ExitCode {
                 glib::ExitCode::FAILURE
             }
         };
+    }
+    if let Some(i) = args.iter().position(|a| a == "--kbd-timeout") {
+        let value = args.get(i + 1).map(String::as_str).unwrap_or("");
+        let secs = match value {
+            "off" | "never" | "0" => Some(0),
+            v => v.trim_end_matches('s').parse::<u32>().ok(),
+        };
+        let Some(timeout_secs) = secs else {
+            eprintln!("usage: settings --kbd-timeout <seconds>|off");
+            return glib::ExitCode::FAILURE;
+        };
+        return match backend::kbdidle::apply(&backend::kbdidle::Config { timeout_secs }) {
+            Ok(()) => glib::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("settings: {e:#}");
+                glib::ExitCode::FAILURE
+            }
+        };
+    }
+    if args.iter().any(|a| a == "--kbd-idle") {
+        return match backend::kbdidle::run_daemon() {
+            Ok(()) => glib::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("settings: {e:#}");
+                glib::ExitCode::FAILURE
+            }
+        };
+    }
+    if args.iter().any(|a| a == "--kbd-idle-restore") {
+        let _ = backend::kbdidle::restore();
+        return glib::ExitCode::SUCCESS;
     }
     if let Some(i) = args.iter().position(|a| a == "--eq") {
         use backend::audio;

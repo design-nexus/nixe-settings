@@ -68,6 +68,9 @@ pub fn build(page: &Page) {
             });
             widgets::keywords("keyboard light backlit");
             g.add(&r);
+            if let Some(t) = crate::sections::aura::timeout_row() {
+                g.add(&t);
+            }
         }
     }
 

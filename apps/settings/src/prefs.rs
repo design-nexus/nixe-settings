@@ -13,6 +13,14 @@ pub enum ThemeMode {
     Theme,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum TempUnit {
+    #[default]
+    Celsius,
+    Fahrenheit,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Prefs {
@@ -21,6 +29,8 @@ pub struct Prefs {
     pub density: String,
     pub reduce_motion: bool,
     pub glow: bool,
+    /// How temperatures are shown (they are always stored in Celsius).
+    pub temp_unit: TempUnit,
     /// The old-panel cleanup has been offered once already.
     pub cleanup_offered: bool,
     pub last_section: String,
@@ -34,6 +44,7 @@ impl Default for Prefs {
             density: "comfortable".into(),
             reduce_motion: false,
             glow: true,
+            temp_unit: TempUnit::Celsius,
             cleanup_offered: false,
             last_section: "theme".into(),
         }

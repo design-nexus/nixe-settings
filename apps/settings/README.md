@@ -168,8 +168,9 @@ cargo test
 cargo clippy -- -D warnings
 ```
 
-It's built with Rust and gtk4-rs, and doesn't use libadwaita. See
-[CLAUDE.md](CLAUDE.md) for how the code is organised.
+It's built with Rust and gtk4-rs, and doesn't use libadwaita. Each sidebar page
+is one file in `src/sections/`, and the Hyprland, audio and cleanup logic lives in
+`src/backend/`.
 
 ## License
 

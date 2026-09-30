@@ -1,5 +1,7 @@
 use crate::widgets::{self, Page};
 use crate::{cmd, window};
+use gtk::gio;
+use gtk::prelude::*;
 
 fn installed(command: &str) -> bool {
     cmd::present(command)
@@ -26,15 +28,6 @@ fn default_row(
     });
     r
 }
-
-const FILE_MANAGERS: &[(&str, &str, &str)] = &[
-    ("io.github.lgse.Strata.desktop", "Strata", "strata"),
-    ("org.gnome.Nautilus.desktop", "Files (Nautilus)", "nautilus"),
-    ("thunar.desktop", "Thunar", "thunar"),
-    ("org.kde.dolphin.desktop", "Dolphin", "dolphin"),
-    ("nemo.desktop", "Nemo", "nemo"),
-    ("pcmanfm.desktop", "PCManFM", "pcmanfm"),
-];
 
 pub fn build(page: &Page) {
     let g = page.group("Defaults");
@@ -79,19 +72,224 @@ pub fn build(page: &Page) {
         ],
     ));
 
-    let current = cmd::output(&["xdg-mime", "query", "default", "inode/directory"]).unwrap_or_default();
-    let options: Vec<(String, String)> = FILE_MANAGERS
+    let g = page.group("Files and links");
+    g.note("Which app opens each kind of file or link, from the apps you have installed.");
+    for c in CATEGORIES {
+        if let Some(r) = mime_row(c) {
+            widgets::keywords(c.keywords);
+            g.add(&r);
+        }
+    }
+}
+
+// ----- Files and links (MIME defaults) -----
+
+struct Category {
+    title: &'static str,
+    desc: &'static str,
+    /// Every type this row sets; the first is read for the current choice.
+    /// An app that opens any of them is offered.
+    types: &'static [&'static str],
+    keywords: &'static str,
+}
+
+const CATEGORIES: &[Category] = &[
+    Category { title: "File manager", desc: "Opens folders from every app.", types: &["inode/directory"], keywords: "folders files browse" },
+    Category {
+        title: "Image viewer",
+        desc: "Opens photos and pictures.",
+        types: &[
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "image/webp",
+            "image/bmp",
+            "image/tiff",
+            "image/svg+xml",
+            "image/avif",
+            "image/heic",
+            "image/x-icon",
+        ],
+        keywords: "photos pictures images jpg png viewer",
+    },
+    Category {
+        title: "Video player",
+        desc: "Opens video files.",
+        types: &["video/mp4", "video/x-matroska", "video/webm", "video/quicktime", "video/x-msvideo", "video/mpeg", "video/ogg"],
+        keywords: "movies videos mp4 mkv player",
+    },
+    Category {
+        title: "Music player",
+        desc: "Opens audio files.",
+        types: &["audio/mpeg", "audio/flac", "audio/ogg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/aac", "audio/opus"],
+        keywords: "music songs audio mp3 flac player",
+    },
+    Category { title: "PDFs", desc: "Opens PDF documents.", types: &["application/pdf"], keywords: "pdf reader document viewer" },
+    Category {
+        title: "Documents",
+        desc: "Word processing files (.docx, .odt, .doc).",
+        types: &[
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.oasis.opendocument.text",
+            "application/msword",
+            "application/rtf",
+        ],
+        keywords: "office word docx odt writer libreoffice document",
+    },
+    Category {
+        title: "Spreadsheets",
+        desc: "Spreadsheet files (.xlsx, .ods, .xls).",
+        types: &[
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            "application/vnd.ms-excel",
+        ],
+        keywords: "office excel xlsx ods calc sheets spreadsheet",
+    },
+    Category {
+        title: "Presentations",
+        desc: "Slide decks (.pptx, .odp, .ppt).",
+        types: &[
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.oasis.opendocument.presentation",
+            "application/vnd.ms-powerpoint",
+        ],
+        keywords: "office powerpoint pptx odp impress slides presentation",
+    },
+    Category {
+        title: "Text files",
+        desc: "Plain text, Markdown, logs and data files opened from a file manager.",
+        types: &[
+            "text/plain",
+            "text/markdown",
+            "text/csv",
+            "text/x-log",
+            "application/json",
+            "application/xml",
+            "text/xml",
+            "application/x-yaml",
+            "text/x-shellscript",
+        ],
+        keywords: "text txt markdown notes json",
+    },
+    Category {
+        title: "Archives",
+        desc: "Opens zip, tar and other compressed files.",
+        types: &[
+            "application/zip",
+            "application/x-tar",
+            "application/x-7z-compressed",
+            "application/vnd.rar",
+            "application/gzip",
+            "application/x-compressed-tar",
+            "application/zstd",
+        ],
+        keywords: "zip archive compressed extract unzip rar 7z",
+    },
+    Category { title: "Email", desc: "Opens <tt>mailto:</tt> links.", types: &["x-scheme-handler/mailto"], keywords: "mail email mailto" },
+    Category {
+        title: "Calendar",
+        desc: "Opens calendar invites and subscriptions.",
+        types: &["text/calendar", "x-scheme-handler/webcal"],
+        keywords: "calendar ics invite events",
+    },
+    Category {
+        title: "Torrents",
+        desc: "Opens magnet links and .torrent files.",
+        types: &["x-scheme-handler/magnet", "application/x-bittorrent"],
+        keywords: "torrent magnet bittorrent download",
+    },
+];
+
+/// A generic name ("Media Player", "Files") gets its program added, so two
+/// "Image Viewer"s can be told apart: "Media Player (mpv)".
+fn label(name: &str, executable: &std::path::Path) -> String {
+    const GENERIC: &[&str] =
+        &["Viewer", "Player", "Files", "Editor", "Manager", "Document", "Media", "Image", "Music", "Video", "Mail", "Calendar", "Archive"];
+    let exe = executable.file_name().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
+    let generic = GENERIC.iter().any(|g| name.contains(g));
+    if generic && !exe.is_empty() && !name.to_lowercase().contains(&exe.to_lowercase()) {
+        format!("{name} ({exe})")
+    } else {
+        name.to_string()
+    }
+}
+
+/// (id, name) choices: visible apps, no repeats, and the current default kept
+/// even if it doesn't declare the type (so the row always shows the truth).
+fn choices(apps: &[(String, String, bool)], current: Option<(String, String)>) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for (id, name, visible) in apps {
+        if *visible && !out.iter().any(|(i, _)| i == id) {
+            out.push((id.clone(), name.clone()));
+        }
+    }
+    if let Some((id, name)) = current
+        && !out.iter().any(|(i, _)| *i == id)
+    {
+        out.insert(0, (id, name));
+    }
+    out
+}
+
+fn mime_row(c: &'static Category) -> Option<gtk::Box> {
+    let info = |a: &gio::AppInfo| (a.id().map(|s| s.to_string()).unwrap_or_default(), label(&a.name(), &a.executable()));
+    // Apps that open any of the row's types, those for the main type first.
+    let apps: Vec<(String, String, bool)> = c
+        .types
         .iter()
-        .filter(|(id, _, bin)| cmd::present(bin) || *id == current)
-        .map(|(id, l, _)| (id.to_string(), l.to_string()))
+        .flat_map(|t| gio::AppInfo::all_for_type(t))
+        .filter(|a| a.id().is_some())
+        .map(|a| {
+            let (id, name) = info(&a);
+            (id, name, a.should_show())
+        })
         .collect();
-    let (r, _) = widgets::choice_row("File manager", "Opens folders from every app.", options, &current, |id| {
-        cmd::run_async(&["xdg-mime", "default", &id, "inode/directory"], |r| {
-            if let Err(e) = r {
-                window::toast(&format!("{e}"));
-            }
-        });
+    let current = gio::AppInfo::default_for_type(c.types[0], false).map(|a| info(&a));
+    let current_id = current.as_ref().map(|(i, _)| i.clone()).unwrap_or_default();
+    let options = choices(&apps, current);
+    if options.is_empty() {
+        return None;
+    }
+    let (r, _) = widgets::choice_row(c.title, c.desc, options.clone(), &current_id, move |id| {
+        let Some(app) = gio::AppInfo::all().into_iter().find(|a| a.id().is_some_and(|i| i == id.as_str())) else { return };
+        let failed: Vec<String> =
+            c.types.iter().filter_map(|t| app.set_as_default_for_type(t).err().map(|e| format!("{t}: {e}"))).collect();
+        let name = options.iter().find(|(i, _)| *i == id).map(|(_, n)| n.clone()).unwrap_or(id);
+        if failed.is_empty() {
+            window::toast(&format!("{} set to {name}", c.title));
+        } else {
+            window::toast(&format!("Couldn't set {}: {}", c.title, failed.join(", ")));
+        }
     });
-    widgets::keywords("folders files strata nautilus");
-    g.add(&r);
+    Some(r)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn app(id: &str, visible: bool) -> (String, String, bool) {
+        (id.to_string(), id.trim_end_matches(".desktop").to_string(), visible)
+    }
+
+    #[test]
+    fn choices_hide_helpers_and_keep_the_default() {
+        let apps = [app("imv.desktop", true), app("imv.desktop", true), app("userapp-x.desktop", false), app("pinta.desktop", true)];
+        let c = choices(&apps, Some(("imv.desktop".into(), "imv".into())));
+        assert_eq!(c.iter().map(|(i, _)| i.as_str()).collect::<Vec<_>>(), ["imv.desktop", "pinta.desktop"]);
+        // A default that doesn't list the type is still shown, first.
+        let c = choices(&apps, Some(("odd.desktop".into(), "Odd".into())));
+        assert_eq!(c[0].0, "odd.desktop");
+        assert!(choices(&[], None).is_empty());
+    }
+
+    #[test]
+    fn generic_names_get_their_program() {
+        use std::path::Path;
+        assert_eq!(label("Media Player", Path::new("/usr/bin/mpv")), "Media Player (mpv)");
+        assert_eq!(label("Files", Path::new("nautilus")), "Files (nautilus)");
+        assert_eq!(label("Zed", Path::new("zeditor")), "Zed");
+        assert_eq!(label("Image Viewer", Path::new("")), "Image Viewer");
+    }
 }

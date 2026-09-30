@@ -1,4 +1,4 @@
-//! Settings — a control panel for Omarchy, styled after the Strata file manager.
+//! Settings — a control panel for Omarchy.
 
 mod backend;
 mod cmd;

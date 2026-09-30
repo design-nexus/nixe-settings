@@ -1,8 +1,7 @@
 # Omarchy Settings
 
 A native control panel for [Omarchy](https://omarchy.org). One clean, searchable
-window for everything you'd otherwise change by editing Lua files. It looks and
-feels like the [Strata](https://github.com/lgse/strata) file manager.
+window for everything you'd otherwise change by editing Lua files.
 
 ![Settings: Sound, with the 9-band equalizer and preamp](docs/audio.png)
 

@@ -7,7 +7,9 @@
       "devices": "ASUS ROG, TUF, Zephyrus and other laptops supported by asusctl",
       "repo": "https://github.com/design-nexus/settings-extensions.git",
       "path": "asus",
-      "needs": ["asusctl"],
+      "needs": [
+        "asusctl"
+      ],
       "icon": "input-gaming-symbolic"
     },
     {
@@ -27,7 +29,9 @@
       "devices": "SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets supported by HeadsetControl",
       "repo": "https://github.com/design-nexus/settings-extensions.git",
       "path": "headset",
-      "needs": ["headsetcontrol"],
+      "needs": [
+        "headsetcontrol"
+      ],
       "icon": "audio-headset-symbolic"
     },
     {
@@ -37,8 +41,33 @@
       "devices": "OBSBOT, Logitech, Elgato and other UVC webcams",
       "repo": "https://github.com/design-nexus/settings-extensions.git",
       "path": "webcam",
-      "needs": ["v4l2-ctl"],
+      "needs": [
+        "v4l2-ctl"
+      ],
       "icon": "camera-web-symbolic"
+    },
+    {
+      "id": "corsair",
+      "name": "Corsair",
+      "description": "Corsair keyboards, starting with the Galleon 100 SD: device details, access for Corsair Web Hub, and a probe report for native lighting.",
+      "devices": "Corsair Galleon 100 SD (other Corsair keyboards show as not supported yet)",
+      "repo": "https://github.com/design-nexus/settings-extensions.git",
+      "path": "corsair",
+      "needs": [],
+      "icon": "input-keyboard-symbolic"
+    },
+    {
+      "id": "streamdeck",
+      "name": "Stream Deck",
+      "description": "The Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness and dials, run by galleon-deck.",
+      "devices": "Corsair Galleon 100 SD's built-in Stream Deck",
+      "repo": "https://github.com/design-nexus/settings-extensions.git",
+      "path": "streamdeck",
+      "needs": [
+        "python3",
+        "git"
+      ],
+      "icon": "view-app-grid-symbolic"
     }
   ]
 }

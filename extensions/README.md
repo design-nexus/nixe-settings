@@ -16,6 +16,8 @@ the rest of Settings. Pages only appear when matching hardware is found.
 | `logitech` | Logitech mice and keyboards: battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting | — |
 | `headset` | SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets: battery, sidetone, lights, EQ presets, auto power-off | `headsetcontrol` |
 | `webcam` | OBSBOT, Logitech, Elgato and other USB (UVC) webcams: zoom, pan/tilt, focus, exposure, white balance | `v4l2-ctl` |
+| `corsair` | Corsair Galleon 100 SD: device details, access for Corsair Web Hub, a read-only probe report (native lighting next) | — |
+| `streamdeck` | The Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness, dials, via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck) | `python3`, `git` |
 
 `index.json` is the catalog Settings reads.
 

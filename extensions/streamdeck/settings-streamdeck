@@ -1,0 +1,526 @@
+#!/usr/bin/python3
+"""Stream Deck for Settings: the Corsair Galleon 100 SD's built-in deck, run by
+galleon-deck (https://github.com/NLMP-DDHS/galleon-deck, MIT).
+
+settings-streamdeck pages | describe PAGE | set PAGE KEY VALUE | theme-changed
+
+This helper sets galleon-deck up (packages, its own installer, device access)
+and edits its TOML config; galleon-deck rereads the files within a second.
+Config is written with tomlkit so comments survive.
+"""
+
+import glob
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+
+try:
+    import tomllib
+except ImportError:  # Python 3.10
+    import tomli as tomllib  # type: ignore
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+VENDOR = os.path.join(HERE, "vendor", "galleon-deck")
+HOME = os.path.expanduser("~")
+CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "galleon-deck")
+CONFIG = os.path.join(CONF, "config.toml")
+PROFILES = os.path.join(CONF, "profiles")
+THEMES_DIR = os.path.join(CONF, "themes")
+STATE = os.environ.get("SETTINGS_EXTENSION_STATE") or os.path.join(HOME, ".local/state/settings/extensions/streamdeck")
+BIN = os.path.join(HOME, ".local/bin")
+UNIT = "galleon-deck.service"
+UDEV_RULE = "/etc/udev/rules.d/71-galleon-deck.rules"
+MODULES_LOAD = "/etc/modules-load.d/galleon-deck.conf"
+
+DECK_ID = ("1b1c", "2b18")
+KEYS = 12
+BUILT_IN_THEMES = ["amber", "cyberpunk", "synthwave", "matrix", "arctic", "hud", "mono", "wallpaper"]
+MEDIA = [["play-pause", "Play / pause"], ["next", "Next"], ["previous", "Previous"], ["stop", "Stop"]]
+ACTIONS = [
+    ["none", "Nothing"],
+    ["key", "A key"],
+    ["keys", "A shortcut"],
+    ["exec", "Run a command"],
+    ["media", "Media"],
+    ["page", "Go to a page"],
+    ["profile", "Switch profile"],
+]
+ACTION_FIELDS = ("key", "keys", "exec", "media", "page", "profile")
+# galleon-deck's Arch packages (its install.sh), plus tomlkit for editing config here.
+PACKAGES = ["python", "python-pillow", "python-evdev", "python-gobject", "gtk4", "libadwaita", "python-fonttools",
+            "ttf-nerd-fonts-symbols", "ttf-jetbrains-mono", "playerctl", "libnotify", "python-tomlkit"]
+MODULES = ["PIL", "evdev", "tomlkit"]
+
+
+# ------------------------------------------------------------------ state
+
+def deck_present():
+    if "galleon-100-sd" in (os.environ.get("CORSAIR_MOCK") or ""):
+        return True
+    for d in glob.glob("/sys/bus/usb/devices/*"):
+        try:
+            with open(os.path.join(d, "idVendor")) as v, open(os.path.join(d, "idProduct")) as p:
+                if (v.read().strip(), p.read().strip()) == DECK_ID:
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def missing_modules():
+    out = []
+    for m in MODULES:
+        try:
+            __import__(m)
+        except ImportError:
+            out.append(m)
+    return out
+
+
+def galleon_installed():
+    return os.path.exists(os.path.join(BIN, "galleon-deck")) and os.path.exists(CONFIG)
+
+
+def access_ready():
+    return os.path.exists(UDEV_RULE) and os.path.exists(MODULES_LOAD)
+
+
+def systemctl(*args):
+    return subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True)
+
+
+def service_state():
+    enabled = systemctl("is-enabled", UNIT).stdout.strip() == "enabled"
+    active = systemctl("is-active", UNIT).stdout.strip() == "active"
+    return enabled, active
+
+
+def run(argv, timeout=600, env=None):
+    r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=env)
+    if r.returncode != 0:
+        msg = (r.stderr or r.stdout).strip().splitlines()
+        raise SystemExit("\n".join(msg[-4:]) or f"{argv[0]} failed")
+    return r.stdout
+
+
+# ----------------------------------------------------------------- config
+
+def read_toml(path):
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def profiles():
+    return sorted(os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(PROFILES, "*.toml")))
+
+
+def themes():
+    own = [os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(THEMES_DIR, "*.toml"))]
+    return BUILT_IN_THEMES + sorted(t for t in own if t not in BUILT_IN_THEMES)
+
+
+def edit(path, change):
+    """Load a TOML file with tomlkit (keeping comments), change it, write it atomically."""
+    try:
+        import tomlkit
+    except ImportError:
+        raise SystemExit("Editing needs python-tomlkit: use Install packages above")
+    with open(path) as f:
+        doc = tomlkit.parse(f.read())
+    change(doc)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(tomlkit.dumps(doc))
+    os.replace(tmp, path)
+
+
+def remember(name, value):
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, name), "w") as f:
+        f.write(value)
+
+
+def recall(name):
+    try:
+        with open(os.path.join(STATE, name)) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def current_profile():
+    names = profiles()
+    want = recall("profile") or read_toml(CONFIG).get("start_profile", "")
+    return want if want in names else (names[0] if names else "")
+
+
+def profile_path(name):
+    return os.path.join(PROFILES, name + ".toml")
+
+
+def page_names(profile):
+    return [p.get("name", f"page {i + 1}") for i, p in enumerate(read_toml(profile_path(profile)).get("page", []))]
+
+
+def current_page(profile):
+    names = page_names(profile)
+    want = recall("page")
+    if want in names:
+        return want
+    start = read_toml(profile_path(profile)).get("start_page", "")
+    return start if start in names else (names[0] if names else "")
+
+
+def page_keys(profile, page):
+    for p in read_toml(profile_path(profile)).get("page", []):
+        if p.get("name") == page:
+            keys = list(p.get("keys", []))
+            return keys + [{}] * (KEYS - len(keys))
+    return [{}] * KEYS
+
+
+def action_of(spec):
+    return next((f for f in ACTION_FIELDS if f in spec), "none")
+
+
+def valid_key_names(value):
+    """Check `ENTER` / `CTRL+C` against Linux input names, as galleon-deck does (when evdev is here)."""
+    try:
+        from evdev import ecodes
+    except ImportError:
+        return True
+    parts = [p.strip().upper() for p in value.split("+")]
+    aliases = {"CTRL": "LEFTCTRL", "SHIFT": "LEFTSHIFT", "ALT": "LEFTALT", "SUPER": "LEFTMETA", "META": "LEFTMETA"}
+    return all(p and ("KEY_" + aliases.get(p, p)) in ecodes.ecodes for p in parts)
+
+
+# ------------------------------------------------------------------ pages
+
+def pages():
+    if not (deck_present() or os.path.exists(CONFIG)):
+        return []
+    return [{
+        "id": "deck",
+        "title": "Stream Deck",
+        "icon": "view-app-grid-symbolic",
+        "description": "The Galleon 100 SD's screen keys, top screen and dials, run by galleon-deck.",
+        "keywords": "stream deck streamdeck galleon keys lcd dials profiles pages macro shortcut corsair elgato",
+    }]
+
+
+def setup_group():
+    rows = []
+    missing = missing_modules()
+    if missing:
+        rows.append({
+            "kind": "button", "key": "install-packages", "title": "1. Install packages",
+            "desc": f"Missing Python modules: <tt>{', '.join(missing)}</tt>. Installs <tt>{' '.join(PACKAGES)}</tt> with pacman; asks for your password.",
+            "label": "Install",
+        })
+    if not galleon_installed():
+        rows.append({
+            "kind": "button", "key": "install-galleon", "title": f"{len(rows) + 1}. Set up galleon-deck",
+            "desc": "Runs galleon-deck's installer: its program in <tt>~/.local</tt>, a starter config and the background service.",
+            "label": "Set up",
+        })
+    if not access_ready():
+        rows.append({
+            "kind": "button", "key": "allow", "title": f"{len(rows) + 1}. Allow access",
+            "desc": f"Installs <tt>{UDEV_RULE}</tt> and loads the <tt>uinput</tt> module, so the deck can be driven and can type. Asks for your password.",
+            "label": "Allow access",
+        })
+    if not rows:
+        return None
+    return {"title": "Set up", "note": "Do these in order. Each one only needs doing once.", "rows": rows}
+
+
+def service_group():
+    enabled, active = service_state()
+    status = "Running" if active else ("Starting…" if enabled else "Off: the keys act as a plain numpad")
+    return {"title": "Service", "rows": [
+        {"kind": "switch", "key": "service", "title": "Run the Stream Deck",
+         "desc": "galleon-deck drives the keys, screen and dials in the background. When it's off, the keys fall back to a numpad.",
+         "value": enabled and active, "refresh": True, "keywords": "service daemon background start stop"},
+        {"kind": "info", "title": "Status", "value": status},
+        {"kind": "buttons", "key": "service-action", "title": "More",
+         "options": [["restart", "Restart"], ["configurator", "Open galleon-deck's app"]],
+         "desc": "Its app has icons, images, themes and window rules."},
+    ]}
+
+
+def general_group(cfg):
+    names = profiles()
+    boot = cfg.get("boot", {})
+    transition = cfg.get("transition", {})
+    rows = [
+        {"kind": "slider", "key": "brightness", "title": "Brightness", "value": cfg.get("brightness", 70),
+         "min": 0, "max": 100, "step": 5, "unit": "%", "keywords": "screen lcd brightness"},
+        {"kind": "choice", "key": "start_profile", "title": "Start with profile", "options": [[n, n] for n in names],
+         "value": cfg.get("start_profile", ""), "keywords": "default profile"},
+        {"kind": "entry", "key": "clock_format", "title": "Clock format", "value": cfg.get("clock_format", "%H:%M"),
+         "placeholder": "%H:%M", "desc": "strftime codes: <tt>%H:%M</tt> is 24-hour, <tt>%I:%M %p</tt> 12-hour."},
+        {"kind": "switch", "key": "boot", "title": "Boot animation", "value": boot.get("enabled", True),
+         "desc": "Plays when you log in and when the keyboard is plugged in."},
+        {"kind": "switch", "key": "transition", "title": "Profile switch animation", "value": transition.get("enabled", True)},
+    ]
+    return {"title": "General", "rows": rows}
+
+
+def dials_group(cfg):
+    return {"title": "Dials", "rows": [
+        {"kind": "info", "title": "Left dial", "value": "Volume; press to mute"},
+        {"kind": "info", "title": "Right dial", "value": "Pages; press for the start page",
+         "tooltip": "Hold it and turn to switch profile."},
+        {"kind": "slider", "key": "volume_step", "title": "Volume step", "desc": "How much each click of the left dial changes the volume.",
+         "value": cfg.get("volume_step", 2), "min": 1, "max": 10, "unit": "%", "keywords": "volume dial knob"},
+    ]}
+
+
+def key_rows(profile, page):
+    rows = []
+    pages_here = page_names(profile)
+    all_profiles = profiles()
+    for i, spec in enumerate(page_keys(profile, page)):
+        n = i + 1
+        action = action_of(spec)
+        label = spec.get("label", "")
+        # The label, else what it does (icon-only keys), else empty.
+        summary = label or (str(spec.get(action, "")) if action != "none" else "") or "empty"
+        inner = [
+            {"kind": "entry", "key": f"key:{i}:label", "title": "Label", "value": label, "placeholder": "text on the key"},
+            {"kind": "choice", "key": f"key:{i}:action", "title": "Does", "options": ACTIONS, "value": action, "refresh": True},
+        ]
+        value = str(spec.get(action, "")) if action != "none" else ""
+        if action == "key":
+            inner.append({"kind": "entry", "key": f"key:{i}:value", "title": "Key", "value": value, "placeholder": "ENTER, F5, KP7…",
+                          "desc": "A Linux key name, held while you hold the deck key."})
+        elif action == "keys":
+            inner.append({"kind": "entry", "key": f"key:{i}:value", "title": "Shortcut", "value": value, "placeholder": "SUPER+SHIFT+S"})
+        elif action == "exec":
+            inner.append({"kind": "entry", "key": f"key:{i}:value", "title": "Command", "value": value, "placeholder": "firefox"})
+            inner.append({"kind": "switch", "key": f"key:{i}:confirm", "title": "Show whether it worked",
+                          "desc": "Flash ✓ or ✗ on the key when the command finishes.", "value": bool(spec.get("confirm", False))})
+        elif action == "media":
+            inner.append({"kind": "choice", "key": f"key:{i}:value", "title": "Media", "options": MEDIA, "value": value})
+        elif action == "page":
+            inner.append({"kind": "choice", "key": f"key:{i}:value", "title": "Page",
+                          "options": [["back", "Back"]] + [[p, p] for p in pages_here], "value": value})
+        elif action == "profile":
+            inner.append({"kind": "choice", "key": f"key:{i}:value", "title": "Profile", "options": [[p, p] for p in all_profiles], "value": value})
+        row_n, col_n = divmod(i, 3)
+        rows.append({
+            "kind": "disclosure", "title": f"Key {n} · {summary}",
+            "desc": f"Row {row_n + 1}, column {col_n + 1}" + ("" if action == "none" else f" · {dict(ACTIONS)[action].lower()}"),
+            "rows": inner, "keywords": "key button action shortcut command",
+        })
+    return rows
+
+
+def describe(page_id):
+    if page_id != "deck":
+        raise SystemExit(f"no page called {page_id}")
+    banners = []
+    groups = []
+    if not deck_present():
+        banners.append({"text": "The Stream Deck isn't connected right now. Changes are saved and apply when it is.", "warning": False})
+    setup = setup_group()
+    if setup:
+        groups.append(setup)
+    if not galleon_installed():
+        return {"banners": banners, "groups": groups}
+    cfg = read_toml(CONFIG)
+    groups.append(service_group())
+    groups.append(general_group(cfg))
+    groups.append(dials_group(cfg))
+
+    profile = current_profile()
+    if profile:
+        prof = read_toml(profile_path(profile))
+        page = current_page(profile)
+        names = page_names(profile)
+        groups.append({"title": "Profile", "note": "Every profile also gets a generated settings page (themes, brightness, profiles) after these.", "rows": [
+            {"kind": "choice", "key": "edit-profile", "title": "Profile to edit", "options": [[p, p] for p in profiles()],
+             "value": profile, "refresh": True},
+            {"kind": "choice", "key": "theme", "title": "Theme", "options": [[t, t.capitalize()] for t in themes()],
+             "value": prof.get("theme", "amber"), "keywords": "theme colours look",
+             "desc": "<b>Wallpaper</b> builds colours from your Omarchy wallpaper and follows it when you change themes."},
+            {"kind": "choice", "key": "start_page", "title": "Start page", "options": [[p, p] for p in names],
+             "value": prof.get("start_page", names[0] if names else "")},
+            {"kind": "choice", "key": "edit-page", "title": "Page to edit", "options": [[p, p] for p in names],
+             "value": page, "refresh": True},
+        ]})
+        groups.append({"title": f"Keys on “{page}”", "note": "Left to right, top to bottom: 3 across, 4 down.",
+                       "rows": key_rows(profile, page)})
+    return {"banners": banners, "groups": groups}
+
+
+# -------------------------------------------------------------------- set
+
+def omarchy_wallpaper():
+    path = os.path.join(HOME, ".config/omarchy/current/background")
+    return os.path.realpath(path) if os.path.exists(path) else None
+
+
+def set_value(page_id, key, value):
+    if key == "install-packages":
+        if not shutil.which("pacman"):
+            raise SystemExit("Install these yourself: " + " ".join(PACKAGES))
+        run(["pkexec", "pacman", "-S", "--needed", "--noconfirm", *PACKAGES], timeout=1800)
+        return {"toast": "Packages installed", "refresh": True}
+    if key == "install-galleon":
+        if not os.path.isdir(VENDOR):
+            raise SystemExit("galleon-deck's files are missing; update or reinstall this extension")
+        # Packages and root steps are separate buttons; its installer starts the service.
+        run(["bash", os.path.join(VENDOR, "install.sh"), "--no-deps", "--no-root"], timeout=900)
+        return {"toast": "galleon-deck is set up", "refresh": True}
+    if key == "allow":
+        rule = os.path.join(VENDOR, "data/udev/71-galleon-deck.rules")
+        script = (f"install -m644 '{rule}' {UDEV_RULE} && rm -f /etc/udev/rules.d/71-galleon-deck-hidraw.rules && "
+                  f"echo uinput > {MODULES_LOAD} && modprobe uinput && udevadm control --reload && "
+                  "udevadm trigger --subsystem-match=hidraw --subsystem-match=misc")
+        run(["pkexec", "sh", "-c", script])
+        systemctl("restart", UNIT)
+        return {"toast": "Access allowed", "refresh": True}
+    if key == "service":
+        if value == "true":
+            run(["systemctl", "--user", "enable", "--now", UNIT])
+        else:
+            run(["systemctl", "--user", "disable", "--now", UNIT])
+        return None
+    if key == "service-action":
+        if value == "restart":
+            run(["systemctl", "--user", "restart", UNIT])
+            return {"toast": "Restarted", "refresh": True}
+        subprocess.Popen([os.path.join(BIN, "galleon-deck-config")], start_new_session=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return None
+
+    # config.toml
+    if key in ("brightness", "volume_step"):
+        edit(CONFIG, lambda d: d.__setitem__(key, int(round(float(value)))))
+        return None
+    if key in ("start_profile", "clock_format"):
+        edit(CONFIG, lambda d: d.__setitem__(key, value))
+        return None
+    if key in ("boot", "transition"):
+        def toggle(d):
+            import tomlkit
+            if key not in d:
+                d[key] = tomlkit.table()
+            d[key]["enabled"] = value == "true"
+        edit(CONFIG, toggle)
+        return None
+
+    # which profile/page the editor shows
+    if key == "edit-profile":
+        remember("profile", value)
+        remember("page", "")
+        return {"refresh": True}
+    if key == "edit-page":
+        remember("page", value)
+        return {"refresh": True}
+
+    profile = current_profile()
+    path = profile_path(profile)
+    if key in ("theme", "start_page"):
+        edit(path, lambda d: d.__setitem__(key, value))
+        if key == "theme" and value == "wallpaper":
+            wallpaper_theme()
+        return None
+
+    m = re.fullmatch(r"key:(\d+):(label|action|value|confirm)", key)
+    if not m:
+        raise SystemExit(f"unknown setting {key}")
+    index, field = int(m.group(1)), m.group(2)
+    if not 0 <= index < KEYS:
+        raise SystemExit("no such key")
+    page = current_page(profile)
+    if field == "value":
+        action = action_of(page_keys(profile, page)[index])
+        if action in ("key", "keys") and not valid_key_names(value):
+            raise SystemExit(f"“{value}” isn't a key name galleon-deck knows (try ENTER, F5, KP7, CTRL+C)")
+    edit(path, lambda d: change_key(d, page, index, field, value))
+    return {"refresh": True} if field == "action" else None
+
+
+def change_key(doc, page, index, field, value):
+    import tomlkit
+    for p in doc.get("page", []):
+        if p.get("name") != page:
+            continue
+        if "keys" not in p:
+            p["keys"] = tomlkit.array()
+        keys = p["keys"]
+        while len(keys) < KEYS:
+            keys.append(tomlkit.inline_table())
+        spec = keys[index]
+        if field == "label":
+            if value:
+                spec["label"] = value
+            elif "label" in spec:
+                del spec["label"]
+        elif field == "action":
+            for f in ACTION_FIELDS + ("confirm",):
+                if f in spec:
+                    del spec[f]
+            defaults = {"key": "ENTER", "keys": "CTRL+C", "exec": "", "media": "play-pause", "page": "back",
+                        "profile": (profiles() or [""])[0]}
+            if value in defaults:
+                spec[value] = defaults[value]
+        elif field == "value":
+            action = action_of(spec)
+            if action != "none":
+                spec[action] = value.upper() if action in ("key", "keys") else value
+        elif field == "confirm":
+            if value == "true":
+                spec["confirm"] = True
+            elif "confirm" in spec:
+                del spec["confirm"]
+        # Write the key back as a fresh inline table, so its spacing stays tidy.
+        fresh = tomlkit.inline_table()
+        fresh.update({k: spec[k] for k in spec})
+        keys[index] = fresh
+        return
+    raise SystemExit(f"no page called {page}")
+
+
+def wallpaper_theme():
+    image = omarchy_wallpaper()
+    exe = os.path.join(BIN, "galleon-deck")
+    if image and os.path.exists(exe):
+        subprocess.run([exe, "--theme-from-wallpaper", image], capture_output=True, timeout=60)
+
+
+def theme_changed():
+    """Omarchy changed theme (and wallpaper): refresh the wallpaper theme if a profile uses it."""
+    if any(read_toml(profile_path(p)).get("theme") == "wallpaper" for p in profiles()):
+        wallpaper_theme()
+
+
+def main(argv):
+    usage = "usage: settings-streamdeck pages | describe PAGE | set PAGE KEY VALUE | theme-changed"
+    if not argv:
+        raise SystemExit(usage)
+    cmd = argv[0]
+    if cmd == "pages":
+        print(json.dumps(pages()))
+    elif cmd == "describe" and len(argv) >= 2:
+        print(json.dumps(describe(argv[1])))
+    elif cmd == "set" and len(argv) >= 4:
+        reply = set_value(argv[1], argv[2], argv[3])
+        if reply:
+            print(json.dumps(reply))
+    elif cmd == "theme-changed":
+        theme_changed()
+    else:
+        raise SystemExit(usage)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

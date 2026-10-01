@@ -1,0 +1,10 @@
+id = "streamdeck"
+name = "Stream Deck"
+version = "1.0.0"
+description = "The Corsair Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness and dials, run by galleon-deck."
+exec = "./settings-streamdeck"
+needs = ["python3", "git"]
+install = "install.sh"
+# Wallpaper-generated deck themes follow Omarchy's wallpaper.
+hooks = ["theme-changed"]
+files = ["~/.config/galleon-deck/config.toml"]

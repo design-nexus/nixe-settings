@@ -5,8 +5,10 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p bin
 
+# The release matching this checkout's version (tagged asus-v<version>).
+version=$(sed -n 's/^version = "\(.*\)"/\1/p' extension.toml)
 asset="settings-asus-$(uname -m)"
-url="https://github.com/design-nexus/settings-extensions/releases/latest/download/$asset"
+url="https://github.com/design-nexus/settings-extensions/releases/download/asus-v$version/$asset"
 if curl -fsSL --max-time 60 -o bin/.settings-asus.tmp "$url" 2>/dev/null; then
   chmod +x bin/.settings-asus.tmp
   mv bin/.settings-asus.tmp bin/settings-asus

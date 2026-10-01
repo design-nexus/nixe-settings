@@ -1,3 +1,4 @@
+use crate::backend::kbdidle;
 use crate::widgets::{self, Page};
 use crate::{cmd, paths, window};
 use gtk::prelude::*;
@@ -178,7 +179,7 @@ pub fn build(page: &Page) {
             });
             widgets::keywords("keyboard light backlit");
             g.add(&r);
-            if let Some(t) = crate::sections::aura::timeout_row() {
+            if let Some(t) = timeout_row() {
                 g.add(&t);
             }
         }
@@ -208,6 +209,38 @@ pub fn build(page: &Page) {
     }
     g.add(&widgets::row("End the session", "Open apps are closed. Each needs a second click.", Some(end.upcast_ref())));
     widgets::keywords("shut down shutdown power off restart reboot log out logout suspend sleep hibernate lock");
+}
+
+/// How long the keyboard backlight stays on without input.
+fn timeout_row() -> Option<gtk::Box> {
+    if !kbdidle::available() {
+        return None;
+    }
+    let cur = kbdidle::load().timeout_secs;
+    let mut options: Vec<(String, String)> = kbdidle::CHOICES.iter().map(|(s, l)| (s.to_string(), l.to_string())).collect();
+    if !kbdidle::CHOICES.iter().any(|(s, _)| *s == cur) {
+        options.push((cur.to_string(), format!("{cur} seconds")));
+    }
+    let (r, _) = widgets::choice_row(
+        "Turn off after",
+        "Switch the backlight off after this long without typing or touching the trackpad. It comes back on the next key \
+         press or touch.",
+        options,
+        &cur.to_string(),
+        |v| {
+            let secs = v.parse::<u32>().unwrap_or(0);
+            cmd::background(
+                move || kbdidle::apply(&kbdidle::Config { timeout_secs: secs }).map_err(|e| format!("{e:#}")),
+                move |r| match r {
+                    Ok(()) if secs == 0 => window::toast("Keyboard backlight stays on"),
+                    Ok(()) => window::toast("Keyboard backlight timeout set"),
+                    Err(e) => window::toast(&format!("Couldn't set the timeout: {e}")),
+                },
+            );
+        },
+    );
+    widgets::keywords("keyboard backlight timeout idle off sleep dim inactivity");
+    Some(r)
 }
 
 #[cfg(test)]

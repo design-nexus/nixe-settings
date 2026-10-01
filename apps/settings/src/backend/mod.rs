@@ -1,5 +1,4 @@
 pub mod appearance;
-pub mod asus;
 pub mod audio;
 pub mod bt;
 pub mod chroma;

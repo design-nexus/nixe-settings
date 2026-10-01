@@ -13,8 +13,13 @@ use std::rc::Rc;
 struct Ui {
     window: gtk::ApplicationWindow,
     stack: gtk::Stack,
+    nav_list: gtk::Box,
     nav_items: HashMap<&'static str, gtk::Button>,
     nav_groups: Vec<(gtk::Label, Vec<&'static str>)>,
+    /// Hidden in the icon-only sidebar: fixed parts, and the labels of the current items.
+    compact_fixed: Vec<gtk::Widget>,
+    compact_items: Vec<gtk::Widget>,
+    compact: bool,
     pages: HashMap<&'static str, gtk::ScrolledWindow>,
     sections: Vec<Section>,
     current: &'static str,
@@ -53,8 +58,14 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     }
     // Bring the keyboard backlight timeout helper back if it isn't running.
     crate::cmd::background(crate::backend::kbdidle::ensure_running, |_| {});
-    // Keep the theme hook that re-applies the chosen keyboard lighting in place.
+    // Keep the theme hook that re-applies the chosen icon theme and extension settings in place.
     crate::cmd::background(crate::backend::themehook::ensure, |_| {});
+    // The sidebar used what extensions said last time; ask again in case devices came or went.
+    crate::cmd::background(crate::ext::refresh_pages, |changed| {
+        if changed {
+            reload_sections(false);
+        }
+    });
     crate::sections::system::maybe_offer_cleanup();
 }
 
@@ -84,38 +95,7 @@ fn build(app: &gtk::Application) {
     compact_hide.push(search.clone().upcast());
 
     let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let mut nav_items = HashMap::new();
-    let mut nav_groups: Vec<(gtk::Label, Vec<&'static str>)> = Vec::new();
-    let mut last_group = "";
-    for s in &sections {
-        if !(s.visible)() {
-            continue;
-        }
-        if s.group != last_group {
-            let g = widgets::label(&s.group.to_uppercase(), "nav-group");
-            compact_hide.push(g.clone().upcast());
-            list.append(&g);
-            nav_groups.push((g, Vec::new()));
-            last_group = s.group;
-        }
-        let button = gtk::Button::new();
-        button.add_css_class("nav-item");
-        let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-        content.append(&gtk::Image::from_icon_name(s.icon));
-        let l = widgets::label(s.title, "nav-label");
-        l.set_hexpand(true);
-        compact_hide.push(l.clone().upcast());
-        content.append(&l);
-        button.set_child(Some(&content));
-        button.set_tooltip_text(Some(s.description));
-        let id = s.id;
-        button.connect_clicked(move |_| navigate(id));
-        list.append(&button);
-        nav_items.insert(s.id, button);
-        if let Some(g) = nav_groups.last_mut() {
-            g.1.push(s.id);
-        }
-    }
+    let (nav_items, nav_groups, compact_items) = fill_nav(&list, &sections);
     let nav_scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
         // Scrolls with wheel, trackpad and keyboard; no visible scrollbar.
@@ -189,8 +169,12 @@ fn build(app: &gtk::Application) {
             } else {
                 nav.remove_css_class("compact");
             }
-            for wdg in &compact_hide {
-                wdg.set_visible(!compact);
+            if let Some(ui) = ui() {
+                let mut u = ui.borrow_mut();
+                u.compact = compact;
+                for wdg in u.compact_fixed.iter().chain(&u.compact_items) {
+                    wdg.set_visible(!compact);
+                }
             }
             set_narrow(compact);
         }
@@ -211,8 +195,100 @@ fn build(app: &gtk::Application) {
         glib::Propagation::Proceed
     });
 
-    let ui = Ui { window, stack, nav_items, nav_groups, pages: HashMap::new(), sections, current: "", overlay };
+    let ui = Ui {
+        window,
+        stack,
+        nav_list: list,
+        nav_items,
+        nav_groups,
+        compact_fixed: compact_hide,
+        compact_items,
+        compact: false,
+        pages: HashMap::new(),
+        sections,
+        current: "",
+        overlay,
+    };
     UI.with(|u| *u.borrow_mut() = Some(Rc::new(RefCell::new(ui))));
+}
+
+type NavParts = (HashMap<&'static str, gtk::Button>, Vec<(gtk::Label, Vec<&'static str>)>, Vec<gtk::Widget>);
+
+/// The sidebar entries: a heading per group, a button per page.
+fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
+    let mut nav_items = HashMap::new();
+    let mut nav_groups: Vec<(gtk::Label, Vec<&'static str>)> = Vec::new();
+    let mut compact_items: Vec<gtk::Widget> = Vec::new();
+    let mut last_group = "";
+    for s in sections {
+        if !(s.visible)() {
+            continue;
+        }
+        if s.group != last_group {
+            let g = widgets::label(&s.group.to_uppercase(), "nav-group");
+            compact_items.push(g.clone().upcast());
+            list.append(&g);
+            nav_groups.push((g, Vec::new()));
+            last_group = s.group;
+        }
+        let button = gtk::Button::new();
+        button.add_css_class("nav-item");
+        let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+        content.append(&gtk::Image::from_icon_name(s.icon));
+        let l = widgets::label(s.title, "nav-label");
+        l.set_hexpand(true);
+        compact_items.push(l.clone().upcast());
+        content.append(&l);
+        button.set_child(Some(&content));
+        button.set_tooltip_text(Some(s.description));
+        let id = s.id;
+        button.connect_clicked(move |_| navigate(id));
+        list.append(&button);
+        nav_items.insert(s.id, button);
+        if let Some(g) = nav_groups.last_mut() {
+            g.1.push(s.id);
+        }
+    }
+    (nav_items, nav_groups, compact_items)
+}
+
+/// Re-read the list of pages (after an extension is installed, updated or removed,
+/// or reports different hardware). Extension pages are built again when next shown.
+/// `fresh` asks every extension again instead of using what it said last time.
+pub fn reload_sections(fresh: bool) {
+    let Some(ui) = ui() else { return };
+    let sections = sections::all_with(fresh);
+    let mut u = ui.borrow_mut();
+    while let Some(c) = u.nav_list.first_child() {
+        u.nav_list.remove(&c);
+    }
+    let (items, groups, compact_items) = fill_nav(&u.nav_list, &sections);
+    for w in &compact_items {
+        w.set_visible(!u.compact);
+    }
+    // Drop built extension pages (their page may have changed) and pages that are gone.
+    let stale: Vec<&'static str> = u
+        .pages
+        .keys()
+        .copied()
+        .filter(|id| {
+            sections.iter().find(|s| s.id == *id).is_none_or(|s| matches!(s.build, sections::Build::Extension(_)))
+        })
+        .collect();
+    for id in &stale {
+        if let Some(p) = u.pages.remove(id) {
+            SEARCH.with(|s| s.borrow_mut().retain(|item| item.section != *id));
+            u.stack.remove(&p);
+        }
+    }
+    u.nav_items = items;
+    u.nav_groups = groups;
+    u.compact_items = compact_items;
+    u.sections = sections;
+    let current = u.current;
+    u.current = "";
+    drop(u);
+    navigate(current);
 }
 
 thread_local! {
@@ -244,11 +320,12 @@ fn ensure_built(id: &'static str) {
     }
     let section = {
         let u = ui.borrow();
-        u.sections.iter().find(|s| s.id == id).map(|s| (s.id, s.title, s.description, (s.files)(), s.build))
+        u.sections.iter().find(|s| s.id == id).cloned()
     };
-    let Some((sid, title, description, files, build)) = section else { return };
-    let page = widgets::page(sid, title, description, &files);
-    build(&page);
+    let Some(section) = section else { return };
+    let sid = section.id;
+    let page = widgets::page(sid, section.title, section.description, &section.config_files());
+    section.run(&page);
     mark_page(&page.root, NARROW.with(|n| n.get()));
     let stack = ui.borrow().stack.clone();
     stack.add_named(&page.root, Some(sid));
@@ -259,7 +336,17 @@ pub fn navigate(id: &str) {
     let Some(ui) = ui() else { return };
     let resolved = {
         let u = ui.borrow();
-        u.sections.iter().find(|s| s.id == id && (s.visible)()).or_else(|| u.sections.first()).map(|s| s.id)
+        let shown = |s: &&Section| (s.visible)();
+        u.sections
+            .iter()
+            .filter(shown)
+            .find(|s| s.id == id)
+            // An extension page asked for by its own id (`--section aura` finds `asus.aura`).
+            .or_else(|| u.sections.iter().filter(shown).find(|s| s.id.split_once('.').is_some_and(|(_, p)| p == id)))
+            // An extension's own id opens its first page (`--section webcam`).
+            .or_else(|| u.sections.iter().filter(shown).find(|s| s.id.split_once('.').is_some_and(|(e, _)| e == id)))
+            .or_else(|| u.sections.first())
+            .map(|s| s.id)
     };
     let Some(id) = resolved else { return };
     ensure_built(id);

@@ -52,16 +52,24 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
     displays (with a 15-second "keep these settings?" safety revert);
   - Wi-Fi & Bluetooth, power profiles and brightness, default apps, plugins,
     and updates.
-- **ASUS laptops** (needs `asusctl`; these pages only appear on ASUS hardware, and
-  each control only appears if your model supports it):
-  - **ASUS:** performance profiles, battery charge limit, a **fan curve graph**
-    you drag (per profile and fan, with presets), firmware settings such as GPU
-    mode and panel overdrive, and CPU/GPU power limits under Advanced.
-  - **Aura Lighting:** a live keyboard preview, effects, an inline colour picker,
-    and **Follow Omarchy theme**, which keeps your effect across theme changes
-    in the theme's colour. Also which power states light the keyboard, the
-    **Slash lightbar**, and (where present) the AniMe Matrix, XG Mobile light and
-    drive lights.
+- **Extensions** for more devices, installed from GitHub in one click
+  (Settings → Extensions). Each adds its own pages under Devices, only when
+  matching hardware is found:
+  - **ASUS** (needs `asusctl`): performance profiles, battery charge limit, a
+    **fan curve graph** you drag (per profile and fan, with presets), firmware
+    settings such as GPU mode and panel overdrive, and CPU/GPU power limits. Plus
+    **Aura Lighting**: effects, an inline colour picker, **Follow Omarchy theme**
+    (keeps your effect across theme changes), which power states light the
+    keyboard, the **Slash lightbar**, AniMe Matrix, XG Mobile light and drive lights.
+  - **Logitech** (with the [Logi](https://github.com/design-nexus/nexus-logi) app):
+    battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting.
+  - **Headsets** (needs `headsetcontrol`): battery, sidetone, lights, EQ presets,
+    auto power-off.
+  - **Webcams** (needs `v4l2-ctl`): zoom, pan/tilt, focus, exposure, white
+    balance, with framing presets for OBSBOT cameras.
+
+  Anyone can write one: see
+  [settings-extensions](https://github.com/design-nexus/settings-extensions).
 - **Keyboard backlight timeout** (any laptop with a keyboard backlight): turn it
   off after a set time without typing or touching the trackpad, and back on with
   the next key press.
@@ -71,7 +79,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 | ![Trackpad](docs/trackpad.png) | ![Theme](docs/theme.png) |
 | **Look & Feel** | **Keybindings** |
 | ![Look & Feel](docs/look.png) | ![Keybindings](docs/keybindings.png) |
-| **Aura Lighting** (ASUS) | **ASUS** performance, fans and firmware |
+| **Aura Lighting** (ASUS extension) | **ASUS** performance, fans and firmware (ASUS extension) |
 | ![Aura Lighting](docs/aura.png) | ![ASUS](docs/asus.png) |
 | **Bar layout** | |
 | ![Bar layout](docs/bar.png) | |
@@ -147,7 +155,11 @@ Settings never parses or rewrites your own config files:
   GTK or KDE files itself. The interface font and icon theme are the usual GNOME
   settings (`gsettings`). If you pick your own icons, a theme-set hook,
   `~/.config/omarchy/hooks/theme-set.d/50-settings-theme`, puts them back after
-  each theme change. It also restores your ASUS keyboard lighting.
+  each theme change. It also tells extensions that ask, so the ASUS extension
+  can restore your keyboard lighting.
+- **Extensions** live in `~/.local/share/settings/extensions/<id>` (a git
+  checkout each). Settings runs each one's helper program and draws the page;
+  `settings --ext list|install|update|remove` does the same from a terminal.
 - **Omarchy features** (themes, fonts, the bar, idle, night light, default apps,
   plugins) are changed through Omarchy's own commands and config.
 

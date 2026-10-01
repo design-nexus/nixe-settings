@@ -1,8 +1,9 @@
-//! The Omarchy theme-set hook. Omarchy resets the icon theme and ASUS keyboard
-//! lighting on every theme change; this hook runs `settings --theme-sync` right
-//! after, which puts back what the user chose in Settings.
+//! The Omarchy theme-set hook. Omarchy resets the icon theme (and things like
+//! keyboard lighting) on every theme change; this hook runs `settings --theme-sync`
+//! right after, which puts back the icon theme chosen in Settings and tells the
+//! extensions that asked, so they can do the same.
 
-use super::{appearance, asus};
+use super::appearance;
 use crate::{cmd, paths};
 use std::path::PathBuf;
 
@@ -17,14 +18,14 @@ fn old_hook_file() -> PathBuf {
 
 pub fn hook_script(self_cmd: &str) -> String {
     format!(
-        "#!/bin/bash\n# Installed by Settings: re-apply the icon theme and keyboard lighting you chose,\n\
+        "#!/bin/bash\n# Installed by Settings: re-apply the icon theme and extension settings you chose,\n\
          # after Omarchy resets them for a new theme. Settings puts this back when it starts.\n\
          exec {self_cmd} --theme-sync\n"
     )
 }
 
 fn wanted() -> bool {
-    appearance::load().icon_theme.is_some() || (asus::installed() && asus::has_aura())
+    appearance::load().icon_theme.is_some() || crate::ext::any_wants("theme-changed")
 }
 
 /// Install, refresh or remove the hook to match what needs it.
@@ -48,8 +49,8 @@ pub fn ensure() {
 /// `settings --theme-sync` (and the older `--aura-sync`).
 pub fn sync() -> anyhow::Result<()> {
     let icons = appearance::apply_icons(&appearance::load());
-    let aura = asus::sync_after_theme();
-    icons.and(aura)
+    let extensions = crate::ext::theme_changed();
+    icons.and(extensions)
 }
 
 #[cfg(test)]

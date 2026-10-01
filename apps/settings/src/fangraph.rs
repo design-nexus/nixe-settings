@@ -1,8 +1,7 @@
 //! A fan curve you edit by dragging its points: up and down for fan speed,
 //! left and right for temperature. Temperatures are kept in whole °C and
-//! labelled in the user's unit; speeds are kept as raw PWM (0–255).
+//! labelled in the user's unit; speeds are percentages.
 
-use crate::backend::asus::{percent_to_pwm, pwm_to_percent};
 use crate::{theme, units};
 use gtk::prelude::*;
 use std::cell::{Cell, RefCell};
@@ -15,7 +14,7 @@ const PAD_T: f64 = 14.0;
 const PAD_B: f64 = 30.0;
 const HIT: f64 = 16.0;
 
-/// (temperature °C, pwm 0–255)
+/// (temperature °C, speed %)
 pub type Points = Vec<(u32, u32)>;
 
 pub struct FanGraph {
@@ -62,12 +61,10 @@ pub fn constrain(points: &Points, i: usize, t: f64, pct: f64) -> (u32, u32) {
     let lo_t = if i == 0 { 0 } else { points[i - 1].0 + 1 };
     let hi_t = if i + 1 < points.len() { points[i + 1].0.saturating_sub(1) } else { T_MAX as u32 };
     let t = (t.round().max(0.0) as u32).clamp(lo_t, hi_t.max(lo_t));
-    let lo_p = if i == 0 { 0 } else { pwm_to_percent(points[i - 1].1) };
-    let hi_p = if i + 1 < points.len() { pwm_to_percent(points[i + 1].1) } else { 100 };
+    let lo_p = if i == 0 { 0 } else { points[i - 1].1 };
+    let hi_p = if i + 1 < points.len() { points[i + 1].1 } else { 100 };
     let p = (pct.round().clamp(0.0, 100.0) as u32).clamp(lo_p, hi_p.max(lo_p));
-    // Keep the exact PWM when the percentage didn't change (no drift from rounding).
-    let pwm = if p == pwm_to_percent(points[i].1) { points[i].1 } else { percent_to_pwm(p) };
-    (t, pwm)
+    (t, p)
 }
 
 pub fn fan_graph(points: Points, on_change: impl Fn(&Points) + 'static) -> FanGraph {
@@ -127,7 +124,7 @@ pub fn fan_graph(points: Points, on_change: impl Fn(&Points) + 'static) -> FanGr
             }
 
             // Area under the curve, then the curve.
-            let xy: Vec<(f64, f64)> = pts.iter().map(|(t, p)| (g.x(*t as f64), g.y(pwm_to_percent(*p) as f64))).collect();
+            let xy: Vec<(f64, f64)> = pts.iter().map(|(t, p)| (g.x(*t as f64), g.y(*p as f64))).collect();
             cr.move_to(xy[0].0, g.y(0.0));
             for (x, y) in &xy {
                 cr.line_to(*x, *y);
@@ -166,7 +163,7 @@ pub fn fan_graph(points: Points, on_change: impl Fn(&Points) + 'static) -> FanGr
             if let Some(i) = active {
                 let (t, p) = pts[i];
                 let text =
-                    format!("{}{} · {}%", units::from_celsius(t as f64).round() as i64, units::symbol(), pwm_to_percent(p));
+                    format!("{}{} · {}%", units::from_celsius(t as f64).round() as i64, units::symbol(), p);
                 cr.set_font_size(12.0);
                 let tw = cr.text_extents(&text).map(|e| e.width()).unwrap_or(60.0);
                 let (x, y) = xy[i];
@@ -192,7 +189,7 @@ pub fn fan_graph(points: Points, on_change: impl Fn(&Points) + 'static) -> FanGr
                 .borrow()
                 .iter()
                 .enumerate()
-                .map(|(i, (t, p))| (i, (g.x(*t as f64) - x).hypot(g.y(pwm_to_percent(*p) as f64) - y)))
+                .map(|(i, (t, p))| (i, (g.x(*t as f64) - x).hypot(g.y(*p as f64) - y)))
                 .filter(|(_, d)| *d <= HIT)
                 .min_by(|a, b| a.1.total_cmp(&b.1))
                 .map(|(i, _)| i)
@@ -294,7 +291,7 @@ mod tests {
     use super::*;
 
     fn curve() -> Points {
-        vec![(0, 25), (57, 43), (61, 61), (65, 84)]
+        vec![(0, 10), (57, 43), (61, 61), (65, 84)]
     }
 
     #[test]
@@ -308,17 +305,8 @@ mod tests {
     #[test]
     fn speeds_never_fall() {
         let p = curve();
-        let (_, pwm) = constrain(&p, 2, 61.0, 0.0);
-        assert_eq!(pwm_to_percent(pwm), pwm_to_percent(43)); // not below the previous point
-        let (_, pwm) = constrain(&p, 2, 61.0, 100.0);
-        assert_eq!(pwm_to_percent(pwm), pwm_to_percent(84)); // not above the next point
-    }
-
-    #[test]
-    fn untouched_speed_keeps_exact_pwm() {
-        let p = curve();
-        let pct = pwm_to_percent(43) as f64;
-        assert_eq!(constrain(&p, 1, 58.0, pct).1, 43);
+        assert_eq!(constrain(&p, 2, 61.0, 0.0).1, 43); // not below the previous point
+        assert_eq!(constrain(&p, 2, 61.0, 100.0).1, 84); // not above the next point
     }
 
     #[test]

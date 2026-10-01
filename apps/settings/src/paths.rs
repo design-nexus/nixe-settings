@@ -18,6 +18,24 @@ pub fn state_home() -> PathBuf {
         .unwrap_or_else(|| home().join(".local/state"))
 }
 
+pub fn data_home() -> PathBuf {
+    std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).unwrap_or_else(|| home().join(".local/share"))
+}
+
+pub fn cache_home() -> PathBuf {
+    std::env::var_os("XDG_CACHE_HOME").map(PathBuf::from).filter(|p| p.is_absolute()).unwrap_or_else(|| home().join(".cache"))
+}
+
+/// `~/.local/share/settings/extensions` — one folder per installed extension.
+pub fn ext_dir() -> PathBuf {
+    data_home().join("settings/extensions")
+}
+
+/// What extensions said they offer last time, so the sidebar fills in without waiting.
+pub fn ext_cache_dir() -> PathBuf {
+    cache_home().join("settings/extensions")
+}
+
 /// `~/.config/settings` — everything this app owns lives here.
 pub fn app_dir() -> PathBuf {
     config_home().join("settings")

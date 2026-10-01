@@ -48,6 +48,18 @@ pub fn keywords(words: &str) {
     });
 }
 
+/// Rows made from now on belong to this section (for pages that fill in later).
+pub fn begin_section(section: &str) {
+    CURRENT_SECTION.with(|s| *s.borrow_mut() = section.to_string());
+    CURRENT_GROUP.with(|g| *g.borrow_mut() = None);
+}
+
+/// Drop the search entries for rows inside `within` (before they're replaced).
+pub fn forget_rows(within: &impl IsA<gtk::Widget>) {
+    let within = within.as_ref();
+    SEARCH.with(|s| s.borrow_mut().retain(|item| !item.row.is_ancestor(within)));
+}
+
 // ---------- Page / group ----------
 
 pub struct Page {
@@ -108,16 +120,6 @@ impl Page {
         self.body.append(&wrapper);
         CURRENT_GROUP.with(|g| *g.borrow_mut() = Some(wrapper.clone().upcast()));
         Group { wrapper, list }
-    }
-
-    /// A dim line under the page description (e.g. the machine's model).
-    pub fn subtitle(&self, text: &str) {
-        if let Some(desc) = self.body.first_child().and_then(|h| h.first_child()).and_then(|t| t.last_child())
-            && let Some(label) = desc.downcast_ref::<gtk::Label>()
-        {
-            label.set_markup(&format!("{}\n{}", label.label(), text));
-            label.set_use_markup(true);
-        }
     }
 
     pub fn banner(&self, text: &str, warning: bool) -> gtk::Box {
@@ -745,14 +747,6 @@ pub const PRESET_COLOURS: &[(&str, &str)] = &[
 /// `theme` is (label, colour) for the theme swatch.
 pub struct ColourPicker {
     pub widget: gtk::Box,
-    set: Rc<dyn Fn(&str)>,
-}
-
-impl ColourPicker {
-    /// Change the shown colour without calling back.
-    pub fn show(&self, hex: &str) {
-        (self.set)(hex);
-    }
 }
 
 pub fn colour_picker(current: &str, theme: Option<(&str, &str)>, on_change: impl Fn(String) + 'static) -> ColourPicker {
@@ -871,7 +865,7 @@ pub fn colour_picker(current: &str, theme: Option<(&str, &str)>, on_change: impl
     }
     outer.append(&entry);
     mark(current);
-    ColourPicker { widget: outer, set: mark }
+    ColourPicker { widget: outer }
 }
 
 /// A row that reveals more rows when clicked (collapsed by default).

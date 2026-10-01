@@ -1,6 +1,6 @@
 id = "streamdeck"
 name = "Stream Deck"
-version = "1.0.0"
+version = "1.0.1"
 description = "The Corsair Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness and dials, run by galleon-deck."
 exec = "./settings-streamdeck"
 needs = ["python3", "git"]

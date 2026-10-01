@@ -65,7 +65,7 @@ files = ["~/.config/thing.toml"]  # optional, offered by the page's "Open config
 | `set PAGE KEY VALUE` | nothing, or `{"toast": "…", "refresh": true, "reload": true}` (`reload`: ask for the pages again, e.g. after devices appear) |
 | `theme-changed` | nothing; run after the Omarchy theme changes (with `hooks = ["theme-changed"]`) |
 
-A non-zero exit shows stderr as a message. Settings sets `SETTINGS_KINDS` (the row kinds it can draw; send only those), `SETTINGS_EXTENSION_DIR`
+A non-zero exit shows stderr as a message. Settings waits 15 s for `describe` and 30 s for `set`; start anything longer (package installs, builds) in the background or a terminal, and report progress from `describe` with `poll`. Settings sets `SETTINGS_KINDS` (the row kinds it can draw; send only those), `SETTINGS_EXTENSION_DIR`
 (the extension's folder), `SETTINGS_EXTENSION_STATE` (a folder for small things
 to remember) and `SETTINGS_TEMP_UNIT` (`C` or `F`).
 

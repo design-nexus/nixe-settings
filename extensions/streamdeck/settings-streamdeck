@@ -13,9 +13,11 @@ import glob
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
+import time
 
 try:
     import tomllib
@@ -50,8 +52,10 @@ ACTIONS = [
 ]
 ACTION_FIELDS = ("key", "keys", "exec", "media", "page", "profile")
 # galleon-deck's Arch packages (its install.sh), plus tomlkit for editing config here.
+# Not ttf-nerd-fonts-symbols: it conflicts with other Nerd Font symbol packages, and
+# galleon-deck's installer fetches the "Symbols Nerd Font" itself when it's missing.
 PACKAGES = ["python", "python-pillow", "python-evdev", "python-gobject", "gtk4", "libadwaita", "python-fonttools",
-            "ttf-nerd-fonts-symbols", "ttf-jetbrains-mono", "playerctl", "libnotify", "python-tomlkit"]
+            "ttf-jetbrains-mono", "playerctl", "libnotify", "python-tomlkit"]
 MODULES = ["PIL", "evdev", "tomlkit"]
 
 
@@ -104,6 +108,113 @@ def run(argv, timeout=600, env=None):
         msg = (r.stderr or r.stdout).strip().splitlines()
         raise SystemExit("\n".join(msg[-4:]) or f"{argv[0]} failed")
     return r.stdout
+
+
+# ------------------------------------------------------------------- jobs
+#
+# Setup steps take longer than Settings waits for an answer, so they run on their
+# own: package installs and root steps in a terminal (you type your password and
+# can answer pacman there), galleon-deck's installer in the background. Each job
+# leaves `<name>.exit` (its exit code) and, in the background, `<name>.log`.
+
+JOBS = os.path.join(STATE, "jobs")
+# A terminal job nobody finished (window closed) stops counting as running after this.
+TERMINAL_JOB_LIMIT = 30 * 60
+
+
+def job_files(name):
+    return (os.path.join(JOBS, f"{name}.json"), os.path.join(JOBS, f"{name}.exit"), os.path.join(JOBS, f"{name}.log"))
+
+
+def pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, TypeError):
+        return False
+
+
+def job_state(name):
+    """None (never run), ("running", seconds), or ("done", exit code, last lines of output)."""
+    rec_path, exit_path, log_path = job_files(name)
+    try:
+        with open(rec_path) as f:
+            rec = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if os.path.exists(exit_path):
+        try:
+            with open(exit_path) as f:
+                code = int(f.read().strip() or "1")
+        except (OSError, ValueError):
+            code = 1
+        tail = ""
+        if os.path.exists(log_path):
+            with open(log_path, errors="replace") as f:
+                lines = [line for line in f.read().splitlines() if line.strip()]
+            tail = "\n".join(lines[-4:])
+        return ("done", code, tail)
+    elapsed = int(time.time() - rec.get("started", 0))
+    if rec.get("terminal"):
+        return ("running", elapsed) if elapsed < TERMINAL_JOB_LIMIT else None
+    return ("running", elapsed) if pid_alive(rec.get("pid")) else ("done", 1, "It stopped without saying why.")
+
+
+def start_record(name, **extra):
+    os.makedirs(JOBS, exist_ok=True)
+    rec_path, exit_path, log_path = job_files(name)
+    for p in (exit_path, log_path):
+        if os.path.exists(p):
+            os.remove(p)
+    with open(rec_path, "w") as f:
+        json.dump({"started": time.time(), **extra}, f)
+
+
+def start_background(name, argv):
+    _, exit_path, log_path = job_files(name)
+    start_record(name)
+    script = f'"$@" > {shlex.quote(log_path)} 2>&1; echo $? > {shlex.quote(exit_path)}'
+    proc = subprocess.Popen(["sh", "-c", script, "sh", *argv], start_new_session=True,
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    start_record(name, pid=proc.pid)
+
+
+def terminal_launcher(shell_cmd):
+    """argv that runs `shell_cmd` in a visible terminal, or None."""
+    if shutil.which("omarchy-launch-floating-terminal-with-presentation"):
+        return ["omarchy-launch-floating-terminal-with-presentation", shell_cmd]
+    keep_open = shell_cmd + "; echo; read -rp 'Done. Press Enter to close.' _"
+    if shutil.which("xdg-terminal-exec"):
+        return ["xdg-terminal-exec", "-e", "bash", "-c", keep_open]
+    term = os.environ.get("TERMINAL")
+    if term and shutil.which(term.split()[0]):
+        return [*term.split(), "-e", "bash", "-c", keep_open]
+    return None
+
+
+def wrap_for_terminal(name, shell_cmd):
+    """Save the exit code, then end with it so the terminal shows Done or Failed."""
+    _, exit_path, _ = job_files(name)
+    return f"({shell_cmd}); c=$?; echo $c > {shlex.quote(exit_path)}; (exit $c)"
+
+
+def start_terminal(name, shell_cmd):
+    argv = terminal_launcher(wrap_for_terminal(name, shell_cmd))
+    if argv is None:
+        raise SystemExit(f"No terminal found. Run this yourself: {shell_cmd}")
+    start_record(name, terminal=True)
+    subprocess.Popen(argv, start_new_session=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def access_script():
+    rule = os.path.join(VENDOR, "data/udev/71-galleon-deck.rules")
+    return (f"install -m644 {shlex.quote(rule)} {UDEV_RULE} && rm -f /etc/udev/rules.d/71-galleon-deck-hidraw.rules && "
+            f"echo uinput > {MODULES_LOAD} && modprobe uinput && udevadm control --reload && "
+            "udevadm trigger --subsystem-match=hidraw --subsystem-match=misc")
+
+
+def pacman_locked():
+    return os.path.exists("/var/lib/pacman/db.lck")
 
 
 # ----------------------------------------------------------------- config
@@ -216,30 +327,50 @@ def pages():
     }]
 
 
+def step_row(key, title, desc, label, job, done_text):
+    """A setup step: a button, or progress while its job runs, or why the last try failed."""
+    state = job_state(job)
+    if state and state[0] == "running":
+        where = "in the terminal window" if job != "galleon" else "in the background"
+        return {"kind": "info", "title": title, "value": f"{done_text}… {state[1]} s ({where})",
+                "tooltip": desc}
+    if state and state[0] == "done" and state[1] != 0:
+        tail = glib_escape(state[2]) if state[2] else ""
+        desc = f"<b>The last try failed (exit {state[1]}).</b>" + (f" <tt>{tail}</tt>" if tail else "") + " " + desc
+        label = "Try again"
+    return {"kind": "button", "key": key, "title": title, "desc": desc, "label": label}
+
+
+def glib_escape(text):
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
 def setup_group():
     rows = []
     missing = missing_modules()
     if missing:
-        rows.append({
-            "kind": "button", "key": "install-packages", "title": "1. Install packages",
-            "desc": f"Missing Python modules: <tt>{', '.join(missing)}</tt>. Installs <tt>{' '.join(PACKAGES)}</tt> with pacman; asks for your password.",
-            "label": "Install",
-        })
+        rows.append(step_row(
+            "install-packages", "1. Install packages",
+            f"Missing Python modules: <tt>{', '.join(missing)}</tt>. Opens a terminal that runs "
+            f"<tt>sudo pacman -S --needed {' '.join(PACKAGES)}</tt>; type your password there.",
+            "Install", "packages", "Installing"))
     if not galleon_installed():
-        rows.append({
-            "kind": "button", "key": "install-galleon", "title": f"{len(rows) + 1}. Set up galleon-deck",
-            "desc": "Runs galleon-deck's installer: its program in <tt>~/.local</tt>, a starter config and the background service.",
-            "label": "Set up",
-        })
+        rows.append(step_row(
+            "install-galleon", f"{len(rows) + 1}. Set up galleon-deck",
+            "Runs galleon-deck's installer: its program in <tt>~/.local</tt>, its fonts, a starter config and the background service. Takes a minute.",
+            "Set up", "galleon", "Setting up"))
     if not access_ready():
-        rows.append({
-            "kind": "button", "key": "allow", "title": f"{len(rows) + 1}. Allow access",
-            "desc": f"Installs <tt>{UDEV_RULE}</tt> and loads the <tt>uinput</tt> module, so the deck can be driven and can type. Asks for your password.",
-            "label": "Allow access",
-        })
+        rows.append(step_row(
+            "allow", f"{len(rows) + 1}. Allow access",
+            f"Opens a terminal that installs <tt>{UDEV_RULE}</tt> and loads the <tt>uinput</tt> module, so the deck can be driven and can type. Type your password there.",
+            "Allow access", "access", "Allowing access"))
     if not rows:
         return None
     return {"title": "Set up", "note": "Do these in order. Each one only needs doing once.", "rows": rows}
+
+
+def jobs_running():
+    return any((job_state(j) or ("",))[0] == "running" for j in ("packages", "galleon", "access"))
 
 
 def service_group():
@@ -334,8 +465,9 @@ def describe(page_id):
     setup = setup_group()
     if setup:
         groups.append(setup)
+    poll = 2 if jobs_running() else 0
     if not galleon_installed():
-        return {"banners": banners, "groups": groups}
+        return {"banners": banners, "groups": groups, "poll": poll}
     cfg = read_toml(CONFIG)
     groups.append(service_group())
     groups.append(general_group(cfg))
@@ -359,7 +491,7 @@ def describe(page_id):
         ]})
         groups.append({"title": f"Keys on “{page}”", "note": "Left to right, top to bottom: 3 across, 4 down.",
                        "rows": key_rows(profile, page)})
-    return {"banners": banners, "groups": groups}
+    return {"banners": banners, "groups": groups, "poll": poll}
 
 
 # -------------------------------------------------------------------- set
@@ -373,22 +505,19 @@ def set_value(page_id, key, value):
     if key == "install-packages":
         if not shutil.which("pacman"):
             raise SystemExit("Install these yourself: " + " ".join(PACKAGES))
-        run(["pkexec", "pacman", "-S", "--needed", "--noconfirm", *PACKAGES], timeout=1800)
-        return {"toast": "Packages installed", "refresh": True}
+        if pacman_locked():
+            raise SystemExit("Another package install is running (pacman is locked). Try again when it's finished.")
+        start_terminal("packages", "sudo pacman -S --needed " + " ".join(PACKAGES))
+        return {"toast": "Installing in a terminal: type your password there", "refresh": True}
     if key == "install-galleon":
         if not os.path.isdir(VENDOR):
             raise SystemExit("galleon-deck's files are missing; update or reinstall this extension")
         # Packages and root steps are separate buttons; its installer starts the service.
-        run(["bash", os.path.join(VENDOR, "install.sh"), "--no-deps", "--no-root"], timeout=900)
-        return {"toast": "galleon-deck is set up", "refresh": True}
+        start_background("galleon", ["bash", os.path.join(VENDOR, "install.sh"), "--no-deps", "--no-root"])
+        return {"toast": "Setting up galleon-deck", "refresh": True}
     if key == "allow":
-        rule = os.path.join(VENDOR, "data/udev/71-galleon-deck.rules")
-        script = (f"install -m644 '{rule}' {UDEV_RULE} && rm -f /etc/udev/rules.d/71-galleon-deck-hidraw.rules && "
-                  f"echo uinput > {MODULES_LOAD} && modprobe uinput && udevadm control --reload && "
-                  "udevadm trigger --subsystem-match=hidraw --subsystem-match=misc")
-        run(["pkexec", "sh", "-c", script])
-        systemctl("restart", UNIT)
-        return {"toast": "Access allowed", "refresh": True}
+        start_terminal("access", f"sudo sh -c {shlex.quote(access_script())} && systemctl --user restart {UNIT}")
+        return {"toast": "Allowing access in a terminal: type your password there", "refresh": True}
     if key == "service":
         if value == "true":
             run(["systemctl", "--user", "enable", "--now", UNIT])

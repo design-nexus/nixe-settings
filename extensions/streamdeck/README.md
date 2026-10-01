@@ -8,8 +8,10 @@ The deck is driven by [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck)
 `~/.config/galleon-deck`. This extension fetches galleon-deck at a fixed commit and,
 from the Stream Deck page:
 
-- installs its packages (pacman), runs its installer, and adds its device rule and
-  the `uinput` module (each asks for your password once);
+- installs its packages and adds its device rule and the `uinput` module in a terminal
+  (`sudo`, so you type your password there and can answer pacman), and runs its
+  installer in the background; the page shows progress, and the last lines of output
+  if a step fails;
 - turns the service on or off, restarts it, or opens galleon-deck's own app (icons,
   images, themes, window rules);
 - edits brightness, the start profile, clock format, animations and the volume

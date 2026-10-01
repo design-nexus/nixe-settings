@@ -105,6 +105,11 @@ pub struct Row {
     // chips
     pub labels: Vec<String>,
 
+    // camera: a live preview of this video device (`/dev/video0`)
+    pub device: String,
+    // meter: a live level graph of this PipeWire source (its node name)
+    pub source: String,
+
     // curve
     pub series: Vec<Series>,
     pub presets: bool,
@@ -130,7 +135,15 @@ pub enum Kind {
     Chips,
     Curve,
     Disclosure,
+    Camera,
+    Meter,
+    /// A kind newer than this Settings; shown as a note instead of failing the page.
+    #[serde(other)]
+    Unknown,
 }
+
+/// Every kind this Settings can draw, passed to helpers as `SETTINGS_KINDS`.
+pub const KINDS: &str = "info switch slider choice segmented buttons entry button colour chips curve disclosure camera meter";
 
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 pub struct ThemeSwatch {
@@ -248,8 +261,19 @@ mod tests {
     }
 
     #[test]
-    fn unknown_kinds_are_rejected() {
-        assert!(parse_page(r#"{"groups":[{"rows":[{"kind":"hologram"}]}]}"#).is_err());
+    fn unknown_kinds_still_parse() {
+        let d = parse_page(r#"{"groups":[{"rows":[{"kind":"hologram","title":"Hologram"},{"kind":"camera","device":"/dev/video0"},{"kind":"meter","source":"alsa_input.x"}]}]}"#).unwrap();
+        let rows = &d.groups[0].rows;
+        assert_eq!(rows[0].kind, Kind::Unknown);
+        assert_eq!((rows[1].kind, rows[1].device.as_str()), (Kind::Camera, "/dev/video0"));
+        assert_eq!((rows[2].kind, rows[2].source.as_str()), (Kind::Meter, "alsa_input.x"));
+    }
+
+    #[test]
+    fn kinds_list_names_every_kind() {
+        for k in ["camera", "meter", "curve", "info"] {
+            assert!(KINDS.split(' ').any(|x| x == k));
+        }
     }
 
     #[test]

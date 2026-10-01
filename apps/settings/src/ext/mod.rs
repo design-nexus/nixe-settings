@@ -7,6 +7,7 @@
 //! See `protocol.rs` for what the helper prints.
 
 pub mod manage;
+pub mod media;
 pub mod protocol;
 pub mod render;
 
@@ -97,7 +98,8 @@ impl Extension {
             .current_dir(&self.dir)
             .env("SETTINGS_EXTENSION_DIR", &self.dir)
             .env("SETTINGS_EXTENSION_STATE", paths::state_home().join("settings/extensions").join(self.id()))
-            .env("SETTINGS_TEMP_UNIT", if crate::units::fahrenheit() { "F" } else { "C" });
+            .env("SETTINGS_TEMP_UNIT", if crate::units::fahrenheit() { "F" } else { "C" })
+            .env("SETTINGS_KINDS", protocol::KINDS);
         run_command(c, &self.manifest.name, timeout)
     }
 

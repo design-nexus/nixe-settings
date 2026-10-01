@@ -315,6 +315,20 @@ fn row_widget(st: &Shared, row: &Row) -> gtk::Widget {
             r.upcast()
         }
         Kind::Curve => curve(st, row).upcast(),
+        Kind::Camera => {
+            let r = super::media::camera(&row.title, &row.desc, &row.device);
+            decorate(&r, row);
+            r.upcast()
+        }
+        Kind::Meter => {
+            let r = super::media::meter(&row.title, &row.desc, &row.source);
+            decorate(&r, row);
+            r.upcast()
+        }
+        Kind::Unknown => {
+            let (r, _) = widgets::info_row(if row.title.is_empty() { "Unsupported row" } else { &row.title }, "Needs a newer Settings");
+            r.upcast()
+        }
         Kind::Disclosure => {
             let (wrapper, content) = widgets::disclosure(&row.title, &row.desc);
             if !row.keywords.is_empty() {

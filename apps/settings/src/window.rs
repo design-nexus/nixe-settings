@@ -19,7 +19,8 @@ struct Ui {
     /// Hidden in the icon-only sidebar: fixed parts, and the labels of the current items.
     compact_fixed: Vec<gtk::Widget>,
     compact_items: Vec<gtk::Widget>,
-    compact: bool,
+    /// A Cell: it's set while the window is being shown, when the UI is already borrowed.
+    compact: std::cell::Cell<bool>,
     pages: HashMap<&'static str, gtk::ScrolledWindow>,
     sections: Vec<Section>,
     current: &'static str,
@@ -53,8 +54,9 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
         snapshot_and_quit(app, std::path::PathBuf::from(out));
         return;
     }
-    if let Some(ui) = ui() {
-        ui.borrow().window.present();
+    // Clone first: presenting realizes the window, and its handlers borrow the UI.
+    if let Some(window) = ui().map(|u| u.borrow().window.clone()) {
+        window.present();
     }
     // Bring the keyboard backlight timeout helper back if it isn't running.
     crate::cmd::background(crate::backend::kbdidle::ensure_running, |_| {});
@@ -170,8 +172,8 @@ fn build(app: &gtk::Application) {
                 nav.remove_css_class("compact");
             }
             if let Some(ui) = ui() {
-                let mut u = ui.borrow_mut();
-                u.compact = compact;
+                let u = ui.borrow();
+                u.compact.set(compact);
                 for wdg in u.compact_fixed.iter().chain(&u.compact_items) {
                     wdg.set_visible(!compact);
                 }
@@ -203,7 +205,7 @@ fn build(app: &gtk::Application) {
         nav_groups,
         compact_fixed: compact_hide,
         compact_items,
-        compact: false,
+        compact: std::cell::Cell::new(false),
         pages: HashMap::new(),
         sections,
         current: "",
@@ -264,7 +266,7 @@ pub fn reload_sections(fresh: bool) {
     }
     let (items, groups, compact_items) = fill_nav(&u.nav_list, &sections);
     for w in &compact_items {
-        w.set_visible(!u.compact);
+        w.set_visible(!u.compact.get());
     }
     // Drop built extension pages (their page may have changed) and pages that are gone.
     let stale: Vec<&'static str> = u

@@ -159,7 +159,9 @@ Settings never parses or rewrites your own config files:
   can restore your keyboard lighting.
 - **Extensions** live in `~/.local/share/settings/extensions/<id>` (a git
   checkout each). Settings runs each one's helper program and draws the page;
-  `settings --ext list|install|update|remove` does the same from a terminal.
+  each can be turned off without removing it (its pages are hidden), and
+  `settings --ext list|install|update|enable|disable|remove` does the same from
+  a terminal.
 - **Omarchy features** (themes, fonts, the bar, idle, night light, default apps,
   plugins) are changed through Omarchy's own commands and config.
 

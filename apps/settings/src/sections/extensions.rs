@@ -51,7 +51,9 @@ fn installed_desc(e: &Extension) -> String {
     let m = &e.manifest;
     let mut parts = vec![glib::markup_escape_text(&m.description).to_string()];
     let missing = e.missing();
-    if !missing.is_empty() {
+    if !ext::enabled(e.id()) {
+        parts.push("<b>Turned off.</b> Its pages are hidden until you turn it back on.".into());
+    } else if !missing.is_empty() {
         let hint = if m.needs_hint.is_empty() {
             format!("Needs <tt>{}</tt>, which isn't installed.", glib::markup_escape_text(&missing.join(", ")))
         } else {
@@ -137,7 +139,19 @@ pub fn build(page: &Page) {
             });
             remove.add_css_class("destructive-action");
             controls.append(&remove);
+            let on = gtk::Switch::new();
+            on.set_active(ext::enabled(e.id()));
+            on.set_valign(gtk::Align::Center);
+            on.set_tooltip_text(Some("Turn off to hide its pages without removing it"));
+            let id = e.id().to_string();
+            on.connect_active_notify(move |s| {
+                manage::set_enabled(&id, s.is_active());
+                // This page is rebuilt with the new state; not from inside the switch's own handler.
+                glib::idle_add_local_once(after_change);
+            });
+            controls.append(&on);
             g.add(&widgets::row(&e.manifest.name, &installed_desc(&e), Some(controls.upcast_ref())));
+            widgets::keywords("enable disable turn on off hide extension");
         }
         let (r, _) = widgets::button_row(
             "Look for devices again",

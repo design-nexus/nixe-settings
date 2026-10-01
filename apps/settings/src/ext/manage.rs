@@ -175,6 +175,16 @@ pub fn update(ext: &Extension) -> Result<bool> {
     Ok(changed)
 }
 
+/// Turn an installed extension on or off without removing it.
+pub fn set_enabled(id: &str, on: bool) {
+    crate::prefs::update(|p| {
+        p.disabled_extensions.retain(|d| d != id);
+        if !on {
+            p.disabled_extensions.push(id.to_string());
+        }
+    });
+}
+
 pub fn remove(ext: &Extension) -> Result<()> {
     // Only ever delete inside the extensions folder.
     let base = paths::ext_dir();
@@ -183,6 +193,9 @@ pub fn remove(ext: &Extension) -> Result<()> {
     }
     std::fs::remove_dir_all(&ext.root).with_context(|| format!("couldn't remove {}", paths::pretty(&ext.root)))?;
     super::forget_pages(ext.id());
+    if !super::enabled(ext.id()) {
+        set_enabled(ext.id(), true);
+    }
     Ok(())
 }
 
@@ -193,12 +206,17 @@ pub fn cli(args: &[String]) -> Result<()> {
     match verb {
         "list" => {
             let installed = super::installed();
+            let mark_for = |id: &str| match installed.iter().any(|i| i.id() == id) {
+                true if super::enabled(id) => "installed",
+                true => "disabled",
+                false => "",
+            };
             for e in catalog(true) {
-                let mark = if installed.iter().any(|i| i.id() == e.id) { "installed" } else { "" };
+                let mark = mark_for(&e.id);
                 println!("{:<12} {:<10} {}", e.id, mark, e.name);
             }
             for i in installed.iter().filter(|i| !catalog(false).iter().any(|e| e.id == i.id())) {
-                println!("{:<12} {:<10} {} (local)", i.id(), "installed", i.manifest.name);
+                println!("{:<12} {:<10} {} (local)", i.id(), mark_for(i.id()), i.manifest.name);
             }
             Ok(())
         }
@@ -225,13 +243,21 @@ pub fn cli(args: &[String]) -> Result<()> {
             }
             Ok(())
         }
+        "enable" | "disable" if !arg.is_empty() => {
+            let e = super::find(arg).with_context(|| format!("\"{arg}\" isn't installed"))?;
+            set_enabled(e.id(), verb == "enable");
+            // The theme hook may now be needed, or not.
+            crate::backend::themehook::ensure();
+            println!("{} {}", e.manifest.name, if verb == "enable" { "turned on" } else { "turned off" });
+            Ok(())
+        }
         "remove" if !arg.is_empty() => {
             let e = super::find(arg).with_context(|| format!("\"{arg}\" isn't installed"))?;
             remove(&e)?;
             println!("Removed {}", e.manifest.name);
             Ok(())
         }
-        _ => bail!("usage: settings --ext list | install ID|URL [PATH] | update [ID] | remove ID"),
+        _ => bail!("usage: settings --ext list | install ID|URL [PATH] | update [ID] | enable ID | disable ID | remove ID"),
     }
 }
 
@@ -253,6 +279,22 @@ mod tests {
         let l = parse_index(r#"{"extensions":[{"id":"x","name":"X","repo":"https://example.com/x.git"}]}"#).unwrap();
         assert_eq!(l[0].icon, "application-x-addon-symbolic");
         assert!(l[0].path.is_empty() && l[0].needs.is_empty());
+    }
+
+    #[test]
+    fn turns_extensions_off_and_on() {
+        let scratch = crate::ext::tests::scratch("enabled");
+        // SAFETY: only this test changes XDG_CONFIG_HOME; prefs are read from it fresh.
+        unsafe { std::env::set_var("XDG_CONFIG_HOME", &scratch) };
+        assert!(crate::ext::enabled("demo"));
+        set_enabled("demo", false);
+        set_enabled("demo", false);
+        assert!(!crate::ext::enabled("demo"));
+        assert_eq!(crate::prefs::read().disabled_extensions, ["demo"], "listed once");
+        set_enabled("demo", true);
+        assert!(crate::ext::enabled("demo"));
+        unsafe { std::env::remove_var("XDG_CONFIG_HOME") };
+        let _ = std::fs::remove_dir_all(&scratch);
     }
 
     #[test]

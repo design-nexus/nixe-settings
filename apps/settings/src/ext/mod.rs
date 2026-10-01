@@ -200,6 +200,17 @@ pub fn installed() -> Vec<Extension> {
     out
 }
 
+/// Whether an installed extension is turned on (Settings → Extensions).
+pub fn enabled(id: &str) -> bool {
+    !crate::prefs::read().disabled_extensions.iter().any(|d| d == id)
+}
+
+/// Installed extensions that are turned on.
+pub fn active() -> Vec<Extension> {
+    let off = crate::prefs::read().disabled_extensions;
+    installed().into_iter().filter(|e| !off.iter().any(|d| d == e.id())).collect()
+}
+
 pub fn find(id: &str) -> Option<Extension> {
     installed().into_iter().find(|e| e.id() == id)
 }
@@ -253,7 +264,7 @@ impl PageRef {
 /// else asked for now. `fresh` always asks.
 pub fn all_pages(fresh: bool) -> Vec<PageRef> {
     let mut out = Vec::new();
-    for ext in installed() {
+    for ext in active() {
         let pages = match (fresh, cached_pages(ext.id())) {
             (false, Some(p)) => p,
             _ => {
@@ -273,7 +284,7 @@ pub fn all_pages(fresh: bool) -> Vec<PageRef> {
 /// Ask every extension again; true if any page list changed.
 pub fn refresh_pages() -> bool {
     let mut changed = false;
-    for ext in installed() {
+    for ext in active() {
         if let Ok(p) = ext.query_pages() {
             changed |= remember_pages(ext.id(), &p);
         }
@@ -284,7 +295,7 @@ pub fn refresh_pages() -> bool {
 /// Tell the extensions that asked about it that the Omarchy theme changed.
 pub fn theme_changed() -> Result<()> {
     let mut errors = Vec::new();
-    for ext in installed().into_iter().filter(|e| e.wants("theme-changed") && e.missing().is_empty()) {
+    for ext in active().into_iter().filter(|e| e.wants("theme-changed") && e.missing().is_empty()) {
         if let Err(e) = ext.call(&["theme-changed"], Duration::from_secs(20)) {
             errors.push(format!("{}: {e:#}", ext.manifest.name));
         }
@@ -293,7 +304,7 @@ pub fn theme_changed() -> Result<()> {
 }
 
 pub fn any_wants(hook: &str) -> bool {
-    installed().iter().any(|e| e.wants(hook))
+    active().iter().any(|e| e.wants(hook))
 }
 
 #[cfg(test)]

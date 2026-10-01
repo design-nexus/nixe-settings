@@ -34,6 +34,8 @@ pub struct Prefs {
     /// The old-panel cleanup has been offered once already.
     pub cleanup_offered: bool,
     pub last_section: String,
+    /// Installed extensions that are turned off: kept, but their pages are hidden.
+    pub disabled_extensions: Vec<String>,
 }
 
 impl Default for Prefs {
@@ -47,12 +49,18 @@ impl Default for Prefs {
             temp_unit: TempUnit::Celsius,
             cleanup_offered: false,
             last_section: "theme".into(),
+            disabled_extensions: Vec::new(),
         }
     }
 }
 
 thread_local! {
     static PREFS: RefCell<Prefs> = RefCell::new(load());
+}
+
+/// Read from disk (not this thread's cached copy), for worker threads and headless commands.
+pub fn read() -> Prefs {
+    load()
 }
 
 fn load() -> Prefs {

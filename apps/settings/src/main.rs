@@ -23,7 +23,7 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --volume STEP  change the output volume, allowing past 100% up to the maximum set in Sound\n\
   --eq ACTION    turn the preamp/equalizer on or off, or print whether it's running\n\
   --kbd-timeout S  turn the keyboard backlight off after S idle seconds (off to disable)\n\
-  --ext list|install ID|URL [PATH]|update [ID]|remove ID  manage device extensions\n\
+  --ext list|install ID|URL [PATH]|update [ID]|enable ID|disable ID|remove ID  manage device extensions\n\
   --theme-sync   (internal) re-apply the icon theme you chose and tell extensions; run by the theme-set hook\n\
   --kbd-idle     (internal) turn the keyboard backlight off when idle; run by the settings-kbd-idle service\n\
   --remove-old-panels [--dry-run]  remove the settings panels this app replaces (backed up first)\n\

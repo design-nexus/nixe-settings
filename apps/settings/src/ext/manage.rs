@@ -162,7 +162,12 @@ pub fn update(ext: &Extension) -> Result<bool> {
         bail!("{} wasn't installed from git", ext.manifest.name);
     }
     let before = git(&["rev-parse", "HEAD"], Some(&ext.root)).unwrap_or_default();
-    git(&["pull", "--ff-only", "--depth", "1"], Some(&ext.root))?;
+    // Fetch just the newest commit and move to it. A `pull` in this shallow,
+    // partial checkout fails once more than one commit has landed upstream.
+    // Untracked build output (bin/, target/, vendor/) is left alone.
+    let branch = git(&["rev-parse", "--abbrev-ref", "HEAD"], Some(&ext.root))?;
+    git(&["fetch", "--depth", "1", "origin", branch.trim()], Some(&ext.root))?;
+    git(&["reset", "--hard", "FETCH_HEAD"], Some(&ext.root))?;
     let after = git(&["rev-parse", "HEAD"], Some(&ext.root)).unwrap_or_default();
     let changed = before != after;
     if changed {
@@ -336,6 +341,16 @@ mod tests {
         assert_eq!(e.root, scratch.join("data/settings/extensions/demo"));
         assert!(e.dir.join("built").exists(), "install script ran");
         assert!(install_from(&url, "demo", None).unwrap_err().to_string().contains("already installed"));
+        assert!(!update(&e).unwrap());
+        // Several commits upstream (a plain shallow pull fails on these).
+        for n in 1..=3 {
+            std::fs::write(ext.join("demo.sh"), format!("#!/bin/sh\necho '[]' # v{n}\n")).unwrap();
+            assert!(Command::new("git").args(["-C", &r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "next"]).status().unwrap().success());
+        }
+        std::fs::write(e.dir.join("bin-output"), "kept").unwrap();
+        assert!(update(&e).unwrap());
+        assert!(std::fs::read_to_string(e.dir.join("demo.sh")).unwrap().contains("# v3"));
+        assert!(e.dir.join("bin-output").exists(), "untracked build output survives");
         assert!(!update(&e).unwrap());
         remove(&e).unwrap();
         assert!(!e.root.exists());

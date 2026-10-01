@@ -13,9 +13,10 @@
     {
       "id": "logitech",
       "name": "Logitech",
-      "description": "Battery, DPI, scrolling, buttons, backlight, Easy-Switch and lighting for Logitech mice, keyboards and receivers.",
+      "description": "Battery, pointer speed, scrolling, buttons, backlight, Easy-Switch and lighting for Logitech mice and keyboards.",
       "devices": "Logitech HID++ mice, keyboards and Unifying, Bolt and Lightspeed receivers",
-      "repo": "https://github.com/design-nexus/nexus-logi.git",
+      "repo": "https://github.com/design-nexus/settings-extensions.git",
+      "path": "logitech",
       "needs": [],
       "icon": "input-mouse-symbolic"
     },

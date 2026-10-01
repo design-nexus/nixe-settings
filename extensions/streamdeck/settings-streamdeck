@@ -195,8 +195,10 @@ def valid_key_names(value):
         from evdev import ecodes
     except ImportError:
         return True
-    parts = [p.strip().upper() for p in value.split("+")]
-    aliases = {"CTRL": "LEFTCTRL", "SHIFT": "LEFTSHIFT", "ALT": "LEFTALT", "SUPER": "LEFTMETA", "META": "LEFTMETA"}
+    # The same names and aliases as galleon-deck's Keyboard.codes.
+    parts = value.replace(" ", "").upper().split("+")
+    aliases = {"CTRL": "LEFTCTRL", "SHIFT": "LEFTSHIFT", "ALT": "LEFTALT", "SUPER": "LEFTMETA", "WIN": "LEFTMETA",
+               "META": "LEFTMETA"}
     return all(p and ("KEY_" + aliases.get(p, p)) in ecodes.ecodes for p in parts)
 
 
@@ -476,7 +478,7 @@ def change_key(doc, page, index, field, value):
         elif field == "value":
             action = action_of(spec)
             if action != "none":
-                spec[action] = value.upper() if action in ("key", "keys") else value
+                spec[action] = value.replace(" ", "").upper() if action in ("key", "keys") else value
         elif field == "confirm":
             if value == "true":
                 spec["confirm"] = True

@@ -13,7 +13,7 @@ the rest of Settings. Pages only appear when matching hardware is found.
 | Extension | Works with | Needs |
 | --- | --- | --- |
 | `asus` | ASUS ROG, TUF and Zephyrus laptops: performance profiles, fan curves, charge limit, firmware settings, Aura lighting, Slash, AniMe Matrix | `asusctl` |
-| `logitech` | Logitech mice, keyboards and receivers (from [nexus-logi](https://github.com/design-nexus/nexus-logi)) | — |
+| `logitech` | Logitech mice and keyboards: battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting (lives in [nexus-logi](https://github.com/design-nexus/nexus-logi)) | — |
 | `headset` | SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets: battery, sidetone, lights, EQ presets, auto power-off | `headsetcontrol` |
 | `webcam` | OBSBOT, Logitech, Elgato and other USB (UVC) webcams: zoom, pan/tilt, focus, exposure, white balance | `v4l2-ctl` |
 
@@ -57,7 +57,7 @@ files = ["~/.config/thing.toml"]  # optional, offered by the page's "Open config
 | --- | --- |
 | `pages` | `[{id, title, icon, description, keywords}]` — one entry per page; `[]` when no hardware is found |
 | `describe PAGE` | the page (below) |
-| `set PAGE KEY VALUE` | nothing, or `{"toast": "…", "refresh": true}` |
+| `set PAGE KEY VALUE` | nothing, or `{"toast": "…", "refresh": true, "reload": true}` (`reload`: ask for the pages again, e.g. after devices appear) |
 | `theme-changed` | nothing; run after the Omarchy theme changes (with `hooks = ["theme-changed"]`) |
 
 A non-zero exit shows stderr as a message. Settings sets `SETTINGS_EXTENSION_DIR`

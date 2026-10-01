@@ -1,0 +1,7 @@
+id = "headset"
+name = "Headsets"
+version = "1.0.0"
+description = "Battery, sidetone, lights, equalizer presets and auto power-off for gaming headsets."
+exec = "./settings-headset"
+needs = ["headsetcontrol", "python3"]
+needs_hint = "Needs <tt>headsetcontrol</tt>: <tt>yay -S headsetcontrol</tt> (it installs the udev rules the headset needs)."

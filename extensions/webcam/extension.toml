@@ -1,0 +1,7 @@
+id = "webcam"
+name = "Webcams"
+version = "1.0.0"
+description = "Zoom, pan and tilt, focus, exposure and white balance for USB webcams, with framing presets for OBSBOT cameras."
+exec = "./settings-webcam"
+needs = ["v4l2-ctl", "python3"]
+needs_hint = "Needs <tt>v4l2-ctl</tt>: <tt>sudo pacman -S v4l-utils</tt>."

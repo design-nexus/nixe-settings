@@ -1,0 +1,44 @@
+{
+  "extensions": [
+    {
+      "id": "asus",
+      "name": "ASUS",
+      "description": "Performance profiles, fan curves, battery charge limit, firmware settings, Aura keyboard lighting, the Slash lightbar and AniMe Matrix.",
+      "devices": "ASUS ROG, TUF, Zephyrus and other laptops supported by asusctl",
+      "repo": "https://github.com/design-nexus/settings-extensions.git",
+      "path": "asus",
+      "needs": ["asusctl"],
+      "icon": "input-gaming-symbolic"
+    },
+    {
+      "id": "logitech",
+      "name": "Logitech",
+      "description": "Battery, DPI, scrolling, buttons, backlight, Easy-Switch and lighting for Logitech mice, keyboards and receivers.",
+      "devices": "Logitech HID++ mice, keyboards and Unifying, Bolt and Lightspeed receivers",
+      "repo": "https://github.com/design-nexus/nexus-logi.git",
+      "path": "extension",
+      "needs": [],
+      "icon": "input-mouse-symbolic"
+    },
+    {
+      "id": "headset",
+      "name": "Headsets",
+      "description": "Battery, sidetone, lights, equalizer presets and auto power-off for gaming headsets.",
+      "devices": "SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets supported by HeadsetControl",
+      "repo": "https://github.com/design-nexus/settings-extensions.git",
+      "path": "headset",
+      "needs": ["headsetcontrol"],
+      "icon": "audio-headset-symbolic"
+    },
+    {
+      "id": "webcam",
+      "name": "Webcams",
+      "description": "Zoom, pan and tilt, focus, exposure and white balance for USB webcams, with named presets for OBSBOT cameras.",
+      "devices": "OBSBOT, Logitech, Elgato and other UVC webcams",
+      "repo": "https://github.com/design-nexus/settings-extensions.git",
+      "path": "webcam",
+      "needs": ["v4l2-ctl"],
+      "icon": "camera-web-symbolic"
+    }
+  ]
+}

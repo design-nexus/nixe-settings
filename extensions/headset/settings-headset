@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""Gaming headset controls for Settings, through HeadsetControl.
+
+settings-headset pages | describe PAGE | set PAGE KEY VALUE
+
+Headsets only report battery and chat-mix back; everything else is write-only,
+so the page shows what was last set from here (kept in SETTINGS_EXTENSION_STATE).
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+
+STATE_DIR = os.environ.get("SETTINGS_EXTENSION_STATE") or os.path.expanduser("~/.local/state/settings/extensions/headset")
+
+INACTIVE = [["0", "Never"], ["5", "5 minutes"], ["10", "10 minutes"], ["15", "15 minutes"],
+            ["30", "30 minutes"], ["60", "1 hour"], ["90", "90 minutes"]]
+
+
+def run(*args):
+    return subprocess.run(["headsetcontrol", *args], capture_output=True, text=True, check=False)
+
+
+def devices():
+    r = run("-o", "json")
+    try:
+        data = json.loads(r.stdout)
+    except ValueError:
+        return []
+    return [d for d in data.get("devices", []) if d.get("status", "success") == "success"]
+
+
+def page_id(d):
+    vid = str(d.get("id_vendor", "")).replace("0x", "")
+    pid = str(d.get("id_product", "")).replace("0x", "")
+    return re.sub(r"[^a-z0-9]+", "-", f"{vid}-{pid}".lower()).strip("-") or "headset"
+
+
+def find(pid):
+    for i, d in enumerate(devices()):
+        if page_id(d) == pid:
+            return i, d
+    raise SystemExit("that headset isn't connected")
+
+
+def caps(d):
+    return set(d.get("capabilities", []))
+
+
+def state_file(pid):
+    return os.path.join(STATE_DIR, f"{pid}.json")
+
+
+def load_state(pid):
+    try:
+        with open(state_file(pid)) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(pid, state):
+    os.makedirs(STATE_DIR, exist_ok=True)
+    tmp = state_file(pid) + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f)
+    os.replace(tmp, state_file(pid))
+
+
+def name_of(d):
+    return d.get("device") or " ".join(x for x in (d.get("vendor"), d.get("product")) if x) or "Headset"
+
+
+def battery_text(d):
+    b = d.get("battery") or {}
+    status = b.get("status", "")
+    level = b.get("level", -1)
+    if status == "BATTERY_CHARGING":
+        return "Charging" if level is None or level < 0 else f"{level}% · Charging"
+    if status == "BATTERY_AVAILABLE" and level is not None and level >= 0:
+        return f"{level}%"
+    return "Not available (headset off?)"
+
+
+def preset_names(d):
+    presets = d.get("equalizer_presets")
+    if isinstance(presets, dict) and presets:
+        return [str(k).replace("_", " ").capitalize() for k in presets]
+    n = d.get("equalizer_presets_count") or 0
+    return [f"Preset {i + 1}" for i in range(int(n))]
+
+
+def pages():
+    return [{
+        "id": page_id(d),
+        "title": name_of(d),
+        "icon": "audio-headset-symbolic",
+        "description": "Battery, sidetone, lights and power-off timer.",
+        "keywords": "headset headphones battery sidetone mic monitor lights led equalizer eq chatmix " + name_of(d).lower(),
+    } for d in devices()]
+
+
+def describe(pid):
+    _, d = find(pid)
+    c = caps(d)
+    st = load_state(pid)
+    status = [{"kind": "info", "title": "Battery", "value": battery_text(d)}] if "CAP_BATTERY_STATUS" in c else []
+    if "CAP_CHATMIX_STATUS" in c and d.get("chatmix") is not None:
+        mix = int(d["chatmix"])
+        lean = "Even" if 60 <= mix <= 68 else ("More game" if mix < 64 else "More chat")
+        status.append({"kind": "info", "title": "Chat mix", "value": lean, "tooltip": "Set with the dial on the headset."})
+
+    sound = []
+    if "CAP_SIDETONE" in c:
+        sound.append({"kind": "slider", "key": "sidetone", "title": "Sidetone",
+                      "desc": "Hear your own voice in the headset while you talk.",
+                      "value": st.get("sidetone", 0), "min": 0, "max": 100, "unit": "%",
+                      "keywords": "mic monitoring hear myself"})
+    if "CAP_EQUALIZER_PRESET" in c and preset_names(d):
+        opts = [[str(i), n] for i, n in enumerate(preset_names(d))]
+        sound.append({"kind": "choice", "key": "eq", "title": "Equalizer preset", "options": opts,
+                      "value": str(st.get("eq", "")), "keywords": "eq bass"})
+    if "CAP_VOLUME_LIMITER" in c:
+        sound.append({"kind": "switch", "key": "limiter", "title": "Volume limiter",
+                      "desc": "Keep the volume at a safe level.", "value": st.get("limiter", False)})
+    if "CAP_MICROPHONE_VOLUME" in c:
+        sound.append({"kind": "slider", "key": "mic-volume", "title": "Microphone volume",
+                      "value": st.get("mic-volume", 100), "min": 0, "max": 100, "unit": "%"})
+    if "CAP_ROTATE_TO_MUTE" in c:
+        sound.append({"kind": "switch", "key": "rotate-mute", "title": "Mute by raising the mic",
+                      "value": st.get("rotate-mute", True)})
+    if "CAP_VOICE_PROMPTS" in c:
+        sound.append({"kind": "switch", "key": "voice", "title": "Voice prompts",
+                      "desc": "Spoken announcements such as \"battery low\".", "value": st.get("voice", True)})
+
+    device = []
+    if "CAP_LIGHTS" in c:
+        device.append({"kind": "switch", "key": "lights", "title": "Lights", "value": st.get("lights", True),
+                       "keywords": "led rgb"})
+    if "CAP_MICROPHONE_MUTE_LED_BRIGHTNESS" in c:
+        device.append({"kind": "slider", "key": "mute-led", "title": "Mute light brightness",
+                       "value": st.get("mute-led", 3), "min": 0, "max": 3})
+    if "CAP_INACTIVE_TIME" in c:
+        device.append({"kind": "choice", "key": "inactive", "title": "Turn off after",
+                       "desc": "Switch the headset off when it's been silent this long.",
+                       "options": INACTIVE, "value": str(st.get("inactive", "")), "keywords": "sleep power off idle"})
+    if "CAP_BT_WHEN_POWERED_ON" in c:
+        device.append({"kind": "switch", "key": "bt-on", "title": "Bluetooth on at power-on",
+                       "value": st.get("bt-on", False)})
+
+    groups = [g for g in (
+        {"title": "Status", "rows": status},
+        {"title": "Sound", "rows": sound},
+        {"title": "Headset", "rows": device},
+    ) if g["rows"]]
+    out = {"subtitle": "Battery and chat mix are read from the headset; the rest shows what was last set here.",
+           "poll": 30, "groups": groups}
+    return out
+
+
+def set_value(pid, key, value):
+    index, _ = find(pid)
+    on = value == "true"
+    num = lambda: round(float(value))  # noqa: E731
+    args = {
+        "sidetone": lambda: ["-s", str(round(num() * 1.28))],
+        "eq": lambda: ["-p", value],
+        "limiter": lambda: ["--volume-limiter", "1" if on else "0"],
+        "mic-volume": lambda: ["--microphone-volume", str(round(num() * 1.28))],
+        "rotate-mute": lambda: ["-r", "1" if on else "0"],
+        "voice": lambda: ["-v", "1" if on else "0"],
+        "lights": lambda: ["-l", "1" if on else "0"],
+        "mute-led": lambda: ["--microphone-mute-led-brightness", str(num())],
+        "inactive": lambda: ["-i", value],
+        "bt-on": lambda: ["--bt-when-powered-on", "1" if on else "0"],
+    }.get(key)
+    if args is None:
+        raise SystemExit(f"unknown setting {key}")
+    r = run("-d", str(index), *args())
+    if r.returncode != 0:
+        raise SystemExit((r.stderr or r.stdout).strip() or "headsetcontrol failed")
+    st = load_state(pid)
+    st[key] = on if value in ("true", "false") else (num() if key in ("sidetone", "mic-volume", "mute-led") else value)
+    save_state(pid, st)
+    return None
+
+
+def main(argv):
+    usage = "usage: settings-headset pages | describe PAGE | set PAGE KEY VALUE"
+    if not argv:
+        raise SystemExit(usage)
+    if argv[0] == "pages":
+        print(json.dumps(pages()))
+    elif argv[0] == "describe" and len(argv) >= 2:
+        print(json.dumps(describe(argv[1])))
+    elif argv[0] == "set" and len(argv) >= 4:
+        reply = set_value(argv[1], argv[2], argv[3])
+        if reply:
+            print(json.dumps(reply))
+    elif argv[0] == "theme-changed":
+        pass
+    else:
+        raise SystemExit(usage)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

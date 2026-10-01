@@ -1,0 +1,265 @@
+#!/usr/bin/env python3
+"""Webcam controls for Settings, through v4l2-ctl.
+
+settings-webcam pages | describe PAGE | set PAGE KEY VALUE
+
+One page per camera. Every control the camera reports becomes a row; the
+common ones get friendly names. Cameras that can pan and tilt get a
+"Centre" button, and OBSBOT cameras get a few framing presets.
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+
+# Friendly names for the usual UVC controls: (title, description, unit).
+KNOWN = {
+    "brightness": ("Brightness", "", ""),
+    "contrast": ("Contrast", "", ""),
+    "saturation": ("Saturation", "", ""),
+    "hue": ("Hue", "", ""),
+    "gamma": ("Gamma", "", ""),
+    "gain": ("Gain", "Amplifies the picture in low light, at the cost of noise.", ""),
+    "sharpness": ("Sharpness", "", ""),
+    "backlight_compensation": ("Backlight compensation", "Brightens a subject in front of a bright window.", ""),
+    "power_line_frequency": ("Anti-flicker", "Match your mains frequency to stop lights from flickering.", ""),
+    "white_balance_automatic": ("Automatic white balance", "", ""),
+    "white_balance_temperature": ("White balance", "Lower is warmer.", " K"),
+    "auto_exposure": ("Exposure mode", "", ""),
+    "exposure_time_absolute": ("Exposure time", "Longer is brighter but blurs movement.", ""),
+    "exposure_dynamic_framerate": ("Lower frame rate in low light", "Lets exposure run longer when it's dark.", ""),
+    "focus_automatic_continuous": ("Autofocus", "", ""),
+    "focus_absolute": ("Focus", "", ""),
+    "zoom_absolute": ("Zoom", "", ""),
+    "pan_absolute": ("Pan", "Left and right.", ""),
+    "tilt_absolute": ("Tilt", "Up and down.", ""),
+}
+
+GROUPS = {"User Controls": "Picture", "Camera Controls": "Camera"}
+
+LINE = re.compile(r"^\s*(\w+)\s+0x[0-9a-f]+\s+\((\w+)\)\s*:\s*(.*)$")
+MENU = re.compile(r"^\s+(\d+):\s+(.*)$")
+
+
+def run(*args):
+    return subprocess.run(args, capture_output=True, text=True, check=False)
+
+
+def capture_nodes():
+    """(stable id, /dev/videoN, card name) for every node that captures video."""
+    by_id = {}
+    try:
+        for name in sorted(os.listdir("/dev/v4l/by-id")):
+            target = os.path.realpath(os.path.join("/dev/v4l/by-id", name))
+            by_id.setdefault(target, name)
+    except OSError:
+        pass
+    out = []
+    for node in sorted(os.listdir("/dev"), key=lambda n: (len(n), n)):
+        if not re.fullmatch(r"video\d+", node):
+            continue
+        dev = "/dev/" + node
+        info = run("v4l2-ctl", "-d", dev, "-D").stdout
+        caps = info.split("Device Caps", 1)[-1]
+        if "Video Capture" not in caps:
+            continue
+        card = re.search(r"Card type\s*:\s*(.*)", info)
+        card = card.group(1).strip() if card else node
+        stable = by_id.get(dev, node)
+        page_id = re.sub(r"[^a-z0-9]+", "-", stable.lower()).strip("-")
+        out.append((page_id, dev, card))
+    return out
+
+
+def tidy_card(card):
+    # "USB2.0 FHD UVC WebCam: USB2.0 F" -> "USB2.0 FHD UVC WebCam"
+    return card.split(":", 1)[0].strip() or card
+
+
+def parse_controls(text):
+    """[(group title, [control])] from `v4l2-ctl --list-ctrls-menus`."""
+    groups = []
+    current = None
+    last = None
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.endswith("Controls") and not LINE.match(line):
+            current = (GROUPS.get(stripped, stripped), [])
+            groups.append(current)
+            continue
+        m = LINE.match(line)
+        if m:
+            name, kind, rest = m.groups()
+            fields = dict(re.findall(r"(\w+)=(-?\w+)", rest.split("flags=", 1)[0]))
+            flags = rest.split("flags=", 1)[1] if "flags=" in rest else ""
+            last = {"name": name, "type": kind, "fields": fields, "flags": flags, "menu": []}
+            if current is None:
+                current = ("Controls", [])
+                groups.append(current)
+            current[1].append(last)
+            continue
+        m = MENU.match(line)
+        if m and last is not None and last["type"] == "menu":
+            last["menu"].append((m.group(1), m.group(2).strip()))
+    return [(title, ctrls) for title, ctrls in groups if ctrls]
+
+
+def label(name):
+    return KNOWN.get(name, (name.replace("_", " ").capitalize(), "", ""))
+
+
+def row_for(c):
+    """A Settings row for one control, or None for ones that can't be changed here."""
+    name, kind, f, flags = c["name"], c["type"], c["fields"], c["flags"]
+    if "read-only" in flags or kind not in ("int", "bool", "menu", "button"):
+        return None
+    title, desc, unit = label(name)
+    if "inactive" in flags:
+        desc = (desc + " " if desc else "") + "Not used while the automatic setting is on."
+    row = {"key": name, "title": title, "desc": desc}
+    if kind == "int":
+        lo, hi = int(f.get("min", 0)), int(f.get("max", 100))
+        step = max(1, int(f.get("step", 1)))
+        row.update(kind="slider", min=lo, max=hi, step=step, value=int(f.get("value", lo)), unit=unit)
+        if "default" in f:
+            row["reset"] = int(f["default"])
+    elif kind == "bool":
+        # Automatic modes change which other controls apply.
+        row.update(kind="switch", value=f.get("value") == "1", refresh=True)
+    elif kind == "menu":
+        opts = [[k, v] for k, v in c["menu"]]
+        row.update(kind="choice", options=opts, value=f.get("value", ""), refresh=True)
+    else:
+        row.update(kind="button", label="Run")
+    return row
+
+
+def find_page(page_id):
+    for pid, dev, card in capture_nodes():
+        if pid == page_id:
+            return dev, card
+    raise SystemExit(f"no camera called {page_id}")
+
+
+def controls(dev):
+    return parse_controls(run("v4l2-ctl", "-d", dev, "--list-ctrls-menus").stdout)
+
+
+def all_controls(dev):
+    return {c["name"]: c for _, ctrls in controls(dev) for c in ctrls}
+
+
+def pages():
+    out = []
+    seen = {}
+    for pid, dev, card in capture_nodes():
+        rows = [r for _, ctrls in controls(dev) for r in map(row_for, ctrls) if r]
+        if not rows:
+            continue  # infrared and metadata nodes have nothing to set
+        title = tidy_card(card)
+        seen[title] = seen.get(title, 0) + 1
+        if seen[title] > 1:
+            title = f"{title} ({seen[title]})"
+        out.append({
+            "id": pid,
+            "title": title,
+            "icon": "camera-web-symbolic",
+            "description": "Picture and camera controls. Most cameras forget these when unplugged.",
+            "keywords": "webcam camera video zoom focus exposure white balance brightness pan tilt obsbot uvc",
+        })
+    return out
+
+
+def describe(page_id):
+    dev, card = find_page(page_id)
+    groups = []
+    ctrls = all_controls(dev)
+    has_ptz = "pan_absolute" in ctrls or "tilt_absolute" in ctrls
+    framing = []
+    if has_ptz:
+        framing.append({"kind": "button", "key": "@centre", "title": "Centre the camera",
+                        "desc": "Pan and tilt back to the middle.", "label": "Centre"})
+    if "obsbot" in card.lower() and "zoom_absolute" in ctrls:
+        framing.append({"kind": "buttons", "key": "@frame", "title": "Framing",
+                        "desc": "Quick zoom levels.",
+                        "options": [["wide", "Wide"], ["half", "Half body"], ["close", "Close-up"]]})
+    if framing:
+        groups.append({"title": "Framing", "rows": framing})
+    for title, items in controls(dev):
+        rows = [r for r in map(row_for, items) if r]
+        if rows:
+            groups.append({"title": title, "rows": rows})
+    groups.append({"title": "", "rows": [{
+        "kind": "button", "key": "@defaults", "title": "Reset everything",
+        "desc": "Put every control back to the camera's default.", "label": "Reset",
+        "confirm": "Click again to reset"}]})
+    note = ""
+    if "obsbot" in card.lower():
+        note = "AI tracking and gimbal modes use OBSBOT's own commands and aren't supported yet."
+    out = {"subtitle": f"<tt>{dev}</tt>", "groups": groups}
+    if note:
+        out["banners"] = [{"text": note, "warning": False}]
+    return out
+
+
+def set_ctrl(dev, assignments):
+    args = ",".join(f"{k}={v}" for k, v in assignments)
+    r = run("v4l2-ctl", "-d", dev, "-c", args)
+    if r.returncode != 0:
+        raise SystemExit(r.stderr.strip() or f"couldn't set {args}")
+
+
+def set_value(page_id, key, value):
+    dev, _ = find_page(page_id)
+    ctrls = all_controls(dev)
+    if key == "@centre":
+        set_ctrl(dev, [(k, 0) for k in ("pan_absolute", "tilt_absolute") if k in ctrls])
+        return {"refresh": True}
+    if key == "@frame":
+        z = ctrls["zoom_absolute"]["fields"]
+        lo, hi = int(z.get("min", 0)), int(z.get("max", 100))
+        share = {"wide": 0.0, "half": 0.35, "close": 0.75}.get(value, 0.0)
+        set_ctrl(dev, [("zoom_absolute", round(lo + (hi - lo) * share))])
+        return {"refresh": True}
+    if key == "@defaults":
+        # Automatic modes first, so the manual values they unlock can be set too.
+        order = sorted(ctrls.values(), key=lambda c: c["type"] != "bool" and c["type"] != "menu")
+        for c in order:
+            if c["type"] in ("int", "bool", "menu") and "default" in c["fields"] and "read-only" not in c["flags"]:
+                run("v4l2-ctl", "-d", dev, "-c", f"{c['name']}={c['fields']['default']}")
+        return {"refresh": True, "toast": "Camera reset to its defaults"}
+    c = ctrls.get(key)
+    if c is None:
+        raise SystemExit(f"this camera has no {key}")
+    if c["type"] == "bool":
+        value = "1" if value == "true" else "0"
+    elif c["type"] == "int":
+        value = str(round(float(value)))
+    elif c["type"] == "button":
+        value = "1"
+    set_ctrl(dev, [(key, value)])
+    return None
+
+
+def main(argv):
+    if not argv:
+        raise SystemExit("usage: settings-webcam pages | describe PAGE | set PAGE KEY VALUE")
+    cmd = argv[0]
+    if cmd == "pages":
+        print(json.dumps(pages()))
+    elif cmd == "describe" and len(argv) >= 2:
+        print(json.dumps(describe(argv[1])))
+    elif cmd == "set" and len(argv) >= 4:
+        reply = set_value(argv[1], argv[2], argv[3])
+        if reply:
+            print(json.dumps(reply))
+    elif cmd == "theme-changed":
+        pass
+    else:
+        raise SystemExit("usage: settings-webcam pages | describe PAGE | set PAGE KEY VALUE")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

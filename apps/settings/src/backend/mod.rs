@@ -14,3 +14,4 @@ pub mod state;
 pub mod store;
 pub mod streams;
 pub mod themehook;
+pub mod updates;

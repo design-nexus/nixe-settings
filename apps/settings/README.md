@@ -70,6 +70,10 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 
   Anyone can write one: see
   [settings-extensions](https://github.com/design-nexus/settings-extensions).
+- **Updates**: Settings checks GitHub once a day when it opens. A new version is
+  offered on Updates & About (one click, then restart); extensions show "Update
+  available" and can update together, or automatically if you switch that on.
+  `settings --update` does the same from a terminal (`--check` only reports).
 - **Keyboard backlight timeout** (any laptop with a keyboard backlight): turn it
   off after a set time without typing or touching the trackpad, and back on with
   the next key press.

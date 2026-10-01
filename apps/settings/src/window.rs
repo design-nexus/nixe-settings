@@ -62,6 +62,11 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     crate::cmd::background(crate::backend::kbdidle::ensure_running, |_| {});
     // Keep the theme hook that re-applies the chosen icon theme and extension settings in place.
     crate::cmd::background(crate::backend::themehook::ensure, |_| {});
+    // Look for updates (at most every 20 hours); announce a new Settings once, and
+    // install extension updates if that's switched on.
+    if std::env::var_os("SETTINGS_SNAPSHOT").is_none() {
+        crate::cmd::background(|| crate::backend::updates::check(false), after_update_check);
+    }
     // The sidebar used what extensions said last time; ask again in case devices came or went.
     crate::cmd::background(crate::ext::refresh_pages, |changed| {
         if changed {
@@ -252,6 +257,51 @@ fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
         }
     }
     (nav_items, nav_groups, compact_items)
+}
+
+/// What to do with a finished update check.
+pub fn after_update_check(s: crate::backend::updates::Status) {
+    if s.settings_update() && prefs::get().announced_version != s.latest {
+        toast(&format!("Settings {} is available: see Updates & About", s.latest));
+        prefs::update(|p| p.announced_version = s.latest.clone());
+    }
+    if prefs::get().auto_update_extensions && !s.extensions.is_empty() {
+        crate::cmd::background(
+            || crate::backend::updates::update_extensions().map_err(|e| format!("{e:#}")),
+            |r| match r {
+                Ok(names) if !names.is_empty() => {
+                    toast(&format!("Updated {}", names.join(", ")));
+                    reload_sections(false);
+                }
+                Ok(_) => {}
+                Err(e) => toast(&format!("Couldn't update extensions: {e}")),
+            },
+        );
+    }
+    rebuild_if_built("about");
+    rebuild_if_built("extensions");
+}
+
+/// Start the installed Settings again on `section`, and quit this one.
+pub fn restart(section: &str) {
+    use std::os::unix::process::CommandExt;
+    let exe = crate::paths::home().join(".local/bin/settings");
+    let script = format!("sleep 1; exec '{}' --section '{}'", exe.display(), section.replace('\'', ""));
+    let started = std::process::Command::new("sh")
+        .args(["-c", &script])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .process_group(0)
+        .spawn();
+    if let Err(e) = started {
+        toast(&format!("Couldn't restart: {e}"));
+        return;
+    }
+    crate::backend::store::flush();
+    if let Some(app) = window().and_then(|w| w.application()) {
+        app.quit();
+    }
 }
 
 /// Re-read the list of pages (after an extension is installed, updated or removed,

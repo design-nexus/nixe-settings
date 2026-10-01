@@ -156,6 +156,26 @@ pub fn install(id: &str) -> Result<Extension> {
     install_from(&e.repo, &e.path, Some(&e.id))
 }
 
+/// Whether a newer version of this extension is upstream. Fetches only the newest
+/// commit (nothing in the checkout changes) and compares the extension's own
+/// folder, so a change elsewhere in a shared repository doesn't count.
+pub fn has_update(ext: &Extension) -> Result<bool> {
+    if !ext.root.join(".git").exists() {
+        return Ok(false);
+    }
+    let branch = git(&["rev-parse", "--abbrev-ref", "HEAD"], Some(&ext.root))?;
+    git(&["fetch", "--depth", "1", "origin", branch.trim()], Some(&ext.root))?;
+    let rel = ext.dir.strip_prefix(&ext.root).map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+    let tree = |rev: &str| {
+        let spec = if rel.is_empty() { format!("{rev}^{{tree}}") } else { format!("{rev}:{rel}") };
+        git(&["rev-parse", &spec], Some(&ext.root)).map(|s| s.trim().to_string())
+    };
+    let here = tree("HEAD")?;
+    // Gone upstream: nothing to update to.
+    let Ok(there) = tree("FETCH_HEAD") else { return Ok(false) };
+    Ok(here != there)
+}
+
 /// Pull the latest version and set it up again. Returns whether anything changed.
 pub fn update(ext: &Extension) -> Result<bool> {
     if !ext.root.join(".git").exists() {
@@ -342,12 +362,18 @@ mod tests {
         assert!(e.dir.join("built").exists(), "install script ran");
         assert!(install_from(&url, "demo", None).unwrap_err().to_string().contains("already installed"));
         assert!(!update(&e).unwrap());
+        assert!(!has_update(&e).unwrap());
+        // A change outside the extension's folder doesn't count.
+        std::fs::write(repo.join("index.json"), "{\"x\":1}").unwrap();
+        assert!(Command::new("git").args(["-C", &r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "other"]).status().unwrap().success());
+        assert!(!has_update(&e).unwrap(), "only its own folder matters");
         // Several commits upstream (a plain shallow pull fails on these).
         for n in 1..=3 {
             std::fs::write(ext.join("demo.sh"), format!("#!/bin/sh\necho '[]' # v{n}\n")).unwrap();
             assert!(Command::new("git").args(["-C", &r, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "next"]).status().unwrap().success());
         }
         std::fs::write(e.dir.join("bin-output"), "kept").unwrap();
+        assert!(has_update(&e).unwrap());
         assert!(update(&e).unwrap());
         assert!(std::fs::read_to_string(e.dir.join("demo.sh")).unwrap().contains("# v3"));
         assert!(e.dir.join("bin-output").exists(), "untracked build output survives");

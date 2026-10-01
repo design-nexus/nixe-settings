@@ -24,6 +24,7 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --eq ACTION    turn the preamp/equalizer on or off, or print whether it's running\n\
   --kbd-timeout S  turn the keyboard backlight off after S idle seconds (off to disable)\n\
   --ext list|install ID|URL [PATH]|update [ID]|enable ID|disable ID|remove ID  manage device extensions\n\
+  --update [--check]  update Settings and its extensions (--check only reports)\n\
   --theme-sync   (internal) re-apply the icon theme you chose and tell extensions; run by the theme-set hook\n\
   --kbd-idle     (internal) turn the keyboard backlight off when idle; run by the settings-kbd-idle service\n\
   --remove-old-panels [--dry-run]  remove the settings panels this app replaces (backed up first)\n\
@@ -55,6 +56,15 @@ fn main() -> glib::ExitCode {
             return glib::ExitCode::FAILURE;
         };
         return match backend::kbdidle::apply(&backend::kbdidle::Config { timeout_secs }) {
+            Ok(()) => glib::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("settings: {e:#}");
+                glib::ExitCode::FAILURE
+            }
+        };
+    }
+    if let Some(i) = args.iter().position(|a| a == "--update") {
+        return match backend::updates::cli(&args[i + 1..]) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("settings: {e:#}");

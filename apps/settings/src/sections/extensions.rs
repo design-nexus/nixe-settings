@@ -110,17 +110,37 @@ pub fn build(page: &Page) {
     }
 
     // ----- Installed -----
+    let pending = crate::backend::updates::cached().extensions;
     if !installed.is_empty() {
         let g = page.group("Installed");
+        let waiting = installed.iter().filter(|e| pending.iter().any(|p| p == e.id())).count();
+        if waiting > 0 {
+            let (r, _) = widgets::button_row(
+                &format!("Updates available ({waiting})"),
+                "New versions of the extensions marked below.",
+                "Update all",
+                |b| {
+                    busy(b, "Updating…", crate::backend::updates::update_extensions, |names| {
+                        window::toast(&format!("Updated {}", names.join(", ")));
+                        after_change();
+                        window::rebuild_if_built("about");
+                    })
+                },
+            );
+            g.add(&r);
+        }
         for e in installed.clone() {
             let controls = widgets::hbox(8);
             let update = gtk::Button::from_icon_name("view-refresh-symbolic");
             update.add_css_class("flat");
             update.set_tooltip_text(Some("Update"));
             let e2 = e.clone();
+            let id_for_clear = e.id().to_string();
             update.connect_clicked(move |b| {
+                let id_for_clear = id_for_clear.clone();
                 let (e3, name) = (e2.clone(), e2.manifest.name.clone());
                 busy(b, "", move || manage::update(&e3), move |changed| {
+                    crate::backend::updates::clear_extension(&id_for_clear);
                     window::toast(&if changed { format!("Updated {name}") } else { format!("{name} is up to date") });
                     if changed {
                         after_change();
@@ -132,7 +152,9 @@ pub fn build(page: &Page) {
             let e2 = e.clone();
             let remove = widgets::confirm_button("Remove", "Click again to remove", move |b| {
                 let (e3, name) = (e2.clone(), e2.manifest.name.clone());
+                let id = e3.id().to_string();
                 busy(b, "Removing…", move || manage::remove(&e3), move |_| {
+                    crate::backend::updates::clear_extension(&id);
                     window::toast(&format!("Removed {name}"));
                     after_change();
                 });
@@ -150,7 +172,11 @@ pub fn build(page: &Page) {
                 glib::idle_add_local_once(after_change);
             });
             controls.append(&on);
-            g.add(&widgets::row(&e.manifest.name, &installed_desc(&e), Some(controls.upcast_ref())));
+            let row = widgets::row(&e.manifest.name, &installed_desc(&e), Some(controls.upcast_ref()));
+            if pending.iter().any(|p| p == e.id()) {
+                widgets::tag_row(&row, "Update available");
+            }
+            g.add(&row);
             widgets::keywords("enable disable turn on off hide extension");
         }
         let (r, _) = widgets::button_row(
@@ -165,6 +191,21 @@ pub fn build(page: &Page) {
             },
         );
         widgets::keywords("rescan refresh detect hardware plugged");
+        g.add(&r);
+        let (r, _) = widgets::button_row(
+            "Check for updates",
+            "Settings also checks once a day when it opens.",
+            "Check now",
+            |b| {
+                busy(b, "Checking…", || Ok(crate::backend::updates::check(true)), |s| {
+                    if s.extensions.is_empty() {
+                        window::toast("Extensions are up to date");
+                    }
+                    window::after_update_check(s);
+                });
+            },
+        );
+        widgets::keywords("update check new version");
         g.add(&r);
     }
 

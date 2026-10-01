@@ -36,6 +36,10 @@ pub struct Prefs {
     pub last_section: String,
     /// Installed extensions that are turned off: kept, but their pages are hidden.
     pub disabled_extensions: Vec<String>,
+    /// Install extension updates found by the daily check without asking.
+    pub auto_update_extensions: bool,
+    /// The newest Settings version already announced, so it's announced once.
+    pub announced_version: String,
 }
 
 impl Default for Prefs {
@@ -50,6 +54,8 @@ impl Default for Prefs {
             cleanup_offered: false,
             last_section: "theme".into(),
             disabled_extensions: Vec::new(),
+            auto_update_extensions: false,
+            announced_version: String::new(),
         }
     }
 }

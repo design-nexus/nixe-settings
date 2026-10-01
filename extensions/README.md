@@ -26,10 +26,13 @@ settings --ext list                  catalog, and what's installed
 settings --ext install ID            from the catalog
 settings --ext install URL [FOLDER]  any git repository (FOLDER: the extension's folder in it)
 settings --ext update [ID]
+settings --ext disable ID            turn off without removing (pages hidden)
+settings --ext enable ID
 settings --ext remove ID
 ```
 
-Extensions live in `~/.local/share/settings/extensions/<id>`.
+Extensions live in `~/.local/share/settings/extensions/<id>`. Each one can be
+turned off on the Extensions page, which hides its pages without removing it.
 
 ## Writing an extension
 

@@ -15,7 +15,7 @@ the rest of Settings. Pages only appear when matching hardware is found.
 | `asus` | ASUS ROG, TUF and Zephyrus laptops: performance profiles, fan curves, charge limit, firmware settings, Aura lighting, Slash, AniMe Matrix | `asusctl` |
 | `logitech` | Logitech mice and keyboards: battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting | — |
 | `headset` | SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets: battery, sidetone, lights, EQ presets, auto power-off | `headsetcontrol` |
-| `webcam` | OBSBOT, Logitech, Elgato and other USB (UVC) webcams: zoom, pan/tilt, focus, exposure, white balance | `v4l2-ctl` |
+| `webcam` | USB webcams (OBSBOT, Logitech, Elgato…): live preview, microphone level, mic options (never idle, default, unmuted), zoom, pan/tilt, focus, exposure, white balance; keep OBSBOT Tiny 3 cameras awake (vendor commands from [obsbot-tiny3-linux](https://github.com/joshualambert/obsbot-tiny3-linux)) | `v4l2-ctl`, `ffmpeg` |
 | `corsair` | Corsair Galleon 100 SD: device details, access for Corsair Web Hub, a read-only probe report (native lighting next) | — |
 | `streamdeck` | The Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness, dials, via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck) | `python3`, `git` |
 
@@ -65,7 +65,7 @@ files = ["~/.config/thing.toml"]  # optional, offered by the page's "Open config
 | `set PAGE KEY VALUE` | nothing, or `{"toast": "…", "refresh": true, "reload": true}` (`reload`: ask for the pages again, e.g. after devices appear) |
 | `theme-changed` | nothing; run after the Omarchy theme changes (with `hooks = ["theme-changed"]`) |
 
-A non-zero exit shows stderr as a message. Settings sets `SETTINGS_EXTENSION_DIR`
+A non-zero exit shows stderr as a message. Settings sets `SETTINGS_KINDS` (the row kinds it can draw; send only those), `SETTINGS_EXTENSION_DIR`
 (the extension's folder), `SETTINGS_EXTENSION_STATE` (a folder for small things
 to remember) and `SETTINGS_TEMP_UNIT` (`C` or `F`).
 
@@ -97,6 +97,8 @@ Every row takes `key`, `title`, `desc`, `keywords`, `tag`, `tooltip`, and
 | `button` | `label`, `confirm` (needs a second click), `destructive` | empty |
 | `colour` | `value` (`#rrggbb`), `theme` (`{label, colour}` swatch), `compact` | `#rrggbb` |
 | `chips` | `labels`, `value` (bools) | `true,false,…` |
+| `camera` | `device` (`/dev/videoN`): a live preview, started with a button | — |
+| `meter` | `source` (a PipeWire node name; empty for the default mic): a live level graph | — |
 | `curve` | `series` (`[{id, label, points: [[°C, %], …]}]`), `presets`, `hint` | key `KEY/SERIES`, value `°C:%,…` |
 | `disclosure` | `rows` (shown when opened) | — |
 

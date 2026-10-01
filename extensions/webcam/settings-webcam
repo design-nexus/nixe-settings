@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Webcam controls for Settings, through v4l2-ctl.
 
-settings-webcam pages | describe PAGE | set PAGE KEY VALUE
+settings-webcam pages | describe PAGE | set PAGE KEY VALUE | guard
 
 One page per camera. Every control the camera reports becomes a row; the
-common ones get friendly names. Cameras that can pan and tilt get a
-"Centre" button, and OBSBOT cameras get a few framing presets.
+common ones get friendly names. Each page has a live preview and, for cameras
+with a microphone, a level graph and options to keep the mic available
+(never suspended, the default mic, unmuted). OBSBOT Tiny 3 cameras can also be
+kept awake. `guard` is the background service that keeps those options applied.
 """
 
 import json
@@ -13,6 +15,24 @@ import os
 import re
 import subprocess
 import sys
+import time
+
+try:
+    import tomllib
+except ImportError:  # Python 3.10
+    import tomli as tomllib  # type: ignore
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import obsbot  # noqa: E402
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+HOME = os.path.expanduser("~")
+CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
+OPTIONS = os.path.join(CONFIG_HOME, "settings", "webcam.toml")
+WP_RULE = os.path.join(CONFIG_HOME, "wireplumber", "wireplumber.conf.d", "51-settings-webcam.conf")
+UNIT = "settings-webcam-guard.service"
+UNIT_FILE = os.path.join(CONFIG_HOME, "systemd", "user", UNIT)
+KINDS = set((os.environ.get("SETTINGS_KINDS") or "").split())
 
 # Friendly names for the usual UVC controls: (title, description, unit).
 KNOWN = {
@@ -172,9 +192,201 @@ def pages():
     return out
 
 
+# ---------------------------------------------------------------- options
+
+def load_options():
+    try:
+        with open(OPTIONS, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def save_options(opts):
+    """Write `{section: {key: bool}}` as TOML (only booleans are stored)."""
+    lines = ["# Saved by the Settings Webcams extension.", ""]
+    for section, values in sorted(opts.items()):
+        values = {k: v for k, v in values.items() if v}
+        if not values:
+            continue
+        lines.append(f"[{json.dumps(section)}]")
+        lines += [f"{k} = {'true' if v else 'false'}" for k, v in sorted(values.items())]
+        lines.append("")
+    os.makedirs(os.path.dirname(OPTIONS), exist_ok=True)
+    tmp = OPTIONS + ".tmp"
+    with open(tmp, "w") as f:
+        f.write("\n".join(lines))
+    os.replace(tmp, OPTIONS)
+
+
+def option(opts, section, key):
+    return bool(opts.get(section, {}).get(key, False))
+
+
+def set_option(section, key, on):
+    opts = load_options()
+    opts.setdefault(section, {})[key] = on
+    save_options(opts)
+    sync_rule(opts)
+    sync_guard(opts)
+
+
+def sync_rule(opts):
+    """The WirePlumber drop-in that keeps chosen mics from being suspended."""
+    names = sorted(s[4:] for s, v in opts.items() if s.startswith("mic:") and v.get("no_suspend"))
+    old = open(WP_RULE).read() if os.path.exists(WP_RULE) else None
+    if names:
+        new = wireplumber_rule(names)
+        if new != old:
+            os.makedirs(os.path.dirname(WP_RULE), exist_ok=True)
+            with open(WP_RULE, "w") as f:
+                f.write(new)
+    elif old is not None:
+        os.remove(WP_RULE)
+    if (old or "") != (wireplumber_rule(names) if names else ""):
+        subprocess.run(["systemctl", "--user", "restart", "wireplumber"], capture_output=True)
+
+
+def wireplumber_rule(names):
+    matches = ",\n".join(f"      {{\n        node.name = {json.dumps(n)}\n      }}" for n in names)
+    return ("## Written by the Settings Webcams extension: never suspend these microphones,\n"
+            "## so the first words after a silence aren't lost.\n\n"
+            "monitor.alsa.rules = [\n  {\n    matches = [\n" + matches + "\n    ]\n"
+            "    actions = {\n      update-props = {\n        session.suspend-timeout-seconds = 0\n      }\n    }\n  }\n]\n")
+
+
+def guard_wanted(opts):
+    return any(v.get("keep_awake") or v.get("default") or v.get("unmuted") for v in opts.values())
+
+
+def sync_guard(opts):
+    """Run the guard service only while something needs keeping applied."""
+    if guard_wanted(opts):
+        unit = ("[Unit]\nDescription=Keep webcam and microphone options applied (Settings)\n"
+                "After=pipewire.service wireplumber.service\n\n[Service]\n"
+                f"ExecStart=/usr/bin/python3 {os.path.join(HERE, 'settings-webcam')} guard\n"
+                "Restart=on-failure\nRestartSec=10\n\n[Install]\nWantedBy=default.target\n")
+        os.makedirs(os.path.dirname(UNIT_FILE), exist_ok=True)
+        if not os.path.exists(UNIT_FILE) or open(UNIT_FILE).read() != unit:
+            with open(UNIT_FILE, "w") as f:
+                f.write(unit)
+            subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+        subprocess.run(["systemctl", "--user", "enable", "--now", UNIT], capture_output=True)
+        subprocess.run(["systemctl", "--user", "restart", UNIT], capture_output=True)
+    elif os.path.exists(UNIT_FILE):
+        subprocess.run(["systemctl", "--user", "disable", "--now", UNIT], capture_output=True)
+
+
+# ------------------------------------------------------------- microphones
+
+def pw_objects():
+    try:
+        return json.loads(subprocess.run(["pw-dump"], capture_output=True, text=True, timeout=10).stdout or "[]")
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return []
+
+
+def mics_for(ids, objects=None):
+    """PipeWire sources on the USB device with these (vendor, product) ids: [(id, name, description)]."""
+    if not ids:
+        return []
+    objects = pw_objects() if objects is None else objects
+    devices = {o["id"]: (o.get("info") or {}).get("props") or {} for o in objects if o.get("type") == "PipeWire:Interface:Device"}
+    want = (f"0x{ids[0]}", f"0x{ids[1]}")
+    out = []
+    for o in objects:
+        props = (o.get("info") or {}).get("props") or {}
+        if props.get("media.class") != "Audio/Source":
+            continue
+        d = devices.get(props.get("device.id"), {})
+        if (str(d.get("device.vendor.id", "")).lower(), str(d.get("device.product.id", "")).lower()) == want:
+            out.append((o["id"], props.get("node.name", ""), props.get("node.description") or props.get("node.name", "")))
+    return out
+
+
+def default_source():
+    r = subprocess.run(["wpctl", "inspect", "@DEFAULT_AUDIO_SOURCE@"], capture_output=True, text=True)
+    m = re.search(r'node\.name = "([^"]+)"', r.stdout)
+    return m.group(1) if m else ""
+
+
+def is_muted(node_id):
+    r = subprocess.run(["wpctl", "get-volume", str(node_id)], capture_output=True, text=True)
+    return "[MUTED]" in r.stdout
+
+
+def mic_group(ids):
+    mics = mics_for(ids)
+    if not mics:
+        return None
+    opts = load_options()
+    node_id, name, desc = mics[0]
+    section = f"mic:{name}"
+    rows = []
+    if "meter" in KINDS:
+        rows.append({"kind": "meter", "title": "Level", "desc": desc, "source": name,
+                     "keywords": "microphone mic level meter audio input test"})
+    else:
+        rows.append({"kind": "info", "title": "Microphone", "value": desc})
+    is_default = default_source() == name
+    rows += [
+        {"kind": "switch", "key": "@mic-no-suspend", "title": "Never let it go idle",
+         "desc": "PipeWire pauses unused mics after a few seconds, which can clip the first word. Keeps this one running.",
+         "value": option(opts, section, "no_suspend"), "keywords": "suspend idle transcription voice dictation"},
+        {"kind": "switch", "key": "@mic-default", "title": "Make it the default mic",
+         "desc": "Apps that use the default microphone, like voice transcription, pick this one. Kept that way in the background."
+         + ("" if is_default else " <b>It isn't the default right now.</b>"),
+         "value": option(opts, section, "default"), "refresh": True, "keywords": "default input transcription dictation"},
+        {"kind": "switch", "key": "@mic-unmuted", "title": "Keep it unmuted",
+         "desc": "Unmute it now, and again whenever something mutes it.",
+         "value": option(opts, section, "unmuted"), "keywords": "mute unmute"},
+    ]
+    return {"title": "Microphone", "rows": rows}
+
+
+# ------------------------------------------------------------------ OBSBOT
+
+def obsbot_group(dev, page_id):
+    opts = load_options()
+    keep = option(opts, f"camera:{page_id}", "keep_awake")
+    try:
+        with obsbot.Camera(dev) as cam:
+            asleep, timer = cam.status()
+        state = "Asleep" if asleep else "Awake"
+        timer_text = "Off" if timer == 0 else f"After {timer // 60} min" if timer % 60 == 0 else f"After {timer} s"
+    except OSError as e:
+        state, timer_text = f"Couldn't read it: {e.strerror or e}", "Unknown"
+    return {"title": "OBSBOT", "rows": [
+        {"kind": "switch", "key": "@keep-awake", "title": "Keep the camera awake",
+         "desc": "Turns off the camera's own sleep timer so it never parks itself, and keeps it that way in the background, even after a replug.",
+         "value": keep, "refresh": True, "keywords": "sleep wake awake auto-sleep idle obsbot gimbal"},
+        {"kind": "info", "title": "Camera", "value": state},
+        {"kind": "info", "title": "Sleeps by itself", "value": timer_text},
+        {"kind": "buttons", "key": "@power", "title": "Right now", "options": [["wake", "Wake"], ["sleep", "Sleep"]]},
+    ]}
+
+
+def preview_group(dev):
+    if "camera" in KINDS:
+        row = {"kind": "camera", "title": "Preview", "device": dev,
+               "desc": "Starts the camera (this wakes an OBSBOT). Only one app can use a camera at a time.",
+               "keywords": "preview video picture test"}
+    else:
+        row = {"kind": "button", "key": "@preview-window", "title": "Preview",
+               "desc": "Opens the camera in a small window. Update Settings to see it here instead.",
+               "label": "Open preview", "keywords": "preview video picture test"}
+    return {"title": "Preview", "rows": [row]}
+
+
 def describe(page_id):
     dev, card = find_page(page_id)
-    groups = []
+    groups = [preview_group(dev)]
+    ids = obsbot.usb_ids(dev)
+    if obsbot.is_tiny3(dev):
+        groups.append(obsbot_group(dev, page_id))
+    mic = mic_group(ids)
+    if mic:
+        groups.append(mic)
     ctrls = all_controls(dev)
     has_ptz = "pan_absolute" in ctrls or "tilt_absolute" in ctrls
     framing = []
@@ -197,7 +409,7 @@ def describe(page_id):
         "confirm": "Click again to reset"}]})
     note = ""
     if "obsbot" in card.lower():
-        note = "AI tracking and gimbal modes use OBSBOT's own commands and aren't supported yet."
+        note = "AI tracking modes use OBSBOT's own commands and aren't in Settings yet."
     out = {"subtitle": f"<tt>{dev}</tt>", "groups": groups}
     if note:
         out["banners"] = [{"text": note, "warning": False}]
@@ -213,6 +425,37 @@ def set_ctrl(dev, assignments):
 
 def set_value(page_id, key, value):
     dev, _ = find_page(page_id)
+    on = value == "true"
+    if key == "@preview-window":
+        subprocess.Popen(["mpv", f"av://v4l2:{dev}", "--profile=low-latency", "--untimed", "--title=Webcam preview"],
+                         start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return None
+    if key == "@keep-awake":
+        if on:
+            with obsbot.Camera(dev) as cam:
+                if not cam.set_auto_sleep(0):
+                    raise SystemExit("The camera didn't accept the change")
+                if cam.status()[0]:
+                    cam.power(False)
+        set_option(f"camera:{page_id}", "keep_awake", on)
+        return {"refresh": True}
+    if key == "@power":
+        with obsbot.Camera(dev) as cam:
+            if not cam.power(value == "sleep"):
+                raise SystemExit("The camera didn't confirm the change")
+        return {"refresh": True}
+    if key.startswith("@mic-"):
+        mics = mics_for(obsbot.usb_ids(dev))
+        if not mics:
+            raise SystemExit("This camera's microphone isn't there right now")
+        node_id, name, _ = mics[0]
+        field = {"@mic-no-suspend": "no_suspend", "@mic-default": "default", "@mic-unmuted": "unmuted"}[key]
+        if on and field == "default":
+            subprocess.run(["wpctl", "set-default", str(node_id)], capture_output=True)
+        if on and field == "unmuted":
+            subprocess.run(["wpctl", "set-mute", str(node_id), "0"], capture_output=True)
+        set_option(f"mic:{name}", field, on)
+        return {"refresh": True} if field == "default" else None
     ctrls = all_controls(dev)
     if key == "@centre":
         set_ctrl(dev, [(k, 0) for k in ("pan_absolute", "tilt_absolute") if k in ctrls])
@@ -243,7 +486,50 @@ def set_value(page_id, key, value):
     return None
 
 
+def guard_once(objects=None):
+    """Put the chosen options back if something changed them; one pass."""
+    opts = load_options()
+    nodes = {pid: dev for pid, dev, _ in capture_nodes()}
+    for section, values in opts.items():
+        if section.startswith("camera:") and values.get("keep_awake") and section[7:] in nodes:
+            try:
+                with obsbot.Camera(nodes[section[7:]]) as cam:
+                    asleep, timer = cam.status()
+                    if timer != 0:
+                        cam.set_auto_sleep(0)
+                    if asleep:
+                        cam.power(False)
+            except OSError:
+                pass
+    mic_sections = {s[4:]: v for s, v in opts.items() if s.startswith("mic:")}
+    if not any(v.get("default") or v.get("unmuted") for v in mic_sections.values()):
+        return
+    objects = pw_objects() if objects is None else objects
+    present = {((o.get("info") or {}).get("props") or {}).get("node.name"): o["id"] for o in objects
+               if ((o.get("info") or {}).get("props") or {}).get("media.class") == "Audio/Source"}
+    current = default_source()
+    for name, v in mic_sections.items():
+        if name not in present:
+            continue
+        if v.get("default") and current != name:
+            subprocess.run(["wpctl", "set-default", str(present[name])], capture_output=True)
+        if v.get("unmuted") and is_muted(present[name]):
+            subprocess.run(["wpctl", "set-mute", str(present[name]), "0"], capture_output=True)
+
+
+def guard():
+    while True:
+        try:
+            guard_once()
+        except Exception as e:  # keep running; report in the journal
+            print(f"settings-webcam guard: {e}", file=sys.stderr, flush=True)
+        time.sleep(15)
+
+
 def main(argv):
+    if argv[:1] == ["guard"]:
+        guard()
+        return
     if not argv:
         raise SystemExit("usage: settings-webcam pages | describe PAGE | set PAGE KEY VALUE")
     cmd = argv[0]

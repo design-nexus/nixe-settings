@@ -1,7 +1,8 @@
 id = "webcam"
 name = "Webcams"
-version = "1.0.0"
-description = "Zoom, pan and tilt, focus, exposure and white balance for USB webcams, with framing presets for OBSBOT cameras."
+version = "1.1.0"
+description = "A live preview, microphone level and mic options for USB webcams, with zoom, pan and tilt, focus, exposure and white balance; OBSBOT Tiny 3 cameras can be kept awake."
 exec = "./settings-webcam"
-needs = ["v4l2-ctl", "python3"]
-needs_hint = "Needs <tt>v4l2-ctl</tt>: <tt>sudo pacman -S v4l-utils</tt>."
+needs = ["v4l2-ctl", "python3", "ffmpeg"]
+needs_hint = "Needs <tt>v4l2-ctl</tt> and <tt>ffmpeg</tt>: <tt>sudo pacman -S v4l-utils ffmpeg</tt>."
+files = ["~/.config/settings/webcam.toml"]

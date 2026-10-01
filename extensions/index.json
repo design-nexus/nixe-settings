@@ -37,12 +37,13 @@
     {
       "id": "webcam",
       "name": "Webcams",
-      "description": "Zoom, pan and tilt, focus, exposure and white balance for USB webcams, with named presets for OBSBOT cameras.",
+      "description": "A live preview, microphone level and mic options (never idle, default, unmuted) for USB webcams, plus zoom, pan and tilt, focus, exposure and white balance. OBSBOT Tiny 3 cameras can be kept awake.",
       "devices": "OBSBOT, Logitech, Elgato and other UVC webcams",
       "repo": "https://github.com/design-nexus/settings-extensions.git",
       "path": "webcam",
       "needs": [
-        "v4l2-ctl"
+        "v4l2-ctl",
+        "ffmpeg"
       ],
       "icon": "camera-web-symbolic"
     },

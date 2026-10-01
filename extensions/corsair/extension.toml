@@ -1,6 +1,6 @@
 id = "corsair"
 name = "Corsair"
-version = "1.0.0"
+version = "1.0.1"
 description = "Corsair keyboards, starting with the Galleon 100 SD: device details, access for Corsair Web Hub, and a probe report for native lighting."
 exec = "bin/settings-corsair"
 install = "install.sh"

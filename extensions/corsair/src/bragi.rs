@@ -4,10 +4,12 @@
 //! the wrong layout can freeze the keyboard until it's unplugged, so nothing
 //! that changes the device ships before its framing is confirmed on real hardware.
 //!
-//! Request (after the hidraw report-number byte): `08 02 <property> 00…`.
+//! Request (after the hidraw report-number byte): `08 02 <property> 00…`
+//! (`09` instead of `08` addresses a device behind a wireless receiver).
 //! Expected reply: `00 02 <status> <value, little-endian>…`.
 
-const HEADER: u8 = 0x08;
+/// Wired device, and device behind a receiver.
+pub const HEADERS: [u8; 2] = [0x08, 0x09];
 const GET: u8 = 0x02;
 
 /// Properties worth reading, with what they're believed to hold.
@@ -23,13 +25,13 @@ pub const PROPERTIES: &[(u8, &str)] = &[
 ];
 
 /// A GET request for one property, as written to hidraw: a leading 0 (no report
-/// number), then `out_len` bytes. Only properties from [`PROPERTIES`] are allowed.
-pub fn get_request(property: u8, out_len: usize) -> Option<Vec<u8>> {
-    if !PROPERTIES.iter().any(|(id, _)| *id == property) || !(4..=1024).contains(&out_len) {
+/// number), then `out_len` bytes. Only [`HEADERS`] and properties from [`PROPERTIES`] are allowed.
+pub fn get_request(header: u8, property: u8, out_len: usize) -> Option<Vec<u8>> {
+    if !HEADERS.contains(&header) || !PROPERTIES.iter().any(|(id, _)| *id == property) || !(4..=1024).contains(&out_len) {
         return None;
     }
     let mut b = vec![0u8; out_len + 1];
-    b[1] = HEADER;
+    b[1] = header;
     b[2] = GET;
     b[3] = property;
     Some(b)
@@ -54,14 +56,17 @@ mod tests {
 
     #[test]
     fn only_builds_gets() {
-        for (p, _) in PROPERTIES {
-            let r = get_request(*p, 64).unwrap();
-            assert_eq!(r.len(), 65);
-            assert_eq!(&r[..4], &[0x00, 0x08, 0x02, *p]);
-            assert!(r[4..].iter().all(|b| *b == 0), "nothing after the property");
+        for h in HEADERS {
+            for (p, _) in PROPERTIES {
+                let r = get_request(h, *p, 128).unwrap();
+                assert_eq!(r.len(), 129);
+                assert_eq!(&r[..4], &[0x00, h, 0x02, *p]);
+                assert!(r[4..].iter().all(|b| *b == 0), "nothing after the property");
+            }
         }
-        assert!(get_request(0x99, 64).is_none(), "unknown properties are refused");
-        assert!(get_request(0x02, 2).is_none() && get_request(0x02, 4096).is_none());
+        assert!(get_request(0x08, 0x99, 64).is_none(), "unknown properties are refused");
+        assert!(get_request(0x01, 0x02, 64).is_none(), "unknown headers are refused");
+        assert!(get_request(0x08, 0x02, 2).is_none() && get_request(0x08, 0x02, 4096).is_none());
     }
 
     #[test]

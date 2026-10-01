@@ -13,7 +13,7 @@ the rest of Settings. Pages only appear when matching hardware is found.
 | Extension | Works with | Needs |
 | --- | --- | --- |
 | `asus` | ASUS ROG, TUF and Zephyrus laptops: performance profiles, fan curves, charge limit, firmware settings, Aura lighting, Slash, AniMe Matrix | `asusctl` |
-| `logitech` | Logitech mice and keyboards: battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting (lives in [nexus-logi](https://github.com/design-nexus/nexus-logi)) | — |
+| `logitech` | Logitech mice and keyboards: battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting | — |
 | `headset` | SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets: battery, sidetone, lights, EQ presets, auto power-off | `headsetcontrol` |
 | `webcam` | OBSBOT, Logitech, Elgato and other USB (UVC) webcams: zoom, pan/tilt, focus, exposure, white balance | `v4l2-ctl` |
 

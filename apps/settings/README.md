@@ -61,8 +61,8 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
     **Aura Lighting**: effects, an inline colour picker, **Follow Omarchy theme**
     (keeps your effect across theme changes), which power states light the
     keyboard, the **Slash lightbar**, AniMe Matrix, XG Mobile light and drive lights.
-  - **Logitech** (with the [Logi](https://github.com/design-nexus/nexus-logi) app):
-    battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting.
+  - **Logitech**: battery, pointer speed, scrolling, buttons, backlight,
+    Easy-Switch and lighting for Logitech mice and keyboards.
   - **Headsets** (needs `headsetcontrol`): battery, sidetone, lights, EQ presets,
     auto power-off.
   - **Webcams** (needs `v4l2-ctl`): zoom, pan/tilt, focus, exposure, white

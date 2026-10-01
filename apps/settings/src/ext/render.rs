@@ -171,7 +171,10 @@ fn send(st: &Shared, key: &str, value: String, refresh: bool) {
                 if !reply.toast.is_empty() {
                     window::toast(&reply.toast);
                 }
-                if refresh || reply.refresh {
+                if reply.reload {
+                    // The sidebar is rebuilt, and this page with it.
+                    cmd::background(super::refresh_pages, |_| window::reload_sections(false));
+                } else if refresh || reply.refresh {
                     load(&st, false);
                 }
             }

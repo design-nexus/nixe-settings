@@ -16,7 +16,6 @@
       "description": "Battery, DPI, scrolling, buttons, backlight, Easy-Switch and lighting for Logitech mice, keyboards and receivers.",
       "devices": "Logitech HID++ mice, keyboards and Unifying, Bolt and Lightspeed receivers",
       "repo": "https://github.com/design-nexus/nexus-logi.git",
-      "path": "extension",
       "needs": [],
       "icon": "input-mouse-symbolic"
     },

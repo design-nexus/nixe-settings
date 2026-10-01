@@ -2,7 +2,8 @@
 //!
 //! - `<exec> pages` → `[PageInfo]` (empty: no matching hardware)
 //! - `<exec> describe PAGE` → `PageDesc`
-//! - `<exec> set PAGE KEY VALUE` → nothing, or `SetReply`; a non-zero exit shows stderr
+//! - `<exec> set PAGE KEY VALUE` → nothing, or `SetReply` (`toast`, `refresh`, `reload`);
+//!   a non-zero exit shows stderr
 //! - `<exec> theme-changed` → re-apply anything the new Omarchy theme reset
 //!
 //! Values are passed to `set` as plain text: `true`/`false` for switches, a number for
@@ -150,6 +151,8 @@ pub struct Series {
 pub struct SetReply {
     pub toast: String,
     pub refresh: bool,
+    /// Ask every extension for its pages again (devices appeared or went away).
+    pub reload: bool,
 }
 
 impl Row {
@@ -253,7 +256,8 @@ mod tests {
     fn replies() {
         assert_eq!(parse_reply(""), SetReply::default());
         let r = parse_reply(r#"{"toast":"Restart to apply","refresh":true}"#);
-        assert!(r.refresh && r.toast == "Restart to apply");
+        assert!(r.refresh && r.toast == "Restart to apply" && !r.reload);
+        assert!(parse_reply(r#"{"reload":true}"#).reload);
     }
 
     #[test]

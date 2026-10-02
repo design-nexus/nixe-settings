@@ -11,6 +11,16 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 
 ## Features
 
+- **Home**: Settings opens on an overview of this computer: model, Omarchy,
+  kernel and Hyprland versions, and uptime; gauges for processor, memory, disk,
+  battery and temperature; live charts of the last minute of processor, memory,
+  network and per-core use; every disk and the installed package count. It also
+  lists every update waiting to be installed (Omarchy, packages, the AUR and
+  firmware) with a one-click **Update now**, and shows the count in the sidebar.
+  To open on the last page shown instead, see Theme → This window.
+
+  ![Settings: Home](docs/home.png)
+
 - **Organised and searchable**: pages are grouped into Appearance, Desktop, Input,
   Devices and System, and <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
   every page.
@@ -71,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   Anyone can write one: see
   [settings-extensions](https://github.com/design-nexus/settings-extensions).
 - **Updates**: Settings checks GitHub once a day when it opens. A new version is
-  offered on Updates & About (one click, then restart); extensions show "Update
+  offered on About (one click, then restart); extensions show "Update
   available" and can update together, or automatically if you switch that on.
   `settings --update` does the same from a terminal (`--check` only reports).
 - **Keyboard backlight timeout** (any laptop with a keyboard backlight): turn it

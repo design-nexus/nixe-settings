@@ -30,7 +30,7 @@ impl FanGraph {
     }
 }
 
-fn rgb(hex: &str) -> (f64, f64, f64) {
+pub(crate) fn rgb(hex: &str) -> (f64, f64, f64) {
     let c = gtk::gdk::RGBA::parse(hex).unwrap_or(gtk::gdk::RGBA::WHITE);
     (c.red() as f64, c.green() as f64, c.blue() as f64)
 }

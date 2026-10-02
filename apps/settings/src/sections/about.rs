@@ -136,30 +136,6 @@ fn glib_escape(t: &str) -> String {
     gtk::glib::markup_escape_text(t).to_string()
 }
 
-fn cpu() -> String {
-    std::fs::read_to_string("/proc/cpuinfo")
-        .ok()
-        .and_then(|t| {
-            t.lines().find(|l| l.starts_with("model name")).map(|l| l.split(':').nth(1).unwrap_or("").trim().to_string())
-        })
-        .unwrap_or_default()
-}
-
-fn memory() -> String {
-    std::fs::read_to_string("/proc/meminfo")
-        .ok()
-        .and_then(|t| {
-            let kb: f64 = t.lines().find(|l| l.starts_with("MemTotal"))?.split_whitespace().nth(1)?.parse().ok()?;
-            Some(format!("{:.0} GB", kb / 1024.0 / 1024.0))
-        })
-        .unwrap_or_default()
-}
-
-fn model() -> String {
-    let read = |f: &str| std::fs::read_to_string(format!("/sys/class/dmi/id/{f}")).unwrap_or_default().trim().to_string();
-    format!("{} {}", read("sys_vendor"), read("product_name")).trim().to_string()
-}
-
 pub fn build(page: &Page) {
     settings_group(page);
     let g = page.group("Omarchy");
@@ -176,6 +152,12 @@ pub fn build(page: &Page) {
         |_| cmd::spawn(&["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"]),
     );
     widgets::keywords("upgrade pacman packages");
+    g.add(&r);
+    let (r, _) =
+        widgets::button_row("Waiting updates", "Every package, AUR and firmware update, listed on Home.", "Open Home", |_| {
+            window::navigate("home")
+        });
+    widgets::keywords("available list aur firmware");
     g.add(&r);
     let (r, _) = widgets::button_row(
         "Snapshot",
@@ -195,24 +177,4 @@ pub fn build(page: &Page) {
     );
     widgets::keywords("backup restore snapper rollback");
     g.add(&r);
-
-    let g = page.group("This computer");
-    for (title, value) in [
-        ("Model", model()),
-        ("Processor", cpu()),
-        ("Memory", memory()),
-        ("Kernel", cmd::output(&["uname", "-r"]).unwrap_or_default()),
-        (
-            "Hyprland",
-            cmd::output(&["hyprctl", "version", "-j"])
-                .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
-                .and_then(|v| v.get("tag").and_then(|x| x.as_str()).map(String::from))
-                .unwrap_or_default(),
-        ),
-    ] {
-        if !value.is_empty() {
-            let (r, _) = widgets::info_row(title, &value);
-            g.add(&r);
-        }
-    }
 }

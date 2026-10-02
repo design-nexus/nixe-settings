@@ -32,6 +32,8 @@ pub struct Prefs {
     /// How temperatures are shown (they are always stored in Celsius).
     pub temp_unit: TempUnit,
     pub last_section: String,
+    /// The page Settings opens on: `home`, or `last` for the last page shown.
+    pub open_on: String,
     /// Installed extensions that are turned off: kept, but their pages are hidden.
     pub disabled_extensions: Vec<String>,
     /// Install extension updates found by the daily check without asking.
@@ -49,7 +51,8 @@ impl Default for Prefs {
             reduce_motion: false,
             glow: true,
             temp_unit: TempUnit::Celsius,
-            last_section: "theme".into(),
+            last_section: "home".into(),
+            open_on: "home".into(),
             disabled_extensions: Vec::new(),
             auto_update_extensions: false,
             announced_version: String::new(),

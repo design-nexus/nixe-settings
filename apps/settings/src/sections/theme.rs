@@ -222,6 +222,15 @@ pub fn build(page: &Page) {
     );
     widgets::keywords("fahrenheit celsius degrees units temperature");
     g.add(&r);
+    let (r, _) = widgets::choice_row(
+        "Open on",
+        "The page Settings shows when it starts. A page asked for by name (<tt>--section</tt>) still opens.",
+        widgets::opts(&[("home", "Home"), ("last", "The last page shown")]),
+        &prefs::get().open_on,
+        |v| prefs::update(|p| p.open_on = v),
+    );
+    widgets::keywords("start startup launch first page home remember last");
+    g.add(&r);
 }
 
 // ----- Apps follow the theme (hyprchroma) -----

@@ -46,7 +46,8 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     }
     theme::install();
     build(app);
-    let start = section.map(String::from).unwrap_or_else(|| prefs::get().last_section);
+    let p = prefs::get();
+    let start = section.map(String::from).unwrap_or(if p.open_on == "last" { p.last_section } else { "home".into() });
     navigate(&start);
     // Developer aid: SETTINGS_SNAPSHOT=/path.png renders the window to a PNG
     // (invisibly) and quits, so layouts can be checked without a visible window.
@@ -220,6 +221,38 @@ fn build(app: &gtk::Application) {
 
 type NavParts = (HashMap<&'static str, gtk::Button>, Vec<(gtk::Label, Vec<&'static str>)>, Vec<gtk::Widget>);
 
+thread_local! {
+    /// Counts shown after a page's name in the sidebar, e.g. updates on Home.
+    static NAV_BADGES: RefCell<HashMap<&'static str, String>> = RefCell::default();
+}
+
+fn nav_badge(text: &str) -> gtk::Label {
+    let t = widgets::tag(text);
+    t.add_css_class("nav-badge");
+    t
+}
+
+/// Show `text` after a page's name in the sidebar, or nothing.
+pub fn set_nav_badge(id: &'static str, text: Option<&str>) {
+    NAV_BADGES.with(|b| match text {
+        Some(t) => b.borrow_mut().insert(id, t.to_string()),
+        None => b.borrow_mut().remove(id),
+    });
+    let Some(ui) = ui() else { return };
+    let mut u = ui.borrow_mut();
+    let Some(content) = u.nav_items.get(id).and_then(|b| b.child()).and_downcast::<gtk::Box>() else { return };
+    if let Some(old) = content.last_child().filter(|w| w.has_css_class("nav-badge")) {
+        content.remove(&old);
+        u.compact_items.retain(|w| w != &old);
+    }
+    if let Some(text) = text {
+        let t = nav_badge(text);
+        t.set_visible(!u.compact.get());
+        content.append(&t);
+        u.compact_items.push(t.upcast());
+    }
+}
+
 /// The sidebar entries: a heading per group, a button per page.
 fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
     let mut nav_items = HashMap::new();
@@ -245,6 +278,11 @@ fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
         l.set_hexpand(true);
         compact_items.push(l.clone().upcast());
         content.append(&l);
+        if let Some(text) = NAV_BADGES.with(|b| b.borrow().get(s.id).cloned()) {
+            let t = nav_badge(&text);
+            compact_items.push(t.clone().upcast());
+            content.append(&t);
+        }
         button.set_child(Some(&content));
         button.set_tooltip_text(Some(s.description));
         let id = s.id;
@@ -261,7 +299,7 @@ fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
 /// What to do with a finished update check.
 pub fn after_update_check(s: crate::backend::updates::Status) {
     if s.settings_update() && prefs::get().announced_version != s.latest {
-        toast(&format!("Settings {} is available: see Updates & About", s.latest));
+        toast(&format!("Settings {} is available: see About", s.latest));
         prefs::update(|p| p.announced_version = s.latest.clone());
     }
     if prefs::get().auto_update_extensions && !s.extensions.is_empty() {

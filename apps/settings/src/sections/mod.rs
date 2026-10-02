@@ -15,6 +15,7 @@ pub mod barlayout;
 pub mod connectivity;
 pub mod displays;
 pub mod extensions;
+pub mod home;
 pub mod idle;
 pub mod keybindings;
 pub mod keyboard;
@@ -107,6 +108,18 @@ pub fn all() -> Vec<Section> {
 /// `fresh` asks every extension what it has now instead of using what it said last time.
 pub fn all_with(fresh: bool) -> Vec<Section> {
     let mut list = vec![
+        // No group: Home sits above the first heading.
+        Section {
+            id: "home",
+            title: "Home",
+            icon: "user-home-symbolic",
+            group: "",
+            description: "This computer at a glance: activity, storage and updates.",
+            keywords: "overview system info stats cpu processor memory ram disk storage battery temperature network uptime updates packages aur firmware snapshot",
+            files: Vec::new,
+            build: Build::Native(home::build),
+            visible: always,
+        },
         // ----- Appearance -----
         Section {
             id: "theme",
@@ -301,10 +314,10 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
         },
         Section {
             id: "about",
-            title: "Updates & About",
+            title: "About",
             icon: "help-about-symbolic",
             group: "System",
-            description: "Omarchy version, updates, snapshots and system information.",
+            description: "Settings and Omarchy versions, updating them, and snapshots.",
             keywords: "update upgrade version snapshot about system info kernel cpu memory",
             files: Vec::new,
             build: Build::Native(about::build),

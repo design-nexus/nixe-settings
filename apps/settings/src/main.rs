@@ -1,6 +1,7 @@
 //! Settings — a control panel for Omarchy.
 
 mod backend;
+mod charts;
 mod cmd;
 mod ext;
 mod fangraph;

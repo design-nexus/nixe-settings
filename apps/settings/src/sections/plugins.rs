@@ -38,7 +38,7 @@ pub fn build(page: &Page) {
     );
     g.add(&r);
     let (r, _) = widgets::button_row("Find more", "Browse the Omarchy plugin catalog.", "Catalog", |_| {
-        cmd::spawn(&["omarchy-menu", "toggle", "plugin"]);
+        cmd::spawn(&["xdg-open", "https://plugins.omarchy.org/"]);
     });
     g.add(&r);
 

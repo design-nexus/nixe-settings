@@ -2,7 +2,6 @@ pub mod appearance;
 pub mod audio;
 pub mod bt;
 pub mod chroma;
-pub mod cleanup;
 pub mod gestures;
 pub mod hypr;
 pub mod kbdidle;

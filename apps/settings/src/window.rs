@@ -73,7 +73,6 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
             reload_sections(false);
         }
     });
-    crate::sections::system::maybe_offer_cleanup();
 }
 
 fn build(app: &gtk::Application) {

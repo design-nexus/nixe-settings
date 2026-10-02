@@ -183,12 +183,6 @@ pub fn reload() {
     cmd::spawn(&["hyprctl", "reload"]);
 }
 
-pub fn config_errors() -> Vec<String> {
-    cmd::output(&["hyprctl", "configerrors"])
-        .map(|s| s.lines().map(str::trim).filter(|l| !l.is_empty()).map(String::from).collect())
-        .unwrap_or_default()
-}
-
 /// Read an option's live value. Dotted keys are accepted.
 pub fn get_option(key: &str) -> Option<Value> {
     let colon = key.replace('.', ":");

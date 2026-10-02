@@ -176,15 +176,6 @@ With *Loop around* on, Settings keeps two hidden placeholder workspaces, one
 before 1 and one after the last. Swipes slide into them, then jump to the
 other end of the loop.
 
-## Replacing older settings panels
-
-If OmaSettings, Omarchy Control Panel or the older `design-nexus.settings` plugin
-is installed, Settings offers once to remove them, since they compete for the same
-values. It lists every file and line it will touch first, imports nothing, and
-backs everything up to `~/.config/settings/old-panels-backup-*`. If Hyprland reports
-errors afterwards, it restores the backup automatically. You can also restore
-later from **Settings App → Restore**.
-
 ## Custom themes
 
 Drop a TOML file in `~/.config/settings/themes/`:
@@ -228,7 +219,7 @@ cargo clippy -- -D warnings
 ```
 
 It's built with Rust and gtk4-rs, and doesn't use libadwaita. Each sidebar page
-is one file in `src/sections/`, and the Hyprland, audio and cleanup logic lives in
+is one file in `src/sections/`, and the Hyprland and audio logic lives in
 `src/backend/`.
 
 ## License

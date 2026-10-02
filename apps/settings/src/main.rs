@@ -127,30 +127,6 @@ fn main() -> glib::ExitCode {
             }
         };
     }
-    if args.iter().any(|a| a == "--remove-old-panels") {
-        use backend::cleanup;
-        let plan = cleanup::plan();
-        if plan.is_empty() {
-            println!("Nothing to remove.");
-            return glib::ExitCode::SUCCESS;
-        }
-        print!("{}", cleanup::describe(&plan));
-        if args.iter().any(|a| a == "--dry-run") {
-            return glib::ExitCode::SUCCESS;
-        }
-        // Our own file first, so Hyprland still has it once theirs are gone.
-        let _ = backend::hypr::write(&backend::state::State::load(&paths::state_file()));
-        return match cleanup::execute(&plan) {
-            Ok(out) => {
-                println!("Removed. Backup: {}", paths::pretty(&out.backup));
-                glib::ExitCode::SUCCESS
-            }
-            Err(e) => {
-                eprintln!("settings: {e:#}");
-                glib::ExitCode::FAILURE
-            }
-        };
-    }
     if args.iter().any(|a| a == "--apply") {
         let state = backend::state::State::load(&paths::state_file());
         return match backend::hypr::write(&state) {

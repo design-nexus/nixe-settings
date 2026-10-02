@@ -23,7 +23,6 @@ pub mod mouse;
 pub mod nightlight;
 pub mod plugins;
 pub mod power;
-pub mod system;
 pub mod theme;
 pub mod trackpad;
 pub mod workspaces;
@@ -298,17 +297,6 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "plugins extensions widgets bar update enable disable remove",
             files: || vec![paths::shell_json()],
             build: Build::Native(plugins::build),
-            visible: always,
-        },
-        Section {
-            id: "system",
-            title: "Settings App",
-            icon: "preferences-system-symbolic",
-            group: "System",
-            description: "What this app manages, and removing the old settings panels.",
-            keywords: "managed reset restore old panels cleanup omasettings control panel",
-            files: || vec![paths::managed_lua(), paths::state_file(), paths::prefs_file()],
-            build: Build::Native(system::build),
             visible: always,
         },
         Section {

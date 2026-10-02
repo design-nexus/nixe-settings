@@ -31,8 +31,6 @@ pub struct Prefs {
     pub glow: bool,
     /// How temperatures are shown (they are always stored in Celsius).
     pub temp_unit: TempUnit,
-    /// The old-panel cleanup has been offered once already.
-    pub cleanup_offered: bool,
     pub last_section: String,
     /// Installed extensions that are turned off: kept, but their pages are hidden.
     pub disabled_extensions: Vec<String>,
@@ -51,7 +49,6 @@ impl Default for Prefs {
             reduce_motion: false,
             glow: true,
             temp_unit: TempUnit::Celsius,
-            cleanup_offered: false,
             last_section: "theme".into(),
             disabled_extensions: Vec::new(),
             auto_update_extensions: false,

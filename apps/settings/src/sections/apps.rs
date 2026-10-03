@@ -91,10 +91,13 @@ struct Category {
     /// An app that opens any of them is offered.
     types: &'static [&'static str],
     keywords: &'static str,
+    /// Desktop-entry categories whose apps open these types but don't fit the
+    /// row (browsers under Email, video editors under Video player).
+    skip: &'static [&'static str],
 }
 
 const CATEGORIES: &[Category] = &[
-    Category { title: "File manager", desc: "Opens folders from every app.", types: &["inode/directory"], keywords: "folders files browse" },
+    Category { title: "File manager", desc: "Opens folders from every app.", types: &["inode/directory"], keywords: "folders files browse", skip: &[] },
     Category {
         title: "Image viewer",
         desc: "Opens photos and pictures.",
@@ -111,20 +114,23 @@ const CATEGORIES: &[Category] = &[
             "image/x-icon",
         ],
         keywords: "photos pictures images jpg png viewer",
+        skip: &["WebBrowser", "AudioVideo", "TextEditor"],
     },
     Category {
         title: "Video player",
         desc: "Opens video files.",
         types: &["video/mp4", "video/x-matroska", "video/webm", "video/quicktime", "video/x-msvideo", "video/mpeg", "video/ogg"],
         keywords: "movies videos mp4 mkv player",
+        skip: &["AudioVideoEditing", "TextEditor"],
     },
     Category {
         title: "Music player",
         desc: "Opens audio files.",
         types: &["audio/mpeg", "audio/flac", "audio/ogg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/aac", "audio/opus"],
         keywords: "music songs audio mp3 flac player",
+        skip: &["AudioVideoEditing", "TextEditor"],
     },
-    Category { title: "PDFs", desc: "Opens PDF documents.", types: &["application/pdf"], keywords: "pdf reader document viewer" },
+    Category { title: "PDFs", desc: "Opens PDF documents.", types: &["application/pdf"], keywords: "pdf reader document viewer", skip: &[] },
     Category {
         title: "Documents",
         desc: "Word processing files (.docx, .odt, .doc).",
@@ -135,6 +141,7 @@ const CATEGORIES: &[Category] = &[
             "application/rtf",
         ],
         keywords: "office word docx odt writer libreoffice document",
+        skip: &["WebBrowser"],
     },
     Category {
         title: "Spreadsheets",
@@ -145,6 +152,7 @@ const CATEGORIES: &[Category] = &[
             "application/vnd.ms-excel",
         ],
         keywords: "office excel xlsx ods calc sheets spreadsheet",
+        skip: &["WebBrowser"],
     },
     Category {
         title: "Presentations",
@@ -155,6 +163,7 @@ const CATEGORIES: &[Category] = &[
             "application/vnd.ms-powerpoint",
         ],
         keywords: "office powerpoint pptx odp impress slides presentation",
+        skip: &["WebBrowser"],
     },
     Category {
         title: "Text files",
@@ -171,6 +180,7 @@ const CATEGORIES: &[Category] = &[
             "text/x-shellscript",
         ],
         keywords: "text txt markdown notes json",
+        skip: &["WebBrowser"],
     },
     Category {
         title: "Archives",
@@ -185,34 +195,52 @@ const CATEGORIES: &[Category] = &[
             "application/zstd",
         ],
         keywords: "zip archive compressed extract unzip rar 7z",
+        skip: &["WebBrowser", "TextEditor"],
     },
-    Category { title: "Email", desc: "Opens <tt>mailto:</tt> links.", types: &["x-scheme-handler/mailto"], keywords: "mail email mailto" },
+    Category { title: "Email", desc: "Opens <tt>mailto:</tt> links.", types: &["x-scheme-handler/mailto"], keywords: "mail email mailto", skip: &["WebBrowser", "TextEditor"] },
     Category {
         title: "Calendar",
         desc: "Opens calendar invites and subscriptions.",
         types: &["text/calendar", "x-scheme-handler/webcal"],
         keywords: "calendar ics invite events",
+        skip: &["WebBrowser", "TextEditor"],
     },
     Category {
         title: "Torrents",
         desc: "Opens magnet links and .torrent files.",
         types: &["x-scheme-handler/magnet", "application/x-bittorrent"],
         keywords: "torrent magnet bittorrent download",
+        skip: &["WebBrowser", "TextEditor"],
     },
 ];
 
-/// A generic name ("Media Player", "Files") gets its program added, so two
-/// "Image Viewer"s can be told apart: "Media Player (mpv)".
-fn label(name: &str, executable: &std::path::Path) -> String {
-    const GENERIC: &[&str] =
-        &["Viewer", "Player", "Files", "Editor", "Manager", "Document", "Media", "Image", "Music", "Video", "Mail", "Calendar", "Archive"];
-    let exe = executable.file_name().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
-    let generic = GENERIC.iter().any(|g| name.contains(g));
-    if generic && !exe.is_empty() && !name.to_lowercase().contains(&exe.to_lowercase()) {
-        format!("{name} ({exe})")
-    } else {
-        name.to_string()
+/// Two apps with the same name get their program added so they can be told
+/// apart: "Image Viewer (imv)" and "Image Viewer (loupe)".
+fn disambiguate(options: &mut [(String, String)], program: impl Fn(&str) -> String) {
+    let names: Vec<String> = options.iter().map(|(_, n)| n.clone()).collect();
+    for (id, name) in options.iter_mut() {
+        if names.iter().filter(|n| *n == name).count() > 1 {
+            let exe = program(id);
+            if !exe.is_empty() {
+                *name = format!("{name} ({exe})");
+            }
+        }
     }
+}
+
+/// True when the app's desktop entry lists any of the categories.
+fn in_categories(app: &gio::AppInfo, skip: &[&str]) -> bool {
+    let Some(id) = app.id() else { return false };
+    let dirs = std::iter::once(gtk::glib::user_data_dir()).chain(gtk::glib::system_data_dirs());
+    for dir in dirs {
+        let file = gtk::glib::KeyFile::new();
+        if file.load_from_file(dir.join("applications").join(id.as_str()), gtk::glib::KeyFileFlags::NONE).is_err() {
+            continue;
+        }
+        let categories = file.string("Desktop Entry", "Categories").unwrap_or_default();
+        return categories.split(';').any(|c| skip.contains(&c));
+    }
+    false
 }
 
 /// (id, name) choices: visible apps, no repeats, and the current default kept
@@ -233,7 +261,7 @@ fn choices(apps: &[(String, String, bool)], current: Option<(String, String)>) -
 }
 
 fn mime_row(c: &'static Category) -> Option<gtk::Box> {
-    let info = |a: &gio::AppInfo| (a.id().map(|s| s.to_string()).unwrap_or_default(), label(&a.name(), &a.executable()));
+    let info = |a: &gio::AppInfo| (a.id().map(|s| s.to_string()).unwrap_or_default(), a.name().to_string());
     // Apps that open any of the row's types, those for the main type first.
     let apps: Vec<(String, String, bool)> = c
         .types
@@ -242,12 +270,19 @@ fn mime_row(c: &'static Category) -> Option<gtk::Box> {
         .filter(|a| a.id().is_some())
         .map(|a| {
             let (id, name) = info(&a);
-            (id, name, a.should_show())
+            (id, name, a.should_show() && !in_categories(&a, c.skip))
         })
         .collect();
     let current = gio::AppInfo::default_for_type(c.types[0], false).map(|a| info(&a));
     let current_id = current.as_ref().map(|(i, _)| i.clone()).unwrap_or_default();
-    let options = choices(&apps, current);
+    let mut options = choices(&apps, current);
+    disambiguate(&mut options, |id| {
+        gio::AppInfo::all()
+            .into_iter()
+            .find(|a| a.id().is_some_and(|i| i == id))
+            .and_then(|a| a.executable().file_name().map(|e| e.to_string_lossy().to_string()))
+            .unwrap_or_default()
+    });
     if options.is_empty() {
         return None;
     }
@@ -285,11 +320,9 @@ mod tests {
     }
 
     #[test]
-    fn generic_names_get_their_program() {
-        use std::path::Path;
-        assert_eq!(label("Media Player", Path::new("/usr/bin/mpv")), "Media Player (mpv)");
-        assert_eq!(label("Files", Path::new("nautilus")), "Files (nautilus)");
-        assert_eq!(label("Zed", Path::new("zeditor")), "Zed");
-        assert_eq!(label("Image Viewer", Path::new("")), "Image Viewer");
+    fn same_names_get_their_program() {
+        let mut o = vec![("a.desktop".to_string(), "Image Viewer".to_string()), ("b.desktop".into(), "Image Viewer".into()), ("c.desktop".into(), "Zed".into())];
+        disambiguate(&mut o, |id| id.trim_end_matches(".desktop").to_string());
+        assert_eq!(o.iter().map(|(_, n)| n.as_str()).collect::<Vec<_>>(), ["Image Viewer (a)", "Image Viewer (b)", "Zed"]);
     }
 }

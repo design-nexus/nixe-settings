@@ -42,6 +42,8 @@ pub struct Prefs {
     pub auto_update_extensions: bool,
     /// The newest Settings version already announced, so it's announced once.
     pub announced_version: String,
+    /// Collapsible groups the user opened or closed, by `section/title`.
+    pub open_groups: std::collections::BTreeMap<String, bool>,
 }
 
 impl Default for Prefs {
@@ -59,6 +61,7 @@ impl Default for Prefs {
             disabled_extensions: Vec::new(),
             auto_update_extensions: false,
             announced_version: String::new(),
+            open_groups: Default::default(),
         }
     }
 }

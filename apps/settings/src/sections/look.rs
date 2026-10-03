@@ -30,13 +30,13 @@ pub fn build(page: &Page) {
     widgets::keywords("radius round corners");
     g.add(&hypr_switch("general.resize_on_border", "Resize from borders", "Drag a window's border to resize it."));
 
-    let g = page.group("Transparency");
+    let g = page.collapsible("Transparency", false);
     g.add(&hypr_slider("decoration.active_opacity", "Focused window opacity", "", (0.5, 1.0, 0.01), 2, "", false));
     g.add(&hypr_slider("decoration.inactive_opacity", "Unfocused window opacity", "", (0.5, 1.0, 0.01), 2, "", false));
     g.add(&hypr_switch("decoration.dim_inactive", "Dim unfocused windows", "Makes the focused window stand out."));
     g.add(&hypr_slider("decoration.dim_strength", "Dim amount", "", (0.0, 0.8, 0.01), 2, "", false));
 
-    let g = page.group("Blur");
+    let g = page.collapsible("Blur", false);
     g.note("Blur shows behind transparent windows, the bar and menus. It costs some GPU time.");
     g.add(&hypr_switch("decoration.blur.enabled", "Blur", "Frosted-glass effect behind transparent surfaces."));
     g.add(&hypr_slider("decoration.blur.size", "Blur size", "", (1.0, 20.0, 1.0), 0, "", true));
@@ -51,7 +51,7 @@ pub fn build(page: &Page) {
         false,
     ));
 
-    let g = page.group("Shadows");
+    let g = page.collapsible("Shadows", false);
     g.add(&hypr_switch("decoration.shadow.enabled", "Window shadows", ""));
     g.add(&hypr_slider("decoration.shadow.range", "Shadow size", "", (0.0, 50.0, 1.0), 0, " px", true));
     g.add(&hypr_slider(
@@ -64,11 +64,11 @@ pub fn build(page: &Page) {
         true,
     ));
 
-    let g = page.group("Motion");
+    let g = page.collapsible("Animations", false);
     g.add(&hypr_switch("animations.enabled", "Animations", "Windows and workspaces slide and fade."));
     g.add(&hypr_switch("misc.animate_manual_resizes", "Animate resizing", "Smooth out keyboard and mouse resizes."));
 
-    let g = page.group("Cursor");
+    let g = page.collapsible("Cursor", false);
     let size = store::read(|s| s.env.get("XCURSOR_SIZE").cloned())
         .or_else(|| std::env::var("XCURSOR_SIZE").ok())
         .and_then(|v| v.parse::<f64>().ok())

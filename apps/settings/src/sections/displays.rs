@@ -109,6 +109,50 @@ fn live_monitor(name: &str) -> Option<Monitor> {
 }
 
 pub fn build(page: &Page) {
+    monitors(page);
+    laptop_screen(page);
+}
+
+/// The built-in screen: off while an external monitor is in use, or mirrored onto it.
+fn laptop_screen(page: &Page) {
+    if !cmd::present("omarchy-hyprland-monitor-internal") || cmd::run(&["omarchy-hw-laptop"]).is_err() {
+        return;
+    }
+    let g = page.group("Laptop screen");
+    let run = |args: &'static [&'static str]| {
+        cmd::run_async(args, |r| {
+            if let Err(e) = r {
+                window::toast(&format!("{e}"));
+            }
+            glib::timeout_add_local_once(std::time::Duration::from_millis(900), || window::rebuild("displays"));
+        })
+    };
+    let controls = widgets::hbox(8);
+    let on = gtk::Button::with_label("Turn on");
+    on.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal", "on"]));
+    let off = gtk::Button::with_label("Turn off");
+    off.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal", "off"]));
+    controls.append(&on);
+    controls.append(&off);
+    g.add(&widgets::row("Built-in screen", "Switch the laptop's own screen on or off. Recover brings it back if it stays dark.", Some(controls.upcast_ref())));
+    widgets::keywords("internal laptop display eDP clamshell off disable recover");
+    if cmd::present("omarchy-hyprland-monitor-internal-mirror") {
+        let controls = widgets::hbox(8);
+        let mirror = gtk::Button::with_label("Mirror");
+        mirror.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal-mirror", "on"]));
+        let stop = gtk::Button::with_label("Stop mirroring");
+        stop.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal-mirror", "off"]));
+        controls.append(&mirror);
+        controls.append(&stop);
+        g.add(&widgets::row("Mirror to an external screen", "Show the laptop's screen on the connected monitor too, for presenting.", Some(controls.upcast_ref())));
+        widgets::keywords("duplicate projector presentation external monitor");
+    }
+    let (r, _) = widgets::button_row("Recover the built-in screen", "Use this if the laptop screen stays dark after unplugging a monitor.", "Recover", move |_| run(&["omarchy-hyprland-monitor-internal", "recover"]));
+    widgets::keywords("black dark blank fix");
+    g.add(&r);
+}
+
+fn monitors(page: &Page) {
     let monitors: Vec<Value> = hypr::json(&["monitors", "all"]).and_then(|v| v.as_array().cloned()).unwrap_or_default();
     if monitors.is_empty() {
         page.banner("Couldn't read the displays from Hyprland.", true);

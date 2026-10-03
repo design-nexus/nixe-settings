@@ -49,31 +49,25 @@ pub fn build(page: &Page) {
     });
     g.add(&r);
 
-    let g = page.group("Widgets");
+    let g = page.plain_group("Widgets");
     g.note("Drag a widget to reorder it or move it to another section, or use the arrows and the ⋯ menu.");
     let editor = super::barlayout::editor();
     g.add(&editor);
     widgets::keywords("widgets reorder order move arrange layout left center right section plugins drag add remove");
-    let (r, b) = widgets::button_row(
+    // Two clicks: this throws away the whole layout.
+    let b = widgets::confirm_button("Restore", "Click again to restore", |_| {
+        run(&["omarchy-bar", "defaults"]);
+        gtk::glib::timeout_add_local_once(std::time::Duration::from_millis(600), || window::rebuild("bar"));
+    });
+    b.add_css_class("destructive-action");
+    g.add(&widgets::row(
         "Restore Omarchy's default bar",
         "Puts Omarchy's own widgets back in their places and takes every other plugin widget off the bar. \
          The bar's position and transparency reset too.",
-        "Restore",
-        |b| {
-            // Two clicks: this throws away the whole layout.
-            if !b.has_css_class("armed") {
-                b.add_css_class("armed");
-                b.set_label("Click again to restore");
-                return;
-            }
-            run(&["omarchy-bar", "defaults"]);
-            gtk::glib::timeout_add_local_once(std::time::Duration::from_millis(600), || window::rebuild("bar"));
-        },
-    );
-    b.add_css_class("destructive-action");
-    g.add(&r);
+        Some(b.upcast_ref()),
+    ));
 
-    let g = page.group("Shell text");
+    let g = page.collapsible("Shell text", false);
     let size = shell_text_size().unwrap_or(12.0);
     let (r, _) =
         widgets::slider_row("Text size", "Font size of the bar, menus and panels.", (9.0, 18.0, 1.0), size, 0, " pt", |v| {
@@ -133,7 +127,8 @@ fn notifications(page: &Page) {
         gtk::glib::ControlFlow::Continue
     });
 
-    let g = page.group("Recent notifications");
+    let g = page.collapsible("Recent notifications", false);
+    g.note("Notifications you've had, newest first.");
     widgets::keywords("notification history centre center recent");
     let list = widgets::vbox(6);
     g.add(&list);

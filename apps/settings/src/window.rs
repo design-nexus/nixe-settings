@@ -26,6 +26,54 @@ struct Ui {
     sections: Vec<Section>,
     current: &'static str,
     overlay: gtk::Overlay,
+    /// Shown instead of the search entry in the icon-only sidebar.
+    search_icon: gtk::Button,
+    collapse_button: gtk::Button,
+    /// The "nothing matches" page's message.
+    empty_label: gtk::Label,
+    /// The toast on screen, if any: a new one replaces it.
+    toast: Option<gtk::Revealer>,
+}
+
+/// The stack page shown when a search finds nothing.
+const EMPTY_PAGE: &str = "__no-results";
+
+thread_local! {
+    /// The icon-only sidebar was opened just to search.
+    static TEMP_EXPANDED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn search_empty_page() -> (gtk::Box, gtk::Label) {
+    let page = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    page.add_css_class("search-empty");
+    page.set_valign(gtk::Align::Start);
+    let icon = gtk::Image::from_icon_name("system-search-symbolic");
+    icon.set_pixel_size(48);
+    page.append(&icon);
+    let title = widgets::label("", "search-empty-title");
+    title.set_halign(gtk::Align::Center);
+    title.set_wrap(true);
+    page.append(&title);
+    let hint = widgets::label("Try a different word, such as what the setting changes.", "dim");
+    hint.set_halign(gtk::Align::Center);
+    page.append(&hint);
+    (page, title)
+}
+
+/// Focus the search entry, opening the icon-only sidebar for now if need be.
+fn focus_search(search: &gtk::SearchEntry) {
+    let compact = ui().is_some_and(|u| u.borrow().compact.get());
+    if compact {
+        TEMP_EXPANDED.with(|t| t.set(true));
+        apply_compact(false);
+    }
+    search.grab_focus();
+}
+
+fn end_temporary_expand() {
+    if TEMP_EXPANDED.with(|t| t.replace(false)) {
+        apply_compact(NARROW.with(|n| n.get()) || prefs::get().sidebar_collapsed);
+    }
 }
 
 thread_local! {
@@ -95,13 +143,37 @@ fn build(app: &gtk::Application) {
     let heading = widgets::label("SETTINGS", "menu-heading");
     heading.set_hexpand(true);
     let mut compact_hide: Vec<gtk::Widget> = vec![heading.clone().upcast()];
-    nav.append(&nav_head(&heading));
+    let (head, collapse_button) = nav_head(&heading);
+    nav.append(&head);
 
     let search = gtk::SearchEntry::new();
     search.set_placeholder_text(Some("Search settings"));
     search.add_css_class("settings-search");
     nav.append(&search);
     compact_hide.push(search.clone().upcast());
+
+    // The icon-only sidebar keeps a way to search: it opens the sidebar for now.
+    let search_icon = gtk::Button::from_icon_name("system-search-symbolic");
+    search_icon.add_css_class("nav-search");
+    search_icon.set_tooltip_text(Some("Search settings (Ctrl+F)"));
+    search_icon.set_halign(gtk::Align::Center);
+    search_icon.set_visible(false);
+    {
+        let search = search.clone();
+        search_icon.connect_clicked(move |_| focus_search(&search));
+    }
+    nav.append(&search_icon);
+    // Back to icons once the search is done with.
+    let focus = gtk::EventControllerFocus::new();
+    {
+        let search = search.clone();
+        focus.connect_leave(move |_| {
+            if search.text().is_empty() {
+                end_temporary_expand();
+            }
+        });
+    }
+    search.add_controller(focus);
 
     let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let (nav_items, nav_groups, compact_items) = fill_nav(&list, &sections);
@@ -128,6 +200,8 @@ fn build(app: &gtk::Application) {
     stack.set_hexpand(true);
     stack.set_transition_type(gtk::StackTransitionType::Crossfade);
     stack.set_transition_duration(if prefs::get().reduce_motion { 0 } else { 160 });
+    let (empty, empty_label) = search_empty_page();
+    stack.add_named(&empty, Some(EMPTY_PAGE));
 
     let body = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     body.append(&nav);
@@ -145,7 +219,7 @@ fn build(app: &gtk::Application) {
         let ctrl = mods.contains(gdk::ModifierType::CONTROL_MASK);
         match key {
             gdk::Key::f if ctrl => {
-                s2.grab_focus();
+                focus_search(&s2);
                 glib::Propagation::Stop
             }
             gdk::Key::b if ctrl => {
@@ -160,6 +234,10 @@ fn build(app: &gtk::Application) {
                 s2.set_text("");
                 glib::Propagation::Stop
             }
+            gdk::Key::Escape if TEMP_EXPANDED.with(|t| t.get()) => {
+                end_temporary_expand();
+                glib::Propagation::Stop
+            }
             _ => glib::Propagation::Proceed,
         }
     });
@@ -168,20 +246,8 @@ fn build(app: &gtk::Application) {
     search.connect_activate(|_| focus_first_hit());
 
     // Narrow windows (a tiled half-screen) get an icon-only sidebar.
-    let apply_width = move |w: &gtk::ApplicationWindow| {
-        let width = if w.width() > 0 { w.width() } else { w.default_width() };
-        let narrow = width > 0 && width < 980;
-        if narrow == NARROW.with(|n| n.get()) && SIZED.with(|s| s.get()) {
-            return;
-        }
-        SIZED.with(|s| s.set(true));
-        set_narrow(narrow);
-        apply_compact(narrow || prefs::get().sidebar_collapsed);
-    };
-    let aw = apply_width;
-    window.connect_default_width_notify(move |w| aw(w));
-    let aw = apply_width;
-    window.connect_realize(move |w| aw(w));
+    window.connect_default_width_notify(apply_width);
+    window.connect_realize(apply_width);
     // Tiled windows are resized by the compositor; watch the real size too.
     let w2 = window.clone();
     glib::timeout_add_local(std::time::Duration::from_millis(400), move || {
@@ -208,6 +274,10 @@ fn build(app: &gtk::Application) {
         sections,
         current: "",
         overlay,
+        search_icon,
+        collapse_button,
+        empty_label,
+        toast: None,
     };
     UI.with(|u| *u.borrow_mut() = Some(Rc::new(RefCell::new(ui))));
 }
@@ -381,18 +451,50 @@ thread_local! {
     static SIZED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+/// Below this the sidebar always shows only icons.
+const NARROW_BELOW: i32 = 980;
+/// The full sidebar's width, a little over what it measures.
+const SIDEBAR_WIDTH: i32 = 272;
+/// How much wider a page gets when it leaves the narrow padding (20 px a side more).
+const NARROW_PADDING_SAVING: i32 = 40;
+
+/// Narrow when the window is small, or when the full sidebar and the page shown
+/// wouldn't both fit: then the page would be cut off at the window's edge.
+fn apply_width(w: &gtk::ApplicationWindow) {
+    let width = if w.width() > 0 { w.width() } else { w.default_width() };
+    if width <= 0 {
+        return;
+    }
+    let was = NARROW.with(|n| n.get());
+    let page_min = ui()
+        .and_then(|u| {
+            let u = u.try_borrow().ok()?;
+            u.pages.get(u.current).map(|p| p.measure(gtk::Orientation::Horizontal, -1).0)
+        })
+        .unwrap_or(0);
+    // Measured as it is now; leaving narrow mode adds padding, so allow for it.
+    let need = SIDEBAR_WIDTH + page_min + if was { NARROW_PADDING_SAVING } else { 0 };
+    let narrow = width < NARROW_BELOW || width < need;
+    if narrow == was && SIZED.with(|s| s.get()) {
+        return;
+    }
+    SIZED.with(|s| s.set(true));
+    set_narrow(narrow);
+    apply_compact(narrow || prefs::get().sidebar_collapsed);
+}
+
 /// The button that collapses the sidebar to icons, beside the app heading.
-fn nav_head(heading: &gtk::Label) -> gtk::Box {
+fn nav_head(heading: &gtk::Label) -> (gtk::Box, gtk::Button) {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     row.add_css_class("nav-head");
     row.append(heading);
     let button = gtk::Button::from_icon_name("sidebar-show-symbolic");
     button.add_css_class("nav-collapse");
-    button.set_tooltip_text(Some("Collapse or expand the sidebar (Ctrl+B)"));
+    button.set_tooltip_text(Some("Collapse the sidebar (Ctrl+B)"));
     button.set_valign(gtk::Align::Center);
     button.connect_clicked(|_| toggle_sidebar());
     row.append(&button);
-    row
+    (row, button)
 }
 
 /// The sidebar shows only icons: hide the labels, centre the icons and the toggle.
@@ -408,6 +510,8 @@ fn apply_compact(compact: bool) {
     for wdg in u.compact_fixed.iter().chain(&u.compact_items) {
         wdg.set_visible(!compact);
     }
+    u.search_icon.set_visible(compact);
+    u.collapse_button.set_tooltip_text(Some(if compact { "Expand the sidebar (Ctrl+B)" } else { "Collapse the sidebar (Ctrl+B)" }));
     centre_icons(u.nav.upcast_ref(), compact);
 }
 
@@ -429,6 +533,7 @@ fn centre_icons(w: &gtk::Widget, compact: bool) {
 }
 
 pub fn toggle_sidebar() {
+    TEMP_EXPANDED.with(|t| t.set(false));
     prefs::update(|p| p.sidebar_collapsed = !p.sidebar_collapsed);
     apply_compact(NARROW.with(|n| n.get()) || prefs::get().sidebar_collapsed);
 }
@@ -442,7 +547,8 @@ fn set_narrow(narrow: bool) {
 }
 
 fn mark_page(page: &gtk::ScrolledWindow, narrow: bool) {
-    if let Some(body) = page.child().and_then(|v| v.first_child()) {
+    // ScrolledWindow > Viewport > Clamp > page body.
+    if let Some(body) = page.child().and_then(|v| v.first_child()).and_then(|c| c.first_child()) {
         if narrow {
             body.add_css_class("narrow");
         } else {
@@ -472,6 +578,11 @@ fn ensure_built(id: &'static str) {
 
 pub fn navigate(id: &str) {
     let Some(ui) = ui() else { return };
+    // Pages that were renamed or split: the old ids still work.
+    let id = match id {
+        "connectivity" => "wifi",
+        other => other,
+    };
     let resolved = {
         let u = ui.borrow();
         let shown = |s: &&Section| (s.visible)();
@@ -497,8 +608,11 @@ pub fn navigate(id: &str) {
     }
     u.stack.set_visible_child_name(id);
     u.current = id;
+    let window = u.window.clone();
     drop(u);
     prefs::update(|p| p.last_section = id.to_string());
+    // A wider page may not fit beside the full sidebar.
+    glib::idle_add_local_once(move || apply_width(&window));
 }
 
 /// Rebuild a section page from scratch (after a change that alters its layout).
@@ -552,6 +666,7 @@ fn filter(query: &str) {
     SEARCH.with(|s| {
         let items = s.borrow();
         let mut groups_visible: HashMap<gtk::Widget, bool> = HashMap::new();
+        let mut groups_hit: Vec<gtk::Widget> = Vec::new();
         for item in items.iter() {
             item.row.remove_css_class("search-hit");
             let hit = !terms.is_empty() && terms.iter().all(|t| item.text.contains(t));
@@ -564,10 +679,19 @@ fn filter(query: &str) {
             if let Some(g) = &item.group {
                 let e = groups_visible.entry(g.clone()).or_insert(false);
                 *e |= show;
+                if hit && !groups_hit.contains(g) {
+                    groups_hit.push(g.clone());
+                }
             }
+        }
+        // Folded groups open while a row inside matches, and close again after.
+        widgets::reveal_for_search(None);
+        for g in &groups_hit {
+            widgets::reveal_for_search(Some(g));
         }
         for (g, visible) in groups_visible {
             g.set_visible(visible);
+            widgets::mark_first_rows(&g);
         }
     });
 
@@ -586,6 +710,13 @@ fn filter(query: &str) {
     }
     let current = u.current;
     let current_visible = u.nav_items.get(current).is_some_and(|b| b.is_visible());
+    let nothing = !terms.is_empty() && first_match.is_none();
+    if nothing {
+        u.empty_label.set_text(&format!("No settings match “{}”", query.trim()));
+        u.stack.set_visible_child_name(EMPTY_PAGE);
+    } else if u.stack.visible_child_name().as_deref() == Some(EMPTY_PAGE) {
+        u.stack.set_visible_child_name(current);
+    }
     drop(u);
     if let Some(first) = first_match
         && (!current_visible || !section_hits.contains_key(current))
@@ -620,7 +751,8 @@ fn scroll_to(row: &gtk::Widget) {
             && let Some(p) = row.compute_point(&child, &gtk::graphene::Point::new(0.0, 0.0))
         {
             let adj = page.vadjustment();
-            adj.set_value((p.y() as f64 - 80.0).max(0.0));
+            // Leave room above for the group's title.
+            adj.set_value((p.y() as f64 - 56.0).max(0.0));
         }
     });
 }
@@ -635,24 +767,46 @@ fn focus_first_hit() {
     }
 }
 
-/// Show a short message at the bottom of the window.
+/// Show a short message at the bottom of the window. A new one replaces the last.
 pub fn toast(message: &str) {
     let Some(ui) = ui() else {
         eprintln!("settings: {message}");
         return;
     };
     let overlay = ui.borrow().overlay.clone();
+    if let Some(old) = ui.borrow_mut().toast.take() {
+        overlay.remove_overlay(&old);
+    }
     let label = gtk::Label::new(Some(message));
     label.set_wrap(true);
     label.set_max_width_chars(70);
     let bx = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     bx.add_css_class("toast");
     bx.append(&label);
-    bx.set_halign(gtk::Align::Center);
-    bx.set_valign(gtk::Align::End);
-    overlay.add_overlay(&bx);
+    let motion = !prefs::get().reduce_motion;
+    let revealer = gtk::Revealer::builder()
+        .transition_type(gtk::RevealerTransitionType::SlideUp)
+        .transition_duration(if motion { 180 } else { 0 })
+        .child(&bx)
+        .halign(gtk::Align::Center)
+        .valign(gtk::Align::End)
+        .can_target(false)
+        .build();
+    overlay.add_overlay(&revealer);
+    revealer.set_reveal_child(true);
+    ui.borrow_mut().toast = Some(revealer.clone());
+    drop(ui);
     glib::timeout_add_local_once(std::time::Duration::from_millis(3500), move || {
-        overlay.remove_overlay(&bx);
+        revealer.set_reveal_child(false);
+        glib::timeout_add_local_once(std::time::Duration::from_millis(if motion { 200 } else { 0 }), move || {
+            let Some(u) = self::ui() else { return };
+            // Only if it hasn't been replaced already.
+            let current = u.borrow().toast.as_ref() == Some(&revealer);
+            if current {
+                u.borrow_mut().toast = None;
+                overlay.remove_overlay(&revealer);
+            }
+        });
     });
 }
 

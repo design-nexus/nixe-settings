@@ -17,19 +17,21 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   network and per-core use; every disk and the installed package count. It also
   lists every update waiting to be installed (Omarchy, packages, the AUR and
   firmware) with a one-click **Update now**, and shows the count in the sidebar.
-  To open on the last page shown instead, see Theme → This window.
+  To open on the last page shown instead, see Appearance → Settings window.
 
   ![Settings: Home](docs/home.png)
 
-- **Organised and searchable**: pages are grouped into Appearance, Desktop, Input,
-  Devices and System, and <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
+- **Organised and searchable**: pages are grouped into Connections, Hardware,
+  Personalization, Desktop, Input, Accounts and System. Each group of settings
+  sits on one card, and less-used groups fold away until you open them.
+  <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
   every page.
 - **Open config** on every page opens the underlying file in your default editor.
 - **Apps follow the theme**: GTK, libadwaita, Qt and KDE windows and dialogs
   take the Omarchy theme's colours (through
   [hyprchroma](https://github.com/NobleDoodle/hyprchroma), if installed), plus
   the interface font and an icon theme that stays put when you change themes.
-- **Units**: show temperatures in °C or °F (Theme → This window).
+- **Units**: show temperatures in °C or °F (Appearance → Settings window).
 - **Themes**: Dracula, Catppuccin (Mocha, Macchiato, Frappé, Latte), Tokyo Night
   (Night, Storm, Moon), One Dark Pro, Nord, Gruvbox, Rosé Pine, Everforest,
   Solarized and Kanagawa. Or **Follow Omarchy**, which restyles live whenever you
@@ -54,16 +56,37 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   notification history with Do not disturb, and lock / suspend / log out /
   restart / shut down all work inside Settings instead of opening a panel.
 - **Everything else**:
-  - look & feel: gaps, borders, rounding, opacity, blur, shadows, animations,
+  - window style: gaps, borders, rounding, opacity, blur, shadows, animations,
     cursor;
-  - windows and workspaces, keybindings (add your own, switch any off), idle &
-    lock, and a night light schedule;
+  - tiling and workspaces, keyboard shortcuts (add your own, edit them, switch
+    any off), lock screen and idle, and a night light schedule;
   - keyboard layouts and Caps Lock, mouse settings (per-device too), and
     displays (with a 15-second "keep these settings?" safety revert);
-  - Wi-Fi & Bluetooth, power profiles and brightness, default apps, plugins,
-    and updates.
+  - Wi-Fi, Bluetooth, power profiles and brightness, default apps, plugins,
+    and updates;
+  - **users**: add and delete users, change passwords, make someone an
+    administrator, lock accounts, manage groups, SSH keys and the SSH server,
+    and set up a security key, fingerprint or sudoless Docker. Changing users
+    and groups uses a small root helper, installed once from Settings →
+    Users;
+  - **network**: DNS provider, Wi-Fi band, firewall (ufw), Tailscale, NordVPN,
+    and a speed test;
+  - **time & language**: time zone, automatic time, system language and
+    the computer's name;
+  - **boot & login**: boot and login screen themes, hibernation, snapshots and
+    the boot menu;
+  - **software**: web apps and terminal apps, package search, Omarchy's app
+    installers, the update channel and maintenance tools;
+  - **startup & rules**: programs that start with the session, plus window and
+    layer rules;
+  - **capture & tools**: screenshots, screen recording, reminders, weather and
+    dictation;
+  - **services and printers**: start, stop and enable background services, and
+    add printers;
+  - the lid, power button and hibernate delay (Power), the built-in screen
+    (Displays), and touchpad / touchscreen switches (Trackpad).
 - **Extensions** for more devices, installed from GitHub in one click
-  (Settings → Extensions). Each adds its own pages under Devices, only when
+  (Settings → Extensions). Each adds its own pages under Hardware, only when
   matching hardware is found:
   - **ASUS** (needs `asusctl`): performance profiles, battery charge limit, a
     **fan curve graph** you drag (per profile and fan, with presets), firmware
@@ -91,8 +114,8 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 | Trackpad gestures | Themes |
 | --- | --- |
 | ![Trackpad](docs/trackpad.png) | ![Theme](docs/theme.png) |
-| **Look & Feel** | **Keybindings** |
-| ![Look & Feel](docs/look.png) | ![Keybindings](docs/keybindings.png) |
+| **Window Style** | **Keyboard Shortcuts** |
+| ![Window Style](docs/look.png) | ![Keyboard Shortcuts](docs/keybindings.png) |
 | **Aura Lighting** (ASUS extension) | **ASUS** performance, fans and firmware (ASUS extension) |
 | ![Aura Lighting](docs/aura.png) | ![ASUS](docs/asus.png) |
 | **Bar layout** | |

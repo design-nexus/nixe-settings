@@ -1,5 +1,10 @@
 /* Settings — Nexus app style (see ~/Projects/STYLE.md). Every colour comes from the
- * @theme_* tokens defined by the active palette (see theme.rs). */
+ * @theme_* tokens defined by the active palette (see theme.rs).
+ *
+ * Scales — use these and nothing else:
+ *   radius   4 chips, tags, key caps · 6 controls · 10 cards, banners, popovers · 14 dialogs
+ *   height   28 small controls · 32 controls
+ *   spacing  multiples of 4 */
 
 window.settings-window {
   background: @theme_bg;
@@ -13,9 +18,28 @@ window.settings-window dialog {
 }
 
 .mono,
-.value-readout {
+.value-readout,
+.key-cap {
   font-family: "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
   font-feature-settings: "tnum";
+}
+
+.dim {
+  color: @theme_dim_text;
+}
+
+.accent-text {
+  color: @theme_accent;
+}
+
+/* Small capitals, for labels that sit above other content. */
+.settings-navigation .nav-group,
+.bar-section-title,
+.home-fact-title {
+  font-size: 0.72em;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: @theme_dim_text;
 }
 
 /* ---------- Sidebar ---------- */
@@ -23,13 +47,13 @@ window.settings-window dialog {
 .settings-navigation {
   background: @theme_surface;
   min-width: 240px;
-  padding: 20px 15px 14px;
+  padding: 20px 12px 12px;
   border-right: 1px solid alpha(@theme_border, 0.55);
 }
 
 .settings-navigation.compact {
   min-width: 0;
-  padding: 16px 6px;
+  padding: 16px 8px;
 }
 
 .settings-navigation.compact button.nav-item {
@@ -38,60 +62,66 @@ window.settings-window dialog {
 }
 
 .settings-navigation .nav-head {
-  margin-bottom: 14px;
+  margin: 0 0 12px;
 }
 
 .settings-navigation.compact .nav-head {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
-window.settings-window .settings-navigation button.nav-collapse {
-  min-width: 30px;
-  min-height: 30px;
+window.settings-window .settings-navigation button.nav-collapse,
+window.settings-window .settings-navigation button.nav-search {
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   border-color: transparent;
   box-shadow: none;
 }
 
-window.settings-window .settings-navigation button.nav-collapse image {
+window.settings-window .settings-navigation button.nav-search {
+  min-width: 40px;
+  min-height: 36px;
+  margin-bottom: 4px;
+}
+
+window.settings-window .settings-navigation button.nav-collapse image,
+window.settings-window .settings-navigation button.nav-search image {
   color: @theme_dim_text;
 }
 
-window.settings-window .settings-navigation button.nav-collapse:hover {
+window.settings-window .settings-navigation button.nav-collapse:hover,
+window.settings-window .settings-navigation button.nav-search:hover {
   background: alpha(@theme_highlight, 0.7);
 }
 
-window.settings-window .settings-navigation button.nav-collapse:hover image {
+window.settings-window .settings-navigation button.nav-collapse:hover image,
+window.settings-window .settings-navigation button.nav-search:hover image {
   color: @theme_text;
 }
 
 .settings-navigation .menu-heading {
-  margin: 0 10px;
-  font-size: 0.875em;
-  font-weight: 800;
-  letter-spacing: 2px;
-  color: @theme_dim_text;
+  margin: 0 8px;
+  font-size: 1.05em;
+  font-weight: 700;
+  color: @theme_text;
 }
 
 .settings-navigation .nav-group {
-  margin: 16px 10px 6px;
-  font-size: 0.72em;
-  font-weight: 700;
-  letter-spacing: 1.6px;
+  margin: 20px 12px 4px;
   color: alpha(@theme_dim_text, 0.85);
 }
 
 .settings-navigation button.nav-item {
-  min-height: 38px;
+  min-height: 36px;
   padding: 0 12px;
   margin: 1px 0;
   border-radius: 6px;
   border: none;
   background: transparent;
   box-shadow: none;
-  color: alpha(@theme_text, 0.78);
+  color: alpha(@theme_text, 0.82);
   transition: background 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
@@ -115,27 +145,35 @@ window.settings-window .settings-navigation button.nav-collapse:hover image {
 }
 
 .settings-navigation button.nav-item .nav-label {
+  font-weight: 500;
+}
+
+.settings-navigation button.nav-item.active .nav-label {
   font-weight: 600;
+}
+
+.settings-navigation .nav-badge {
+  font-size: 0.68em;
+  padding: 0 6px;
 }
 
 .settings-navigation .nav-footer {
   margin-top: 8px;
-  padding-top: 10px;
+  padding: 8px 12px 0;
   border-top: 1px solid alpha(@theme_border, 0.45);
 }
 
 /* ---------- Search ---------- */
 
 entry.settings-search,
-searchbar entry,
 entry.settings-search > text {
-  min-height: 34px;
+  min-height: 32px;
 }
 
 entry.settings-search {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   padding: 0 10px;
-  border-radius: 7px;
+  border-radius: 6px;
   background: alpha(@theme_bg, 0.7);
   border: 1px solid alpha(@theme_border, 0.7);
   box-shadow: none;
@@ -152,81 +190,161 @@ entry.settings-search image {
   color: @theme_dim_text;
 }
 
-/* ---------- Content ---------- */
+.search-empty {
+  padding: 96px 24px;
+}
+
+.search-empty image {
+  color: alpha(@theme_dim_text, 0.6);
+}
+
+.search-empty .search-empty-title {
+  font-size: 1.15em;
+  font-weight: 700;
+}
+
+/* ---------- Page ---------- */
 
 .settings-content {
   background: @theme_bg;
 }
 
 .settings-page {
-  padding: 30px 36px 48px;
+  padding: 32px 40px 48px;
 }
 
 .settings-page.narrow {
-  padding: 22px 18px 40px;
+  padding: 24px 20px 40px;
 }
 
 .section-header {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .section-title {
-  font-size: 1.62em;
-  font-weight: 800;
+  font-size: 1.5em;
+  font-weight: 700;
   color: @theme_text;
 }
 
 .section-description {
-  margin-top: 2px;
+  margin-top: 4px;
   color: @theme_dim_text;
 }
 
+/* ---------- Groups ---------- */
+
 .group-title {
-  margin: 24px 2px 8px;
-  font-size: 0.76em;
-  font-weight: 800;
-  letter-spacing: 1.6px;
-  color: @theme_dim_text;
+  margin: 28px 4px 8px;
+  font-size: 0.95em;
+  font-weight: 700;
+  color: alpha(@theme_text, 0.88);
 }
 
 .group-note {
-  margin: -2px 2px 10px;
+  margin: -4px 4px 8px;
   font-size: 0.88em;
   color: @theme_dim_text;
 }
 
-.settings-group {
-  /* the rows provide the chrome */
+/* A collapsible group's title is a card row with a chevron; its rows open below. */
+.settings-group.collapsible {
+  margin-top: 12px;
 }
 
-.settings-option {
+window.settings-window button.group-toggle {
+  min-height: 32px;
+  padding: 10px 16px;
+  border-radius: 10px;
   background: mix(@theme_bg, @theme_muted, 0.25);
   border: 1px solid alpha(@theme_border, 0.55);
-  border-radius: 6px;
-  min-height: 60px;
-  padding: 10px 14px;
-  transition: border-color 150ms ease-out, box-shadow 150ms ease-out, background 150ms ease-out;
+  box-shadow: none;
 }
 
-.settings-option:hover {
+window.settings-window button.group-toggle:hover {
+  background: mix(@theme_bg, @theme_muted, 0.38);
   border-color: alpha(@theme_border, 0.95);
 }
 
+window.settings-window button.group-toggle .settings-option-description {
+  font-weight: 400;
+}
+
+.settings-group.collapsible revealer > box {
+  padding-top: 8px;
+}
+
+image.chevron {
+  color: @theme_dim_text;
+  transition: -gtk-icon-transform 180ms ease-out;
+}
+
+.open image.chevron {
+  -gtk-icon-transform: rotate(90deg);
+}
+
+/* One card per group; its rows are split by hairlines. */
+.settings-card {
+  background: mix(@theme_bg, @theme_muted, 0.25);
+  border: 1px solid alpha(@theme_border, 0.55);
+  border-radius: 10px;
+}
+
+.settings-card .card-row {
+  border-top: 1px solid alpha(@theme_text, 0.09);
+}
+
+.settings-card > .card-row:first-child,
+.settings-card > :first-child > .card-row:first-child,
+.settings-card .card-row.first-shown {
+  border-top-color: transparent;
+}
+
+/* Plain text placed straight in a card (status lines, "nothing found"). */
+.settings-card > label,
+.settings-card > box > label {
+  padding: 12px 16px;
+}
+
+/* ---------- Rows ---------- */
+
+/* GTK's min-height is the content box: 32 + padding = 52. */
+.settings-option {
+  min-height: 32px;
+  padding: 10px 16px;
+  transition: background 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+/* A row on its own, outside a card, keeps its own frame. */
+.settings-option:not(.card-row),
+.settings-page > .settings-option,
+.plain-list > .settings-option:not(.bare) {
+  background: mix(@theme_bg, @theme_muted, 0.25);
+  border: 1px solid alpha(@theme_border, 0.55);
+  border-radius: 10px;
+}
+
 .settings-option.search-hit {
-  border-color: alpha(@theme_accent, 0.72);
-  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.38), 0 0 14px alpha(@theme_glow, 0.24);
+  background: alpha(@theme_accent, 0.1);
+  box-shadow: inset 3px 0 0 @theme_accent;
 }
 
 .settings-option.tall {
   padding: 14px 16px;
 }
 
+/* A row that only carries its content (e.g. the theme grid in a plain group). */
+.settings-option.bare {
+  padding: 0;
+}
+
 .settings-option-title {
   color: @theme_text;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .settings-option-description {
+  margin-top: 1px;
   color: @theme_dim_text;
   font-size: 0.88em;
 }
@@ -235,29 +353,45 @@ entry.settings-search image {
   color: @theme_accent;
 }
 
-.settings-option .managed-dot {
-  min-width: 6px;
-  min-height: 6px;
-  border-radius: 999px;
-  background: @theme_accent;
-  margin-right: 2px;
-}
-
 .value-readout {
   color: @theme_text;
   min-width: 64px;
 }
 
-.dim {
-  color: @theme_dim_text;
+/* ---------- Disclosure (a row that opens more rows) ---------- */
+
+window.settings-window button.disclosure {
+  min-height: 32px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
-.danger-text {
-  color: @theme_danger;
+window.settings-window button.disclosure:hover {
+  background: alpha(@theme_highlight, 0.35);
 }
 
-.accent-text {
-  color: @theme_accent;
+window.settings-window button.disclosure .settings-option-description {
+  font-weight: 400;
+}
+
+.disclosure-content {
+  padding: 0 16px 12px;
+}
+
+.disclosure-content > .settings-option {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* A disclosure outside a card draws its own frame. */
+.disclosure-row:not(.card-row),
+.settings-page > .disclosure-row {
+  background: mix(@theme_bg, @theme_muted, 0.25);
+  border: 1px solid alpha(@theme_border, 0.55);
+  border-radius: 10px;
 }
 
 /* ---------- Buttons ---------- */
@@ -270,7 +404,7 @@ window.settings-window button {
   border: 1px solid alpha(@theme_border, 0.8);
   box-shadow: none;
   color: @theme_text;
-  transition: background 150ms ease-out, border-color 150ms ease-out;
+  transition: background 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
 }
 
 window.settings-window button:hover {
@@ -290,7 +424,7 @@ window.settings-window button.suggested-action {
   background: @theme_accent;
   border-color: @theme_accent;
   color: @theme_on_accent;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 window.settings-window button.suggested-action:hover {
@@ -303,6 +437,14 @@ window.settings-window button.destructive-action {
   color: @theme_danger;
 }
 
+/* The first click of a two-step button: the second one does it. */
+window.settings-window button.armed {
+  background: alpha(@theme_danger, 0.18);
+  border-color: @theme_danger;
+  color: @theme_danger;
+  font-weight: 600;
+}
+
 window.settings-window button.flat {
   background: transparent;
   border-color: transparent;
@@ -313,16 +455,15 @@ window.settings-window button.flat:hover {
 }
 
 window.settings-window button.reset-button {
-  min-height: 26px;
-  min-width: 26px;
+  min-height: 28px;
+  min-width: 28px;
   padding: 0;
   border-radius: 999px;
   color: @theme_dim_text;
 }
 
 window.settings-window button.open-config {
-  min-height: 34px;
-  padding: 0 14px;
+  padding: 0 12px;
   font-weight: 600;
 }
 
@@ -348,7 +489,7 @@ window.settings-window button.chip.selected {
 window.settings-window entry,
 window.settings-window spinbutton {
   min-height: 32px;
-  border-radius: 5px;
+  border-radius: 6px;
   background: alpha(@theme_bg, 0.65);
   border: 1px solid alpha(@theme_border, 0.8);
   box-shadow: none;
@@ -361,6 +502,10 @@ window.settings-window spinbutton:focus-within {
   box-shadow: 0 0 0 1px alpha(@theme_accent, 0.38);
 }
 
+window.settings-window entry.error {
+  border-color: @theme_danger;
+}
+
 window.settings-window dropdown > button {
   min-width: 160px;
 }
@@ -368,7 +513,7 @@ window.settings-window dropdown > button {
 window.settings-window popover > contents {
   background: @theme_surface;
   border: 1px solid alpha(@theme_border, 0.7);
-  border-radius: 9px;
+  border-radius: 10px;
   box-shadow: 0 4px 16px alpha(@theme_shadow, 0.5);
   color: @theme_text;
   padding: 4px;
@@ -376,7 +521,7 @@ window.settings-window popover > contents {
 
 window.settings-window popover listview > row,
 window.settings-window popover list > row {
-  border-radius: 5px;
+  border-radius: 6px;
   padding: 6px 10px;
   color: @theme_text;
 }
@@ -464,14 +609,118 @@ window.settings-window scrollbar slider {
   background: alpha(@theme_muted, 0.9);
 }
 
-/* ---------- Equalizer ---------- */
+/* ---------- Segmented control ---------- */
+
+.segmented {
+  border-radius: 6px;
+  background: alpha(@theme_muted, 0.32);
+  border: 1px solid alpha(@theme_border, 0.8);
+  padding: 2px;
+}
+
+window.settings-window .segmented button.segment {
+  min-height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: alpha(@theme_text, 0.78);
+  font-weight: 600;
+}
+
+window.settings-window .segmented button.segment:hover {
+  background: alpha(@theme_highlight, 0.55);
+  color: @theme_text;
+}
+
+window.settings-window .segmented button.segment:checked {
+  background: @theme_accent;
+  color: @theme_on_accent;
+}
+
+/* ---------- Banners, toasts, dialogs ---------- */
+
+.banner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: alpha(@theme_accent, 0.1);
+  border: 1px solid alpha(@theme_accent, 0.4);
+  margin: 16px 0 0;
+}
+
+.banner.warning {
+  background: alpha(@theme_danger, 0.1);
+  border-color: alpha(@theme_danger, 0.45);
+}
+
+.settings-card .banner,
+.disclosure-content .banner {
+  margin: 8px 0;
+}
+
+.settings-group .banner {
+  margin: 0 0 8px;
+}
+
+.toast {
+  margin: 20px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: @theme_surface;
+  border: 1px solid alpha(@theme_border, 0.8);
+  box-shadow: 0 4px 16px alpha(@theme_shadow, 0.5), 0 0 14px alpha(@theme_glow, 0.14);
+}
+
+.dialog-card {
+  background: @theme_bg;
+  border: 1px solid alpha(@theme_border, 0.65);
+  border-radius: 14px;
+  box-shadow: 0 0 28px alpha(@theme_glow, 0.08);
+  padding: 24px;
+}
+
+.tag {
+  font-size: 0.72em;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: @theme_accent;
+  background: alpha(@theme_accent, 0.14);
+  border: 1px solid alpha(@theme_accent, 0.4);
+}
+
+.key-cap {
+  font-size: 0.85em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: alpha(@theme_muted, 0.55);
+  border: 1px solid alpha(@theme_border, 0.9);
+}
+
+/* ---------- Inner panels (inside a row) ---------- */
+
+.eq-panel,
+.fan-graph,
+.gesture-grid,
+.bar-section {
+  background: mix(@theme_bg, @theme_surface, 0.5);
+  border: 1px solid alpha(@theme_border, 0.45);
+  border-radius: 10px;
+}
 
 .eq-panel {
-  background: mix(@theme_bg, @theme_surface, 0.5);
-  border: 1px solid alpha(@theme_border, 0.55);
-  border-radius: 9px;
-  padding: 18px 18px 12px;
+  padding: 16px 16px 12px;
 }
+
+.gesture-grid {
+  padding: 12px 16px;
+}
+
+.bar-section {
+  padding: 12px 12px 8px;
+}
+
+/* ---------- Equalizer ---------- */
 
 .eq-panel.bypassed .fader-scale {
   opacity: 0.45;
@@ -502,10 +751,6 @@ window.settings-window .fader-scale.marks-after > trough > slider {
   box-shadow: 0 0 0 1px alpha(@theme_accent, 0.72), 0 0 10px alpha(@theme_glow, 0.4);
 }
 
-.fader.preamp .fader-scale {
-  min-height: 190px;
-}
-
 window.settings-window .fader.preamp .fader-scale > trough > highlight {
   background: linear-gradient(to top, @theme_accent, mix(@theme_accent, @theme_danger, 0.6));
 }
@@ -530,13 +775,13 @@ window.settings-window .fader.preamp .fader-scale > trough > highlight {
 .headroom-warn { color: mix(@theme_accent, @theme_danger, 0.5); }
 .headroom-hot { color: @theme_danger; }
 
-/* ---------- Cards (themes, gestures) ---------- */
+/* ---------- Themes and colour swatches ---------- */
 
 .theme-card {
   padding: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid alpha(@theme_border, 0.6);
-  background: mix(@theme_bg, @theme_muted, 0.2);
+  background: mix(@theme_bg, @theme_muted, 0.25);
 }
 
 .theme-card:hover {
@@ -549,11 +794,11 @@ window.settings-window .fader.preamp .fader-scale > trough > highlight {
 }
 
 .theme-card picture {
-  border-radius: 7px 7px 0 0;
+  border-radius: 9px 9px 0 0;
 }
 
 .theme-card .theme-card-name {
-  padding: 8px 10px;
+  padding: 8px 12px;
   font-weight: 600;
 }
 
@@ -564,107 +809,9 @@ window.settings-window .fader.preamp .fader-scale > trough > highlight {
   border: 1px solid alpha(@theme_shadow, 0.4);
 }
 
-.gesture-grid {
-  background: mix(@theme_bg, @theme_muted, 0.25);
-  border: 1px solid alpha(@theme_border, 0.55);
-  border-radius: 6px;
-  padding: 12px 14px;
-}
-
-.gesture-grid .direction {
-  font-weight: 700;
-  color: @theme_dim_text;
-}
-
-/* ---------- Banners and dialogs ---------- */
-
-.banner {
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: alpha(@theme_accent, 0.12);
-  border: 1px solid alpha(@theme_accent, 0.45);
-  margin-bottom: 14px;
-}
-
-.banner.warning {
-  background: alpha(@theme_danger, 0.1);
-  border-color: alpha(@theme_danger, 0.45);
-}
-
-.toast {
-  margin: 18px;
-  padding: 10px 16px;
-  border-radius: 8px;
-  background: @theme_surface;
-  border: 1px solid alpha(@theme_border, 0.8);
-  box-shadow: 0 4px 16px alpha(@theme_shadow, 0.5), 0 0 14px alpha(@theme_glow, 0.14);
-}
-
-.dialog-card {
-  background: @theme_bg;
-  border: 1px solid alpha(@theme_border, 0.65);
-  border-radius: 14px;
-  box-shadow: 0 0 28px alpha(@theme_glow, 0.08);
-  padding: 24px;
-}
-
-.code-block {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.86em;
-  background: alpha(@theme_shadow, 0.35);
-  border-radius: 6px;
-  padding: 10px 12px;
-  color: @theme_text;
-}
-
-textview.code-block > text {
-  background: transparent;
-  color: @theme_text;
-}
-
-.key-cap {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.85em;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: alpha(@theme_muted, 0.55);
-  border: 1px solid alpha(@theme_border, 0.9);
-}
-
-/* ---------- Segmented control ---------- */
-
-.segmented {
-  border-radius: 7px;
-  background: alpha(@theme_muted, 0.32);
-  border: 1px solid alpha(@theme_border, 0.8);
-  padding: 2px;
-}
-
-window.settings-window .segmented button.segment {
-  min-height: 28px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: alpha(@theme_text, 0.78);
-  font-weight: 600;
-}
-
-window.settings-window .segmented button.segment:hover {
-  background: alpha(@theme_highlight, 0.55);
-  color: @theme_text;
-}
-
-window.settings-window .segmented button.segment:checked {
-  background: @theme_accent;
-  color: @theme_on_accent;
-}
-
-/* ---------- Colour swatches ---------- */
-
 window.settings-window button.swatch-button {
-  min-width: 26px;
-  min-height: 26px;
+  min-width: 28px;
+  min-height: 28px;
   padding: 3px;
   border-radius: 999px;
   background: transparent;
@@ -687,66 +834,15 @@ window.settings-window button.swatch-button.selected {
   border: 1px solid alpha(@theme_shadow, 0.5);
 }
 
-window.settings-window button.theme-swatch .swatch-dot {
-  box-shadow: inset 0 0 0 2px alpha(@theme_bg, 0.9);
-}
-
-window.settings-window entry.error {
-  border-color: @theme_danger;
-}
-
-/* ---------- Disclosure, tags, previews ---------- */
-
-window.settings-window button.disclosure {
-  min-height: 52px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  background: mix(@theme_bg, @theme_muted, 0.18);
-  border: 1px dashed alpha(@theme_border, 0.7);
-}
-
-window.settings-window button.disclosure:hover {
-  border-color: alpha(@theme_accent, 0.55);
-}
-
-.tag {
-  font-size: 0.72em;
+.gesture-grid .direction {
   font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
-  color: @theme_accent;
-  background: alpha(@theme_accent, 0.14);
-  border: 1px solid alpha(@theme_accent, 0.4);
-}
-
-.kbd-preview {
-  min-height: 34px;
-  border-radius: 8px;
-  border: 1px solid alpha(@theme_border, 0.7);
-  background: @theme_shadow;
-}
-
-.fan-graph {
-  border-radius: 8px;
-  background: mix(@theme_bg, @theme_surface, 0.5);
-  border: 1px solid alpha(@theme_border, 0.55);
-}
-
-window.settings-window button.disclosure .settings-option-description {
-  font-weight: 400;
+  color: @theme_dim_text;
 }
 
 /* ---------- Bar layout editor ---------- */
 
-.bar-section {
-  padding: 10px 12px 8px;
-  border-radius: 8px;
-  background: mix(@theme_bg, @theme_surface, 0.5);
-  border: 1px solid alpha(@theme_border, 0.55);
-}
-
 .bar-item {
-  padding: 6px 8px 6px 10px;
+  padding: 6px 8px 6px 12px;
   border-radius: 6px;
   background: mix(@theme_bg, @theme_muted, 0.25);
   border: 1px solid alpha(@theme_border, 0.55);
@@ -770,7 +866,7 @@ window.settings-window button.disclosure .settings-option-description {
 }
 
 .bar-item-name {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .bar-item-id {
@@ -778,7 +874,7 @@ window.settings-window button.disclosure .settings-option-description {
 }
 
 .bar-drop-end {
-  min-height: 14px;
+  min-height: 12px;
   border-radius: 6px;
 }
 
@@ -787,18 +883,14 @@ window.settings-window button.disclosure .settings-option-description {
 }
 
 .bar-section-title {
-  margin: 2px 2px 6px;
-  font-size: 0.76em;
-  font-weight: 800;
-  letter-spacing: 1.6px;
-  color: @theme_dim_text;
+  margin: 0 4px 8px;
 }
 
 /* ---------- Home ---------- */
 
 .home-hero {
   margin-top: 16px;
-  padding: 22px 24px;
+  padding: 24px;
   border-radius: 10px;
   border: 1px solid alpha(@theme_border, 0.55);
   background: linear-gradient(135deg, alpha(@theme_accent, 0.12), mix(@theme_bg, @theme_muted, 0.25) 60%);
@@ -806,14 +898,7 @@ window.settings-window button.disclosure .settings-option-description {
 
 .home-host {
   font-size: 1.5em;
-  font-weight: 800;
-}
-
-.home-fact-title {
-  font-size: 0.72em;
   font-weight: 700;
-  letter-spacing: 1.2px;
-  color: @theme_dim_text;
 }
 
 .home-fact {
@@ -822,7 +907,7 @@ window.settings-window button.disclosure .settings-option-description {
 
 window.settings-window button.home-badge {
   min-width: 150px;
-  padding: 16px 18px;
+  padding: 16px;
   border-radius: 10px;
   background: alpha(@theme_muted, 0.32);
 }
@@ -834,7 +919,7 @@ window.settings-window button.home-badge.pending {
 
 .home-badge-count {
   font-size: 2.1em;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .home-badge.pending .home-badge-count {
@@ -856,12 +941,18 @@ window.settings-window button.home-badge.pending {
 }
 
 .stat-tile,
-.chart-card {
+.chart-card,
+.update-list {
   padding: 16px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid alpha(@theme_border, 0.55);
   background: mix(@theme_bg, @theme_muted, 0.25);
   transition: border-color 150ms ease-out;
+}
+
+.settings-card .update-list {
+  border: none;
+  background: transparent;
 }
 
 .stat-tile.clickable:hover {
@@ -870,12 +961,12 @@ window.settings-window button.home-badge.pending {
 
 .stat-value {
   font-size: 1.15em;
-  font-weight: 800;
+  font-weight: 700;
   font-feature-settings: "tnum";
 }
 
 .stat-label {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .stat-detail {
@@ -899,22 +990,10 @@ window.settings-window button.home-badge.pending {
   background: @theme_dim_text;
 }
 
-.update-list {
-  padding: 14px 16px;
-  border-radius: 6px;
-  border: 1px solid alpha(@theme_border, 0.55);
-  background: mix(@theme_bg, @theme_muted, 0.25);
-}
-
 .update-name {
   font-weight: 600;
 }
 
 .quick-actions button {
   min-height: 40px;
-}
-
-.settings-navigation .nav-badge {
-  font-size: 0.68em;
-  padding: 0 7px;
 }

@@ -574,7 +574,7 @@ pub fn build(page: &Page) {
     apps_group(page);
 
     // ----- More -----
-    let g = page.group("More");
+    let g = page.collapsible("More", false);
     let buttons = widgets::hbox(8);
     let restart = gtk::Button::with_label("Restart audio");
     restart.connect_clicked(|b| {

@@ -8,10 +8,13 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 pub mod about;
+pub mod accounts;
 pub mod apps;
 pub mod audio;
 pub mod bar;
+pub mod boot;
 pub mod barlayout;
+pub mod capture;
 pub mod connectivity;
 pub mod displays;
 pub mod extensions;
@@ -21,9 +24,15 @@ pub mod keybindings;
 pub mod keyboard;
 pub mod look;
 pub mod mouse;
+pub mod network;
 pub mod nightlight;
 pub mod plugins;
 pub mod power;
+pub mod printers;
+pub mod region;
+pub mod rules;
+pub mod services;
+pub mod software;
 pub mod theme;
 pub mod trackpad;
 pub mod workspaces;
@@ -83,7 +92,7 @@ fn extension_sections(fresh: bool) -> Vec<Section> {
             id: intern(&r.section_id()),
             title: intern(&r.page.title),
             icon: intern(&r.page.icon),
-            group: "Devices",
+            group: "Hardware",
             description: intern(&r.page.description),
             keywords: intern(&format!("{} {}", r.ext.manifest.name, r.page.keywords)),
             files: Vec::new,
@@ -120,25 +129,104 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             build: Build::Native(home::build),
             visible: always,
         },
-        // ----- Appearance -----
+        // ----- Connections -----
+        Section {
+            id: "wifi",
+            title: "Wi-Fi",
+            icon: "network-wireless-symbolic",
+            group: "Connections",
+            description: "Join wireless networks, and see and forget saved ones.",
+            keywords: "wifi wi-fi network wireless join password hidden ssid airplane forget",
+            files: Vec::new,
+            build: Build::Native(connectivity::build_wifi),
+            visible: always,
+        },
+        Section {
+            id: "bluetooth",
+            title: "Bluetooth",
+            icon: "bluetooth-symbolic",
+            group: "Connections",
+            description: "Find, pair and connect Bluetooth devices.",
+            keywords: "bluetooth pair headphones earbuds speaker keyboard mouse controller connect forget",
+            files: Vec::new,
+            build: Build::Native(connectivity::build_bluetooth),
+            visible: always,
+        },
+        Section {
+            id: "network",
+            title: "Network",
+            icon: "network-wired-symbolic",
+            group: "Connections",
+            description: "DNS, Wi-Fi band, firewall, VPNs and a speed test.",
+            keywords: "network dns firewall ufw vpn tailscale nordvpn speed test ethernet ip band wifi internet",
+            files: Vec::new,
+            build: Build::Native(network::build),
+            visible: always,
+        },
+        // ----- Hardware -----
+        Section {
+            id: "displays",
+            title: "Displays",
+            icon: "video-display-symbolic",
+            group: "Hardware",
+            description: "Resolution, refresh rate, scale and arrangement of each monitor.",
+            keywords: "monitor screen resolution refresh hz scale hidpi position rotate brightness",
+            files: || hypr(&["monitors.lua", "settings.lua"]),
+            build: Build::Native(displays::build),
+            visible: always,
+        },
+        Section {
+            id: "audio",
+            title: "Sound",
+            icon: "audio-speakers-symbolic",
+            group: "Hardware",
+            description: "Volume, devices, a 9-band equalizer and a preamp to make everything louder.",
+            keywords: "audio volume loud quiet boost preamp equalizer eq bass treble speakers headphones microphone output input",
+            files: crate::backend::audio::config_files,
+            build: Build::Native(audio::build),
+            visible: always,
+        },
+        Section {
+            id: "power",
+            title: "Power & Battery",
+            icon: "battery-full-charged-symbolic",
+            group: "Hardware",
+            description: "Power profiles, brightness and keyboard backlight.",
+            keywords: "battery power profile performance balanced saver brightness backlight charge",
+            files: Vec::new,
+            build: Build::Native(power::build),
+            visible: always,
+        },
+        Section {
+            id: "printers",
+            title: "Printers",
+            icon: "printer-symbolic",
+            group: "Hardware",
+            description: "Add printers, choose the default and print a test page.",
+            keywords: "printers printing cups print scanner default test page airprint ipp",
+            files: Vec::new,
+            build: Build::Native(printers::build),
+            visible: always,
+        },
+        // ----- Personalization -----
         Section {
             id: "theme",
-            title: "Theme",
+            title: "Appearance",
             icon: "preferences-desktop-appearance-symbolic",
-            group: "Appearance",
-            description: "Omarchy theme, wallpaper, fonts, and how this window looks.",
-            keywords: "colors colours palette wallpaper background font dracula catppuccin tokyo night one dark nord gruvbox follow omarchy",
+            group: "Personalization",
+            description: "Theme, wallpaper, fonts, and how this window looks.",
+            keywords: "theme colors colours palette wallpaper background font dracula catppuccin tokyo night one dark nord gruvbox follow omarchy",
             files: || vec![paths::omarchy_colors(), paths::app_dir().join("settings.toml")],
             build: Build::Native(theme::build),
             visible: always,
         },
         Section {
             id: "look",
-            title: "Look & Feel",
+            title: "Window Style",
             icon: "applications-graphics-symbolic",
-            group: "Appearance",
+            group: "Personalization",
             description: "Gaps, borders, rounding, transparency, blur, shadows and animations.",
-            keywords: "gaps border rounding radius opacity transparency blur shadow animation cursor layout dwindle master scrolling",
+            keywords: "look feel gaps border rounding radius opacity transparency blur shadow animation cursor layout dwindle master scrolling",
             files: || hypr(&["looknfeel.lua", "settings.lua"]),
             build: Build::Native(look::build),
             visible: always,
@@ -147,56 +235,78 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             id: "bar",
             title: "Bar & Notifications",
             icon: "preferences-system-details-symbolic",
-            group: "Appearance",
+            group: "Personalization",
             description: "Where the bar sits, how it looks, and how notifications behave.",
             keywords: "waybar panel top bottom transparent notifications do not disturb silence shell text size",
             files: || vec![paths::shell_json(), paths::omarchy_config().join("shell.toml")],
             build: Build::Native(bar::build),
             visible: always,
         },
+        Section {
+            id: "nightlight",
+            title: "Night Light",
+            icon: "night-light-symbolic",
+            group: "Personalization",
+            description: "Warmer colours in the evening with hyprsunset.",
+            keywords: "hyprsunset blue light temperature warm evening schedule",
+            files: || hypr(&["hyprsunset.conf"]),
+            build: Build::Native(nightlight::build),
+            visible: always,
+        },
+        Section {
+            id: "idle",
+            title: "Lock Screen",
+            icon: "system-lock-screen-symbolic",
+            group: "Personalization",
+            description: "When the screensaver starts, the screen locks and the computer sleeps.",
+            keywords: "idle screensaver lock sleep suspend timeout stay awake idle inhibit",
+            files: || vec![paths::shell_json()],
+            build: Build::Native(idle::build),
+            visible: always,
+        },
         // ----- Desktop -----
         Section {
             id: "workspaces",
-            title: "Windows & Workspaces",
+            title: "Tiling & Workspaces",
             icon: "view-grid-symbolic",
             group: "Desktop",
             description: "How windows are placed, focused and grouped, and how workspaces behave.",
-            keywords: "focus follows mouse layout dwindle master scrolling split workspace resize",
+            keywords: "windows focus follows mouse layout dwindle master scrolling split workspace resize",
             files: || hypr(&["looknfeel.lua", "settings.lua"]),
             build: Build::Native(workspaces::build),
             visible: always,
         },
         Section {
             id: "keybindings",
-            title: "Keybindings",
+            title: "Keyboard Shortcuts",
             icon: "preferences-desktop-keyboard-symbolic",
             group: "Desktop",
             description: "Every shortcut you have, plus your own. Turn any of them off.",
-            keywords: "shortcuts keys hotkeys bind unbind super",
+            keywords: "keybindings shortcuts keys hotkeys bind unbind super",
             files: || hypr(&["bindings.lua", "settings.lua"]),
             build: Build::Native(keybindings::build),
             visible: always,
         },
         Section {
-            id: "idle",
-            title: "Idle & Lock",
-            icon: "system-lock-screen-symbolic",
+            id: "rules",
+            title: "Startup & Rules",
+            icon: "view-list-symbolic",
             group: "Desktop",
-            description: "When the screensaver starts and the screen locks.",
-            keywords: "screensaver lock sleep suspend timeout stay awake idle inhibit",
-            files: || vec![paths::shell_json()],
-            build: Build::Native(idle::build),
+            description: "Programs that start with the session, and rules for windows and the shell.",
+            keywords: "rules window layer startup autostart float opacity workspace blur class title launch login",
+            files: Vec::new,
+            build: Build::Native(rules::build),
             visible: always,
         },
         Section {
-            id: "nightlight",
-            title: "Night Light",
-            icon: "night-light-symbolic",
+            id: "capture",
+            title: "Capture & Tools",
+            icon: "camera-photo-symbolic",
             group: "Desktop",
-            description: "Warmer colours in the evening with hyprsunset.",
-            keywords: "hyprsunset blue light temperature warm evening schedule",
-            files: || hypr(&["hyprsunset.conf"]),
-            build: Build::Native(nightlight::build),
+            description: "Screenshots, screen recording, reminders, weather and dictation.",
+            keywords: "screenshot screenshots record recording screencast ocr qr reminder timer weather voxtype dictation crash disk speed restart",
+            files: Vec::new,
+            build: Build::Native(capture::build),
             visible: always,
         },
         // ----- Input -----
@@ -233,52 +343,41 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             build: Build::Native(trackpad::build),
             visible: always,
         },
-        // ----- Devices -----
+        // ----- Accounts -----
         Section {
-            id: "displays",
-            title: "Displays",
-            icon: "video-display-symbolic",
-            group: "Devices",
-            description: "Resolution, refresh rate, scale and arrangement of each monitor.",
-            keywords: "monitor screen resolution refresh hz scale hidpi position rotate brightness",
-            files: || hypr(&["monitors.lua", "settings.lua"]),
-            build: Build::Native(displays::build),
+            id: "accounts",
+            title: "Users",
+            icon: "system-users-symbolic",
+            group: "Accounts",
+            description: "Users, groups, administrator access, SSH keys and sign-in security.",
+            keywords: "accounts users groups accounts sudo admin administrator password login ssh keys fido2 fingerprint docker wheel security encryption",
+            files: accounts::files,
+            build: Build::Native(accounts::build),
             visible: always,
         },
         Section {
-            id: "audio",
-            title: "Sound",
-            icon: "audio-speakers-symbolic",
-            group: "Devices",
-            description: "Volume, devices, a 9-band equalizer and a preamp to make everything louder.",
-            keywords: "audio volume loud quiet boost preamp equalizer eq bass treble speakers headphones microphone output input",
-            files: crate::backend::audio::config_files,
-            build: Build::Native(audio::build),
-            visible: always,
-        },
-        Section {
-            id: "connectivity",
-            title: "Wi-Fi & Bluetooth",
-            icon: "network-wireless-symbolic",
-            group: "Devices",
-            description: "Wireless networks and Bluetooth devices.",
-            keywords: "wifi network wireless ethernet bluetooth pair airplane",
+            id: "boot",
+            title: "Boot & Login",
+            icon: "system-reboot-symbolic",
+            group: "Accounts",
+            description: "Boot and login screens, hibernation, snapshots and the boot menu.",
+            keywords: "boot login plymouth sddm hibernation hibernate swap snapshot restore limine direct boot efi",
             files: Vec::new,
-            build: Build::Native(connectivity::build),
-            visible: always,
-        },
-        Section {
-            id: "power",
-            title: "Power & Battery",
-            icon: "battery-full-charged-symbolic",
-            group: "Devices",
-            description: "Power profiles, brightness and keyboard backlight.",
-            keywords: "battery power profile performance balanced saver brightness backlight charge",
-            files: Vec::new,
-            build: Build::Native(power::build),
+            build: Build::Native(boot::build),
             visible: always,
         },
         // ----- System -----
+        Section {
+            id: "region",
+            title: "Time & Language",
+            icon: "preferences-system-time-symbolic",
+            group: "System",
+            description: "Time zone, clock, language and the computer's name.",
+            keywords: "region date date time timezone clock ntp language locale hostname name region",
+            files: Vec::new,
+            build: Build::Native(region::build),
+            visible: always,
+        },
         Section {
             id: "apps",
             title: "Default Apps",
@@ -291,11 +390,33 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             visible: always,
         },
         Section {
+            id: "software",
+            title: "Software",
+            icon: "system-software-install-symbolic",
+            group: "System",
+            description: "Web apps, terminal apps, packages, installers and the update channel.",
+            keywords: "software apps packages install uninstall webapp tui pacman yay aur channel updates preinstalls firmware keyring orphans",
+            files: Vec::new,
+            build: Build::Native(software::build),
+            visible: always,
+        },
+        Section {
+            id: "services",
+            title: "Services",
+            icon: "applications-system-symbolic",
+            group: "System",
+            description: "Background services: see what runs, start, stop and choose what starts at boot.",
+            keywords: "services daemons systemd units start stop restart enable disable failed background",
+            files: Vec::new,
+            build: Build::Native(services::build),
+            visible: always,
+        },
+        Section {
             id: "extensions",
             title: "Extensions",
             icon: "application-x-addon-symbolic",
             group: "System",
-            description: "Device support for more brands, installed from GitHub. Each one adds its own pages under Devices.",
+            description: "Device support for more brands, installed from GitHub. Each one adds its own pages under Hardware.",
             keywords: "extensions add-ons addons devices brands asus aura logitech obsbot webcam headset razer corsair install github",
             files: Vec::new,
             build: Build::Native(extensions::build),
@@ -304,7 +425,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
         Section {
             id: "plugins",
             title: "Plugins",
-            icon: "application-x-addon-symbolic",
+            icon: "package-x-generic-symbolic",
             group: "System",
             description: "Omarchy shell plugins: turn them on or off and keep them updated.",
             keywords: "plugins extensions widgets bar update enable disable remove",
@@ -324,8 +445,8 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             visible: always,
         },
     ];
-    // Extension pages go at the end of Devices.
-    let at = list.iter().position(|s| s.group == "System").unwrap_or(list.len());
+    // Extension pages go at the end of Hardware.
+    let at = list.iter().position(|s| s.group == "Personalization").unwrap_or(list.len());
     list.splice(at..at, extension_sections(fresh));
     list
 }

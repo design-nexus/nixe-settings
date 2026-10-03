@@ -95,31 +95,139 @@ pub fn page(section: &str, title: &str, description: &str, files: &[PathBuf]) ->
 
     body.set_hexpand(true);
 
+    // Content stays a comfortable reading width on wide windows.
+    let clamp = crate::clamp::Clamp::new(&body, MAX_CONTENT_WIDTH);
     let root = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
         // Scrolls with wheel, trackpad and keyboard; no visible scrollbar.
         .vscrollbar_policy(gtk::PolicyType::External)
-        .child(&body)
+        .child(&clamp)
         .vexpand(true)
         .build();
     Page { root, body }
 }
 
+/// The widest a page's content gets, padding included.
+const MAX_CONTENT_WIDTH: i32 = 920;
+
 impl Page {
+    /// A titled group whose rows share one card, split by hairlines.
     pub fn group(&self, title: &str) -> Group {
+        self.make_group(title, true)
+    }
+
+    /// A titled group without the card, for content that brings its own layout
+    /// (a grid of theme previews, the bar editor).
+    pub fn plain_group(&self, title: &str) -> Group {
+        self.make_group(title, false)
+    }
+
+    fn make_group(&self, title: &str, card: bool) -> Group {
         let wrapper = gtk::Box::new(gtk::Orientation::Vertical, 0);
         wrapper.add_css_class("settings-group");
+        let head = gtk::Box::new(gtk::Orientation::Vertical, 0);
         if !title.is_empty() {
-            let l = gtk::Label::new(Some(&title.to_uppercase()));
+            let l = gtk::Label::new(Some(title));
             l.add_css_class("group-title");
             l.set_xalign(0.0);
-            wrapper.append(&l);
+            head.append(&l);
         }
-        let list = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        wrapper.append(&head);
+        let list = group_list(card);
         wrapper.append(&list);
         self.body.append(&wrapper);
         CURRENT_GROUP.with(|g| *g.borrow_mut() = Some(wrapper.clone().upcast()));
-        Group { wrapper, list }
+        Group { wrapper, head, list }
+    }
+
+    /// A group that folds away under its title, for settings people rarely need.
+    /// Whether it's open is remembered; search opens it when a row inside matches.
+    pub fn collapsible(&self, title: &str, open_by_default: bool) -> Group {
+        let section = CURRENT_SECTION.with(|s| s.borrow().clone());
+        let key = format!("{section}/{title}");
+        let open = crate::prefs::get().open_groups.get(&key).copied().unwrap_or(open_by_default);
+
+        let wrapper = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        wrapper.add_css_class("settings-group");
+        wrapper.add_css_class("collapsible");
+
+        let toggle = gtk::Button::new();
+        toggle.add_css_class("group-toggle");
+        let line = hbox(12);
+        let text = vbox(2);
+        text.set_hexpand(true);
+        text.set_valign(gtk::Align::Center);
+        text.append(&label(title, "settings-option-title"));
+        // What's inside, so a folded group can still be found by eye.
+        let summary = label("", "settings-option-description");
+        summary.set_ellipsize(pango::EllipsizeMode::End);
+        summary.set_visible(false);
+        text.append(&summary);
+        line.append(&text);
+        let chevron = gtk::Image::from_icon_name("pan-end-symbolic");
+        chevron.add_css_class("chevron");
+        chevron.set_valign(gtk::Align::Center);
+        line.append(&chevron);
+        toggle.set_child(Some(&line));
+        wrapper.append(&toggle);
+
+        let revealer = gtk::Revealer::builder()
+            .transition_type(gtk::RevealerTransitionType::SlideDown)
+            .transition_duration(if crate::prefs::get().reduce_motion { 0 } else { 200 })
+            .reveal_child(open)
+            .build();
+        let inner = vbox(0);
+        let head = vbox(0);
+        inner.append(&head);
+        let list = group_list(true);
+        inner.append(&list);
+        revealer.set_child(Some(&inner));
+        wrapper.append(&revealer);
+        set_toggle_open(&toggle, open);
+
+        {
+            let (revealer, key) = (revealer.clone(), key.clone());
+            toggle.connect_clicked(move |t| {
+                let open = !revealer.reveals_child();
+                revealer.set_reveal_child(open);
+                set_toggle_open(t, open);
+                let key = key.clone();
+                crate::prefs::update(|p| {
+                    p.open_groups.insert(key, open);
+                });
+            });
+        }
+        COLLAPSIBLES.with(|c| {
+            let mut c = c.borrow_mut();
+            c.retain(|g| g.wrapper.upgrade().is_some());
+            c.push(Collapsible {
+                wrapper: wrapper.upcast_ref::<gtk::Widget>().downgrade(),
+                revealer: revealer.downgrade(),
+                toggle: toggle.downgrade(),
+                key,
+                open_by_default,
+            });
+        });
+        {
+            // Rows are added after this returns: read their titles once the page is built.
+            let (list, head) = (list.clone(), head.clone());
+            glib::idle_add_local_once(move || {
+                // A note says best what the group is for; otherwise list its rows.
+                if let Some(note) = head.first_child().and_downcast::<gtk::Label>() {
+                    summary.set_text(&note.text());
+                    summary.set_visible(true);
+                    return;
+                }
+                let titles = row_titles(&list);
+                if !titles.is_empty() {
+                    summary.set_text(&titles.join(", "));
+                    summary.set_visible(true);
+                }
+            });
+        }
+        self.body.append(&wrapper);
+        CURRENT_GROUP.with(|g| *g.borrow_mut() = Some(wrapper.clone().upcast()));
+        Group { wrapper, head, list }
     }
 
     pub fn banner(&self, text: &str, warning: bool) -> gtk::Box {
@@ -150,12 +258,21 @@ pub fn banner(text: &str, warning: bool) -> gtk::Box {
 #[derive(Clone)]
 pub struct Group {
     pub wrapper: gtk::Box,
+    /// The title and notes, above the rows.
+    head: gtk::Box,
     pub list: gtk::Box,
 }
 
 impl Group {
     pub fn add(&self, w: &impl IsA<gtk::Widget>) {
         self.list.append(w);
+        // An empty card would draw as a stray outline.
+        self.list.set_visible(true);
+    }
+
+    /// Put a widget (a banner, say) between the title and the rows.
+    pub fn top(&self, w: &impl IsA<gtk::Widget>) {
+        self.head.append(w);
     }
 
     pub fn note(&self, text: &str) {
@@ -165,8 +282,136 @@ impl Group {
         l.set_xalign(0.0);
         l.set_wrap(true);
         // Notes sit just under the group title.
-        self.wrapper.insert_child_after(&l, self.wrapper.first_child().as_ref());
+        self.head.append(&l);
     }
+}
+
+/// The titles of the rows directly in a card (not the ones inside disclosures).
+fn row_titles(list: &gtk::Box) -> Vec<String> {
+    fn walk(w: &gtk::Widget, out: &mut Vec<String>) {
+        let mut c = w.first_child();
+        while let Some(child) = c {
+            if let Some(l) = child.downcast_ref::<gtk::Label>()
+                && l.has_css_class("settings-option-title")
+            {
+                let t = l.text().to_string();
+                if !t.is_empty() && !out.contains(&t) {
+                    out.push(t);
+                }
+                return;
+            }
+            // A row's own title is the first label found in it; don't look into its controls.
+            if !child.has_css_class("disclosure-content") {
+                walk(&child, out);
+            }
+            c = child.next_sibling();
+        }
+    }
+    let mut out = Vec::new();
+    walk(list.upcast_ref(), &mut out);
+    out
+}
+
+fn group_list(card: bool) -> gtk::Box {
+    let list = gtk::Box::new(gtk::Orientation::Vertical, if card { 0 } else { 12 });
+    if card {
+        list.add_css_class("settings-card");
+        // Keeps a highlighted first or last row inside the rounded corners.
+        list.set_overflow(gtk::Overflow::Hidden);
+    } else {
+        list.add_css_class("plain-list");
+    }
+    list.set_visible(false);
+    list
+}
+
+/// Mark the first visible row of each card inside `within` (class `first-shown`),
+/// so search hiding the real first row doesn't leave a hairline at the top.
+pub fn mark_first_rows(within: &gtk::Widget) {
+    fn rows(w: &gtk::Widget, out: &mut Vec<gtk::Widget>) {
+        let mut c = w.first_child();
+        while let Some(child) = c {
+            if child.has_css_class("card-row") {
+                out.push(child.clone());
+            } else {
+                rows(&child, out);
+            }
+            c = child.next_sibling();
+        }
+    }
+    fn cards(w: &gtk::Widget, out: &mut Vec<gtk::Widget>) {
+        if w.has_css_class("settings-card") {
+            out.push(w.clone());
+            return;
+        }
+        let mut c = w.first_child();
+        while let Some(child) = c {
+            cards(&child, out);
+            c = child.next_sibling();
+        }
+    }
+    let mut found = Vec::new();
+    cards(within, &mut found);
+    for card in found {
+        let mut list = Vec::new();
+        rows(&card, &mut list);
+        let mut first = true;
+        for r in list {
+            // Visible here means the row and everything between it and the card.
+            let shown = std::iter::successors(Some(r.clone()), |w| w.parent()).take_while(|w| *w != card).all(|w| w.is_visible());
+            if shown && first {
+                r.add_css_class("first-shown");
+                first = false;
+            } else {
+                r.remove_css_class("first-shown");
+            }
+        }
+    }
+}
+
+fn set_toggle_open(toggle: &gtk::Button, open: bool) {
+    if open {
+        toggle.add_css_class("open");
+    } else {
+        toggle.remove_css_class("open");
+    }
+}
+
+thread_local! {
+    /// Collapsible groups by their wrapper: the revealer, its toggle, and the prefs
+    /// key with whether the group starts open.
+    /// Weak, so a rebuilt page's groups go away with it.
+    static COLLAPSIBLES: RefCell<Vec<Collapsible>> = const { RefCell::new(Vec::new()) };
+}
+
+struct Collapsible {
+    wrapper: glib::WeakRef<gtk::Widget>,
+    revealer: glib::WeakRef<gtk::Revealer>,
+    toggle: glib::WeakRef<gtk::Button>,
+    key: String,
+    open_by_default: bool,
+}
+
+/// Search: open a collapsible group (`wrapper`) for now without remembering it,
+/// or with `None`, put every group back the way the user left it.
+pub fn reveal_for_search(wrapper: Option<&gtk::Widget>) {
+    let saved = if wrapper.is_none() { crate::prefs::get().open_groups } else { Default::default() };
+    COLLAPSIBLES.with(|c| {
+        let mut c = c.borrow_mut();
+        c.retain(|g| g.wrapper.upgrade().is_some());
+        for g in c.iter() {
+            let (Some(w), Some(revealer), Some(toggle)) = (g.wrapper.upgrade(), g.revealer.upgrade(), g.toggle.upgrade()) else { continue };
+            let open = match wrapper {
+                Some(target) if *target == w => true,
+                Some(_) => continue,
+                None => saved.get(&g.key).copied().unwrap_or(g.open_by_default),
+            };
+            if revealer.reveals_child() != open {
+                revealer.set_reveal_child(open);
+                set_toggle_open(&toggle, open);
+            }
+        }
+    });
 }
 
 // ---------- Open config ----------
@@ -220,6 +465,7 @@ pub fn open_config_button(files: &[PathBuf]) -> gtk::Widget {
 pub fn row(title: &str, desc: &str, control: Option<&gtk::Widget>) -> gtk::Box {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 14);
     row.add_css_class("settings-option");
+    row.add_css_class("card-row");
     let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
     text.set_valign(gtk::Align::Center);
     text.set_hexpand(true);
@@ -227,6 +473,8 @@ pub fn row(title: &str, desc: &str, control: Option<&gtk::Widget>) -> gtk::Box {
     t.add_css_class("settings-option-title");
     t.set_xalign(0.0);
     t.set_wrap(true);
+    // Long names with no spaces (service units, mount points) may break mid-word.
+    t.set_wrap_mode(pango::WrapMode::WordChar);
     text.append(&t);
     if !desc.is_empty() {
         let d = gtk::Label::new(None);
@@ -250,6 +498,7 @@ pub fn row(title: &str, desc: &str, control: Option<&gtk::Widget>) -> gtk::Box {
 pub fn stacked_row(title: &str, desc: &str, control: &gtk::Widget) -> gtk::Box {
     let outer = gtk::Box::new(gtk::Orientation::Vertical, 10);
     outer.add_css_class("settings-option");
+    outer.add_css_class("card-row");
     outer.add_css_class("tall");
     if !title.is_empty() {
         let t = gtk::Label::new(Some(title));
@@ -293,7 +542,8 @@ pub fn slider(min: f64, max: f64, step: f64, value: f64, digits: u32, unit: &str
     scale.set_value(value);
     scale.set_draw_value(false);
     scale.set_digits(digits as i32);
-    scale.set_width_request(220);
+    // Wide enough to drag precisely, narrow enough for a half-screen window.
+    scale.set_width_request(180);
     let readout = gtk::Label::new(Some(&format_value(value, digits, unit)));
     readout.add_css_class("value-readout");
     readout.set_xalign(1.0);
@@ -324,12 +574,40 @@ pub fn slider_row(
 pub fn dropdown(options: &[(String, String)], current: &str) -> gtk::DropDown {
     let labels: Vec<&str> = options.iter().map(|(_, l)| l.as_str()).collect();
     let dd = gtk::DropDown::from_strings(&labels);
+    // The closed button shortens a long choice with "…" instead of being as wide as
+    // the longest option; the open list shows every option in full.
+    dd.set_factory(Some(&string_factory(true)));
+    dd.set_list_factory(Some(&string_factory(false)));
     if let Some(i) = options.iter().position(|(id, _)| id == current) {
         dd.set_selected(i as u32);
     } else {
         dd.set_selected(gtk::INVALID_LIST_POSITION);
     }
     dd
+}
+
+/// Labels for a drop-down of strings; `short` ones ellipsize.
+fn string_factory(short: bool) -> gtk::SignalListItemFactory {
+    let f = gtk::SignalListItemFactory::new();
+    f.connect_setup(move |_, item| {
+        let l = gtk::Label::new(None);
+        l.set_xalign(0.0);
+        if short {
+            l.set_ellipsize(pango::EllipsizeMode::End);
+            l.set_width_chars(8);
+            l.set_max_width_chars(30);
+        }
+        if let Some(item) = item.downcast_ref::<gtk::ListItem>() {
+            item.set_child(Some(&l));
+        }
+    });
+    f.connect_bind(|_, item| {
+        let Some(item) = item.downcast_ref::<gtk::ListItem>() else { return };
+        if let (Some(l), Some(s)) = (item.child().and_downcast::<gtk::Label>(), item.item().and_downcast::<gtk::StringObject>()) {
+            l.set_text(&s.string());
+        }
+    });
+    f
 }
 
 pub fn opts(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
@@ -398,6 +676,8 @@ pub fn info_row(title: &str, value: &str) -> (gtk::Box, gtk::Label) {
     let l = gtk::Label::new(Some(value));
     l.add_css_class("dim");
     l.set_selectable(true);
+    // Selectable with the mouse, but not a stop for Tab (it would open with its text selected).
+    l.set_can_focus(false);
     l.set_wrap(true);
     l.set_xalign(1.0);
     l.set_max_width_chars(48);
@@ -460,15 +740,23 @@ fn reset_button(key: &str, on_reset: impl Fn() + 'static) -> gtk::Button {
     b.add_css_class("reset-button");
     b.add_css_class("flat");
     b.set_tooltip_text(Some("Reset — use the value from your own config or Omarchy's default"));
-    b.set_visible(store::is_managed(key));
+    show_reset(&b, store::is_managed(key));
     b.set_valign(gtk::Align::Center);
     let k = key.to_string();
     b.connect_clicked(move |btn| {
         store::reset_option(&k);
-        btn.set_visible(false);
+        show_reset(btn, false);
         on_reset();
     });
     b
+}
+
+/// Hidden reset buttons keep their space, so the control beside them doesn't jump.
+fn show_reset(b: &gtk::Button, shown: bool) {
+    b.set_opacity(if shown { 1.0 } else { 0.0 });
+    b.set_sensitive(shown);
+    b.set_can_target(shown);
+    b.set_can_focus(shown);
 }
 
 /// Wait for Hyprland to reload, then re-read a value.
@@ -489,7 +777,7 @@ pub fn hypr_switch(key: &'static str, title: &str, desc: &str) -> gtk::Box {
             }
             store::set_option(key, json!(on));
             if let Some(b) = reset_slot.borrow().as_ref() {
-                b.set_visible(true);
+                show_reset(b, true);
             }
         })
     };
@@ -532,7 +820,7 @@ pub fn hypr_slider(
             let value = if integer { json!(v.round() as i64) } else { json!((v * 1000.0).round() / 1000.0) };
             store::set_option(key, value);
             if let Some(b) = reset_slot.borrow().as_ref() {
-                b.set_visible(true);
+                show_reset(b, true);
             }
         })
     };
@@ -578,7 +866,7 @@ pub fn hypr_choice_typed(key: &'static str, title: &str, desc: &str, options: Ve
             let value = if numeric { id.parse::<i64>().map(|n| json!(n)).unwrap_or(json!(id)) } else { json!(id) };
             store::set_option(key, value);
             if let Some(b) = reset_slot.borrow().as_ref() {
-                b.set_visible(true);
+                show_reset(b, true);
             }
         })
     };
@@ -610,7 +898,7 @@ pub fn hypr_entry(key: &'static str, title: &str, desc: &str, placeholder: &str)
         entry_row(title, desc, &current, placeholder, move |t| {
             store::set_option(key, json!(t));
             if let Some(b) = reset_slot.borrow().as_ref() {
-                b.set_visible(true);
+                show_reset(b, true);
             }
         })
     };
@@ -877,29 +1165,56 @@ pub fn disclosure(title: &str, desc: &str) -> (gtk::Box, gtk::Box) {
     button.add_css_class("flat");
     button.add_css_class("disclosure");
     let inner = hbox(10);
-    inner.append(&arrow);
     let text = vbox(2);
     text.set_hexpand(true);
+    text.set_valign(gtk::Align::Center);
     let t = label(title, "settings-option-title");
+    t.set_wrap(true);
     text.append(&t);
     if !desc.is_empty() {
         let d = label(desc, "settings-option-description");
         d.set_wrap(true);
+        d.set_wrap_mode(pango::WrapMode::WordChar);
         text.append(&d);
     }
     inner.append(&text);
+    arrow.set_valign(gtk::Align::Center);
+    inner.append(&arrow);
     button.set_child(Some(&inner));
+    arrow.add_css_class("chevron");
     let c = content.clone();
-    button.connect_clicked(move |_| {
+    button.connect_clicked(move |b| {
         let open = !c.is_visible();
         c.set_visible(open);
-        arrow.set_icon_name(Some(if open { "pan-down-symbolic" } else { "pan-end-symbolic" }));
+        if open {
+            b.add_css_class("open");
+        } else {
+            b.remove_css_class("open");
+        }
     });
-    let wrapper = vbox(6);
+    content.add_css_class("disclosure-content");
+    let wrapper = vbox(0);
+    wrapper.add_css_class("card-row");
+    wrapper.add_css_class("disclosure-row");
     wrapper.append(&button);
     wrapper.append(&content);
     register(&button, title, desc, "");
     (wrapper, content)
+}
+
+/// Open a disclosure made by [`disclosure`] (its button, then its content).
+pub fn open_disclosure(wrapper: &gtk::Box) {
+    if let (Some(button), Some(content)) = (wrapper.first_child(), wrapper.last_child()) {
+        button.add_css_class("open");
+        content.set_visible(true);
+    }
+}
+
+/// A form behind an "Add…" row that opens it: the usual way to add things to a list.
+pub fn form_disclosure(title: &str, desc: &str, form: &impl IsA<gtk::Widget>) -> gtk::Box {
+    let (wrapper, content) = disclosure(title, desc);
+    content.append(form);
+    wrapper
 }
 
 /// A small pill label, e.g. "Restart needed".

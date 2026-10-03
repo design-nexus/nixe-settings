@@ -74,7 +74,11 @@ fn hero(page: &Page) -> Hero {
     names.append(&widgets::label(&sysinfo::hostname(), "home-host"));
     let model = sysinfo::model();
     if !model.is_empty() {
-        names.append(&widgets::label(&model, "dim"));
+        let m = widgets::label(&model, "dim");
+        // Long model names wrap instead of widening the window.
+        m.set_wrap(true);
+        m.set_wrap_mode(gtk::pango::WrapMode::WordChar);
+        names.append(&m);
     }
     left.append(&names);
 
@@ -234,7 +238,7 @@ struct Activity {
 }
 
 fn activity(page: &Page) -> Activity {
-    let g = page.group("Activity");
+    let g = page.plain_group("Activity");
     g.note("The last minute, updated every second while this page is open.");
     let flow = even_flow(2);
     let cpu = charts::line_chart(1, Some(1.0), 0.0, 120);
@@ -385,6 +389,7 @@ fn storage(page: &Page, tile: Tile) {
     cmd::background(
         || (sysinfo::disks(), sysinfo::packages()),
         move |(disks, pk)| {
+            list.set_visible(true);
             if let Some(d) = disks.iter().find(|d| d.mount == "/").or(disks.first()) {
                 let f = if d.size == 0 { 0.0 } else { d.used as f64 / d.size as f64 };
                 tile.ring.set(f);
@@ -394,7 +399,7 @@ fn storage(page: &Page, tile: Tile) {
             widgets::begin_section("home");
             for d in disks {
                 let m = charts::meter(8);
-                m.area.set_size_request(260, -1);
+                m.area.set_size_request(180, -1);
                 m.area.set_hexpand(false);
                 let used = if d.size == 0 { 0.0 } else { d.used as f64 / d.size as f64 };
                 m.set(vec![used]);
@@ -410,7 +415,7 @@ fn storage(page: &Page, tile: Tile) {
             }
             if pk.total > 0 {
                 let m = charts::meter(8);
-                m.area.set_size_request(260, -1);
+                m.area.set_size_request(180, -1);
                 m.area.set_hexpand(false);
                 m.never_warn();
                 let f = pk.explicit as f64 / pk.total as f64;
@@ -483,6 +488,8 @@ struct UpdatesUi {
 
 fn show_updates(ui: &Rc<UpdatesUi>, s: &pkgupdates::Status, checking: bool) {
     let list = &ui.list;
+    // Filled after the page is built, so not through Group::add: show the card here.
+    list.set_visible(true);
     widgets::forget_rows(list);
     while let Some(c) = list.first_child() {
         list.remove(&c);
@@ -607,10 +614,17 @@ fn updates_group(page: &Page, hero: Rc<Hero>) {
 // ---------- Quick actions ----------
 
 fn quick_actions(page: &Page) {
-    let g = page.group("Quick actions");
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    let g = page.plain_group("Quick actions");
+    // A flow, so the buttons go two by two in a narrow window.
+    let row = gtk::FlowBox::new();
+    row.set_selection_mode(gtk::SelectionMode::None);
     row.set_homogeneous(true);
+    row.set_min_children_per_line(2);
+    row.set_max_children_per_line(4);
+    row.set_column_spacing(12);
+    row.set_row_spacing(12);
     row.add_css_class("quick-actions");
+    row.add_css_class("home-flow");
     let snap = gtk::Button::with_label("Create snapshot");
     snap.set_tooltip_text(Some("Save the system as it is now, so you can roll back"));
     snap.connect_clicked(|b| {
@@ -624,16 +638,16 @@ fn quick_actions(page: &Page) {
             }
         });
     });
-    row.append(&snap);
+    row.insert(&snap, -1);
     let lock = gtk::Button::with_label("Lock");
     lock.connect_clicked(|_| cmd::spawn(&["omarchy-system-lock"]));
-    row.append(&lock);
+    row.insert(&lock, -1);
     let restart = widgets::confirm_button("Restart", "Click again to restart", |_| cmd::spawn(&["omarchy-system-reboot"]));
     restart.add_css_class("destructive-action");
-    row.append(&restart);
+    row.insert(&restart, -1);
     let off = widgets::confirm_button("Shut down", "Click again to shut down", |_| cmd::spawn(&["omarchy-system-shutdown"]));
     off.add_css_class("destructive-action");
-    row.append(&off);
+    row.insert(&off, -1);
     g.add(&row);
     widgets::keywords("snapshot lock restart reboot shut down power off");
 }

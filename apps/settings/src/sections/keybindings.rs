@@ -4,8 +4,13 @@ use crate::widgets::{self, Page};
 use crate::window;
 use gtk::prelude::*;
 use gtk::{gdk, glib};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+
+thread_local! {
+    /// The custom shortcut being edited in the form at the bottom of the list.
+    static EDITING: Cell<Option<usize>> = const { Cell::new(None) };
+}
 
 /// Hyprland modmask bits, in the order Omarchy writes them.
 const MODS: &[(u64, &str)] = &[(64, "SUPER"), (4, "CTRL"), (8, "ALT"), (1, "SHIFT")];
@@ -155,10 +160,19 @@ pub fn build(page: &Page) {
     for (i, b) in custom.iter().enumerate() {
         let content = widgets::hbox(10);
         content.append(&caps(&normalise(&b.keys)));
+        let edit = gtk::Button::from_icon_name("document-edit-symbolic");
+        edit.add_css_class("flat");
+        edit.set_tooltip_text(Some("Edit"));
+        edit.connect_clicked(move |_| {
+            EDITING.with(|e| e.set(Some(i)));
+            window::rebuild("keybindings");
+        });
+        content.append(&edit);
         let del = gtk::Button::from_icon_name("user-trash-symbolic");
         del.add_css_class("flat");
         del.set_tooltip_text(Some("Remove"));
         del.connect_clicked(move |_| {
+            EDITING.with(|e| e.set(None));
             store::update(true, |s| {
                 if i < s.binds.len() {
                     s.binds.remove(i);
@@ -176,26 +190,36 @@ pub fn build(page: &Page) {
         ));
     }
 
-    // Add form.
+    // Add / edit form.
+    let editing = EDITING.with(|e| e.get()).filter(|i| *i < custom.len());
+    let current = editing.map(|i| custom[i].clone());
     let form = widgets::vbox(8);
     let keys_line = widgets::hbox(8);
     let keys = gtk::Entry::new();
     keys.set_placeholder_text(Some("SUPER + ALT + K"));
     keys.add_css_class("mono");
     keys.set_hexpand(true);
+    if let Some(b) = &current {
+        keys.set_text(&b.keys);
+    }
     keys_line.append(&keys);
     keys_line.append(&recorder(&keys));
     form.append(&keys_line);
     let desc = gtk::Entry::new();
     desc.set_placeholder_text(Some("What it does (shown in the keybindings menu)"));
+    if let Some(b) = &current {
+        desc.set_text(&b.description);
+    }
     form.append(&desc);
     let command = gtk::Entry::new();
     command.set_placeholder_text(Some("Command, e.g. kitty -e btop"));
     command.add_css_class("mono");
+    if let Some(b) = &current {
+        command.set_text(&b.command);
+    }
     form.append(&command);
-    let add = gtk::Button::with_label("Add shortcut");
+    let add = gtk::Button::with_label(if editing.is_some() { "Save changes" } else { "Add shortcut" });
     add.add_css_class("suggested-action");
-    add.set_halign(gtk::Align::End);
     {
         let (keys, desc, command) = (keys.clone(), desc.clone(), command.clone());
         add.connect_clicked(move |_| {
@@ -206,23 +230,43 @@ pub fn build(page: &Page) {
                 return;
             }
             let d = desc.text().trim().to_string();
+            let editing = EDITING.with(|e| e.take());
             store::update(true, |s| {
+                // Editing replaces the shortcut in place.
+                if let Some(i) = editing.filter(|i| *i < s.binds.len()) {
+                    s.binds.remove(i);
+                }
                 s.binds.retain(|b| normalise(&b.keys) != k);
                 s.unbinds.retain(|u| normalise(u) != k);
                 s.binds.push(Bind { keys: k.clone(), description: d, command: c });
             });
             store::flush();
-            window::toast(&format!("Added {k}"));
+            window::toast(&if editing.is_some() { format!("Saved {k}") } else { format!("Added {k}") });
             glib::timeout_add_local_once(std::time::Duration::from_millis(600), || window::rebuild("keybindings"));
         });
     }
-    form.append(&add);
-    g.add(&widgets::stacked_row("Add a shortcut", "", form.upcast_ref()));
+    let buttons = widgets::hbox(8);
+    buttons.set_halign(gtk::Align::End);
+    if editing.is_some() {
+        let cancel = gtk::Button::with_label("Cancel");
+        cancel.connect_clicked(|_| {
+            EDITING.with(|e| e.set(None));
+            window::rebuild("keybindings");
+        });
+        buttons.append(&cancel);
+    }
+    buttons.append(&add);
+    form.append(&buttons);
+    let add_row = widgets::form_disclosure(if editing.is_some() { "Edit a shortcut" } else { "Add a shortcut…" }, "", &form);
+    if editing.is_some() {
+        widgets::open_disclosure(&add_row);
+    }
+    g.add(&add_row);
 
     // ----- Turned off -----
     let off = store::read(|s| s.unbinds.clone());
     if !off.is_empty() {
-        let g = page.group("Turned off");
+        let g = page.collapsible("Turned off", false);
         for key in off {
             let k2 = key.clone();
             let b = gtk::Button::with_label("Turn back on");
@@ -240,7 +284,7 @@ pub fn build(page: &Page) {
     }
 
     // ----- Everything else -----
-    let g = page.group("All shortcuts");
+    let g = page.collapsible("All shortcuts", false);
     g.note("Switch one off to free its keys. Search above filters this list too.");
     for e in existing_binds() {
         let content = widgets::hbox(12);

@@ -29,6 +29,11 @@ pub fn present(program: &str) -> bool {
     std::env::var_os("PATH").map(|paths| std::env::split_paths(&paths).any(|dir| dir.join(program).is_file())).unwrap_or(false)
 }
 
+/// Quote a word for `sh`, so it can sit inside a command line handed to a terminal.
+pub fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 /// Fire and forget. The child is reaped on a helper thread so no zombies remain.
 pub fn spawn(args: &[&str]) {
     let args: Vec<String> = args.iter().map(|s| s.to_string()).collect();
@@ -93,4 +98,16 @@ pub fn atomic_write(path: &Path, contents: &str) -> Result<()> {
     std::fs::write(&tmp, contents)?;
     std::fs::rename(&tmp, path).with_context(|| format!("could not write {}", path.display()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::shell_quote;
+
+    #[test]
+    fn quotes() {
+        assert_eq!(shell_quote("tokyo-night"), "'tokyo-night'");
+        assert_eq!(shell_quote("a b"), "'a b'");
+        assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    }
 }

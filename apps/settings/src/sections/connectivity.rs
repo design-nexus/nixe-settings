@@ -5,12 +5,19 @@ use gtk::glib;
 use gtk::prelude::*;
 use std::rc::Rc;
 
-pub fn build(page: &Page) {
+pub fn build_wifi(page: &Page) {
     if cmd::present("nmcli") {
         wifi(page);
+    } else {
+        page.banner("Wi-Fi needs NetworkManager (nmcli), which isn't installed.", true);
     }
+}
+
+pub fn build_bluetooth(page: &Page) {
     if cmd::present("bluetoothctl") {
         bluetooth(page);
+    } else {
+        page.banner("Bluetooth needs bluez-utils (bluetoothctl), which isn't installed.", true);
     }
 }
 
@@ -46,7 +53,7 @@ fn action_button<T: Send + 'static>(
 // ----- Wi-Fi -----
 
 fn wifi(page: &Page) {
-    let g = page.group("Wi-Fi");
+    let g = page.group("");
     let on = cmd::output(&["nmcli", "radio", "wifi"]).is_some_and(|s| s.trim() == "enabled");
     let list = widgets::vbox(6);
     let refill: Rc<dyn Fn(bool)> = {
@@ -236,7 +243,7 @@ fn ask_password(controls: &gtk::Box, ssid: &str, refill: Rc<dyn Fn()>) {
 // ----- Bluetooth -----
 
 fn bluetooth(page: &Page) {
-    let g = page.group("Bluetooth");
+    let g = page.group("");
     let list = widgets::vbox(6);
     let refill: Rc<dyn Fn()> = {
         let list = list.clone();

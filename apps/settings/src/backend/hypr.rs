@@ -69,11 +69,28 @@ pub fn generate(state: &State, self_cmd: &str) -> String {
     if !state.autostart.is_empty() {
         out.push_str("\n-- Started with the session (once; reloads don't start another)\n");
         for (process, command) in &state.autostart {
+            if !crate::backend::rules::valid_process(process) {
+                continue;
+            }
             out.push_str(&format!(
                 "if not o.shell_succeeds({}) then hl.exec_cmd({}) end\n",
                 quote(&format!("pgrep -x {process}")),
                 quote(command)
             ));
+        }
+    }
+
+    let rule_lines: Vec<String> = state
+        .window_rules
+        .iter()
+        .filter_map(|r| super::rules::lua_line(false, r))
+        .chain(state.layer_rules.iter().filter_map(|r| super::rules::lua_line(true, r)))
+        .collect();
+    if !rule_lines.is_empty() {
+        out.push_str("\n-- Window and layer rules\n");
+        for line in rule_lines {
+            out.push_str(&line);
+            out.push('\n');
         }
     }
 

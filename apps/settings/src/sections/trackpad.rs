@@ -1,5 +1,6 @@
 use crate::backend::gestures::{self, FingerSet, Gestures};
 use crate::backend::store;
+use crate::{cmd, window};
 use crate::widgets::{self, Page, hypr_choice, hypr_choice_typed, hypr_slider, hypr_switch, opts};
 use gtk::prelude::*;
 use std::rc::Rc;
@@ -125,7 +126,34 @@ fn finger_card(fingers: u8) -> gtk::Box {
     card
 }
 
+/// On / Off buttons for an Omarchy device switch (`omarchy-toggle-touchpad on|off`).
+fn device_switch(g: &crate::widgets::Group, title: &str, desc: &str, script: &'static str, keywords: &str) {
+    let controls = widgets::hbox(8);
+    for (label, arg) in [("Turn on", "on"), ("Turn off", "off")] {
+        let b = gtk::Button::with_label(label);
+        b.connect_clicked(move |_| {
+            cmd::run_async(&[script, arg], move |r| {
+                if let Err(e) = r {
+                    window::toast(&format!("{e}"));
+                }
+            })
+        });
+        controls.append(&b);
+    }
+    g.add(&widgets::row(title, desc, Some(controls.upcast_ref())));
+    widgets::keywords(keywords);
+}
+
 pub fn build(page: &Page) {
+    if cmd::present("omarchy-toggle-touchpad") || cmd::present("omarchy-toggle-touchscreen") {
+        let g = page.group("Devices");
+        if cmd::present("omarchy-toggle-touchpad") && cmd::output(&["omarchy-hw-touchpad"]).is_some_and(|d| !d.is_empty()) {
+            device_switch(&g, "Touchpad", "Switch the touchpad off, for example while using a mouse.", "omarchy-toggle-touchpad", "disable enable touchpad trackpad off");
+        }
+        if cmd::present("omarchy-toggle-touchscreen") && cmd::output(&["omarchy-hw-touchscreen"]).is_some_and(|d| !d.is_empty()) {
+            device_switch(&g, "Touchscreen", "Switch touch on the screen off or on.", "omarchy-toggle-touchscreen", "touch screen tablet pen disable enable");
+        }
+    }
     // ----- Tapping -----
     let g = page.group("Tapping");
     g.add(&hypr_switch("input.touchpad.tap_to_click", "Tap to click", "A light one-finger tap clicks."));
@@ -149,7 +177,7 @@ pub fn build(page: &Page) {
     ));
 
     // ----- Clicking -----
-    let g = page.group("Clicking");
+    let g = page.collapsible("Clicking", false);
     g.add(&hypr_choice_typed(
         "input.touchpad.clickfinger_behavior",
         "Right-click by",
@@ -176,7 +204,7 @@ pub fn build(page: &Page) {
     ));
 
     // ----- Two fingers -----
-    let g = page.group("Two fingers");
+    let g = page.group("Scrolling");
     g.note("Two-finger movement is scrolling. Swiping two fingers sideways goes back and forward in browsers and file managers.");
     g.add(&hypr_switch(
         "input.touchpad.natural_scroll",
@@ -188,7 +216,7 @@ pub fn build(page: &Page) {
 
     // ----- Swipes -----
     let enabled = store::read(|s| s.gestures.enabled);
-    let g = page.group("Three & four fingers");
+    let g = page.group("Gestures");
     let foreign = gestures::foreign_sources();
     if !foreign.is_empty() {
         let names: Vec<String> = foreign.iter().map(|(p, n)| format!("<tt>{}</tt> ({n})", crate::paths::pretty(p))).collect();
@@ -212,7 +240,7 @@ pub fn build(page: &Page) {
             Err(e) => crate::window::toast(&format!("{e}")),
         });
         b.append(&off);
-        g.wrapper.insert_child_after(&b, g.wrapper.first_child().as_ref());
+        g.top(&b);
     }
     let cards = widgets::vbox(10);
     cards.set_sensitive(enabled);
@@ -243,7 +271,7 @@ pub fn build(page: &Page) {
     g.add(&cards);
 
     // ----- Feel -----
-    let g = page.group("Workspace swipe feel");
+    let g = page.collapsible("Swipe feel", false);
     let (distance, create, forever, looping, loop_count) = store::read(|s| {
         (
             s.gestures.swipe_distance,
@@ -310,7 +338,7 @@ pub fn build(page: &Page) {
     g.add(&r);
 
     // ----- Taps with more fingers -----
-    let g = page.group("Four-finger tap");
+    let g = page.collapsible("Four-finger tap", false);
     g.add(&widgets::row(
         "Not available",
         "Trackpads report taps with one to three fingers only, and only as mouse clicks, so a four-finger tap can't be \

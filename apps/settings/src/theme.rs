@@ -305,7 +305,7 @@ pub fn apply() {
     css.push_str(STYLE);
     if !prefs::get().glow {
         css.push_str(
-            "\n.settings-option.search-hit, .theme-card.selected, .toast { box-shadow: 0 0 0 1px alpha(@theme_accent, 0.6); }\n\
+            "\n.theme-card.selected, .toast { box-shadow: 0 0 0 1px alpha(@theme_accent, 0.6); }\n\
              window.settings-window scale > trough > slider, window.settings-window .fader-scale > trough > slider \
              { box-shadow: 0 0 0 1px alpha(@theme_accent, 0.72); }\n",
         );

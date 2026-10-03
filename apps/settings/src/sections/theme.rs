@@ -32,7 +32,7 @@ fn load_thumbnail(picture: &gtk::Picture, path: PathBuf) {
 
 pub fn build(page: &Page) {
     // ----- Omarchy theme -----
-    let g = page.group("Omarchy theme");
+    let g = page.plain_group("Theme");
     g.note("Applies to the whole desktop: terminal, bar, editor, lock screen and wallpaper.");
     let flow = gtk::FlowBox::new();
     flow.set_selection_mode(gtk::SelectionMode::None);
@@ -91,12 +91,11 @@ pub fn build(page: &Page) {
         cards.borrow_mut().push((name.clone(), card.clone()));
         flow.insert(&card, -1);
     }
-    let theme_row = widgets::stacked_row("Theme", "", flow.upcast_ref());
-    widgets::keywords(&names.join(" "));
+    // No title of its own: the group's heading says it.
+    let theme_row = widgets::stacked_row("", "", flow.upcast_ref());
+    theme_row.add_css_class("bare");
+    widgets::keywords(&format!("theme {}", names.join(" ")));
     g.add(&theme_row);
-    icons_row(&g);
-
-    apps_group(page);
 
     // ----- Wallpaper -----
     let g = page.group("Wallpaper");
@@ -105,8 +104,8 @@ pub fn build(page: &Page) {
     buttons.append(&widgets::command_button("Choose…", &["omarchy-menu", "toggle", "background"]));
     g.add(&widgets::row("Background", "Cycle through the current theme's wallpapers or pick one.", Some(buttons.upcast_ref())));
 
-    // ----- Font -----
-    let g = page.group("Font");
+    // ----- Fonts and icons -----
+    let g = page.group("Fonts & icons");
     let fonts: Vec<(String, String)> = cmd::output(&["omarchy-font-list"])
         .unwrap_or_default()
         .lines()
@@ -130,9 +129,12 @@ pub fn build(page: &Page) {
         },
     );
     g.add(&r);
+    icons_row(&g);
 
-    // ----- This window -----
-    let g = page.group("This window");
+    apps_group(page);
+
+    // ----- Settings window -----
+    let g = page.collapsible("Settings window", false);
     let p = prefs::get();
     let app_themes = theme::all();
     let options: Vec<(String, String)> = app_themes.iter().map(|t| (t.id.clone(), t.name.clone())).collect();
@@ -253,7 +255,7 @@ fn row_desc(row: &gtk::Box) -> Option<gtk::Label> {
 }
 
 fn apps_group(page: &Page) {
-    let g = page.group("Apps follow the theme");
+    let g = page.collapsible("Apps follow the theme", false);
     widgets::keywords("gtk qt kde libadwaita apps windows dialogs popups consistent dark reader hyprchroma omarchroma");
     if !chroma::installed() {
         g.add(&widgets::banner(
@@ -363,54 +365,43 @@ fn apps_group(page: &Page) {
     }
 
     if chroma::plugin_installed() {
-        let (r, b) = widgets::button_row(
+        let b = widgets::confirm_button("Remove", "Click again to remove", |b| {
+            b.set_sensitive(false);
+            cmd::run_async(&["omarchy-plugin-remove", chroma::PLUGIN, "--yes"], |r| match r {
+                Ok(_) => {
+                    crate::window::toast("Omarchroma removed");
+                    crate::window::rebuild("theme");
+                }
+                Err(e) => crate::window::toast(&format!("Couldn't remove Omarchroma: {e}")),
+            });
+        });
+        b.add_css_class("destructive-action");
+        g.add(&widgets::row(
             "Omarchroma bar widget",
             "Settings covers everything it does. Removing it keeps hyprchroma and automatic sync.",
-            "Remove",
-            |b| {
-                if !b.has_css_class("armed") {
-                    b.add_css_class("armed");
-                    b.set_label("Click again to remove");
-                    return;
-                }
-                b.set_sensitive(false);
-                cmd::run_async(&["omarchy-plugin-remove", chroma::PLUGIN, "--yes"], |r| match r {
-                    Ok(_) => {
-                        crate::window::toast("Omarchroma removed");
-                        crate::window::rebuild("theme");
-                    }
-                    Err(e) => crate::window::toast(&format!("Couldn't remove Omarchroma: {e}")),
-                });
-            },
-        );
-        b.add_css_class("destructive-action");
-        g.add(&r);
+            Some(b.upcast_ref()),
+        ));
     }
 
     let (adv, content) = widgets::disclosure("Advanced", "");
-    let (r, b) = widgets::button_row(
+    let b = widgets::confirm_button("Restore", "Click again to restore", move |b| {
+        b.set_sensitive(false);
+        let (refresh, b) = (refresh.clone(), b.clone());
+        cmd::background(chroma::restore_stock, move |r| {
+            refresh();
+            b.set_sensitive(true);
+            match r {
+                Ok(_) => crate::window::toast("Stock look restored"),
+                Err(e) => crate::window::toast(&format!("Couldn't restore: {e}")),
+            }
+        });
+    });
+    b.add_css_class("destructive-action");
+    content.append(&widgets::row(
         "Restore stock look",
         "Undo hyprchroma's changes to GTK and KDE files and put back the default styling. Sync again to re-theme.",
-        "Restore",
-        move |b| {
-            if !b.has_css_class("armed") {
-                b.add_css_class("armed");
-                b.set_label("Click again to restore");
-                return;
-            }
-            b.set_sensitive(false);
-            let refresh = refresh.clone();
-            cmd::background(chroma::restore_stock, move |r| {
-                refresh();
-                match r {
-                    Ok(_) => crate::window::toast("Stock look restored"),
-                    Err(e) => crate::window::toast(&format!("Couldn't restore: {e}")),
-                }
-            });
-        },
-    );
-    b.add_css_class("destructive-action");
-    content.append(&r);
+        Some(b.upcast_ref()),
+    ));
     let source = widgets::row("Colours from", "", None);
     content.append(&source);
     cmd::background(chroma::palette_source, move |src| {

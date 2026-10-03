@@ -1,3 +1,4 @@
+pub mod accounts;
 pub mod appearance;
 pub mod audio;
 pub mod bt;
@@ -8,7 +9,9 @@ pub mod kbdidle;
 pub mod lua;
 pub mod net;
 pub mod notify;
+pub mod passwd;
 pub mod pkgupdates;
+pub mod rules;
 pub mod shell;
 pub mod state;
 pub mod store;

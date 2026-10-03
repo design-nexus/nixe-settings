@@ -2,7 +2,9 @@
 
 mod backend;
 mod charts;
+mod clamp;
 mod cmd;
+mod dialog;
 mod ext;
 mod fangraph;
 mod paths;
@@ -29,6 +31,7 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --theme-sync   (internal) re-apply the icon theme you chose and tell extensions; run by the theme-set hook\n\
   --kbd-idle     (internal) turn the keyboard backlight off when idle; run by the settings-kbd-idle service\n\
   --remove-old-panels [--dry-run]  remove the settings panels this app replaces (backed up first)\n\
+  --install-helper  (run with sudo) install the root helper that system changes (users, firewall, time, services, printers) need\n\
   --apply        rewrite ~/.config/hypr/settings.lua from saved state and exit\n";
 
 fn main() -> glib::ExitCode {
@@ -57,6 +60,15 @@ fn main() -> glib::ExitCode {
             return glib::ExitCode::FAILURE;
         };
         return match backend::kbdidle::apply(&backend::kbdidle::Config { timeout_secs }) {
+            Ok(()) => glib::ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("settings: {e:#}");
+                glib::ExitCode::FAILURE
+            }
+        };
+    }
+    if args.iter().any(|a| a == "--install-helper") {
+        return match backend::accounts::install_helper() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("settings: {e:#}");

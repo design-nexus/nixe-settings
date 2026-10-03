@@ -13,6 +13,17 @@ pub struct Bind {
     pub command: String,
 }
 
+/// A window rule (matching `class` and/or `title`) or a layer rule (matching
+/// `class` as the namespace), with one effect.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct Rule {
+    pub class: String,
+    pub title: String,
+    pub effect: String,
+    pub value: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(default)]
 pub struct Monitor {
@@ -42,6 +53,8 @@ pub struct State {
     /// Programs started with the session if they aren't already running
     /// (process name -> command).
     pub autostart: BTreeMap<String, String>,
+    pub window_rules: Vec<Rule>,
+    pub layer_rules: Vec<Rule>,
 }
 
 impl State {

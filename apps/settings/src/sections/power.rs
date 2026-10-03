@@ -186,7 +186,7 @@ pub fn build(page: &Page) {
     }
 
     // ----- Lid & buttons -----
-    let g = page.group("Session");
+    let g = page.collapsible("Session", false);
     let now = widgets::hbox(8);
     now.append(&widgets::command_button("Lock", &["omarchy-system-lock"]));
     // Omarchy hides these when suspend is switched off or hibernation isn't set up.
@@ -209,6 +209,156 @@ pub fn build(page: &Page) {
     }
     g.add(&widgets::row("End the session", "Open apps are closed. Each needs a second click.", Some(end.upcast_ref())));
     widgets::keywords("shut down shutdown power off restart reboot log out logout suspend sleep hibernate lock");
+
+    buttons_group(page);
+    graphics_group(page);
+}
+
+/// Integrated or dedicated graphics on laptops with both.
+fn graphics_group(page: &Page) {
+    if !cmd::present("supergfxctl") || cmd::run(&["omarchy-hw-hybrid-gpu"]).is_err() {
+        return;
+    }
+    let g = page.collapsible("Graphics", false);
+    let mode = cmd::output(&["supergfxctl", "-g"]).unwrap_or_else(|| "unknown".into());
+    let (r, _) = widgets::button_row(
+        "Graphics mode",
+        &format!("Now: {mode}. Switching between integrated (longer battery) and dedicated (faster) graphics logs you out."),
+        "Switch…",
+        |_| crate::sections::accounts::terminal("omarchy-toggle-hybrid-gpu"),
+    );
+    widgets::keywords("gpu nvidia hybrid integrated dedicated supergfx asus battery");
+    g.add(&r);
+}
+
+/// What logind does for each lid or button event, from `logind.conf` and its
+/// drop-ins (a later file wins). Only `Key=Value` lines matter here.
+fn parse_logind<'a>(files: impl IntoIterator<Item = &'a str>) -> std::collections::HashMap<String, String> {
+    let mut m = std::collections::HashMap::new();
+    for text in files {
+        for line in text.lines().map(str::trim).filter(|l| !l.starts_with('#') && !l.starts_with(';')) {
+            if let Some((k, v)) = line.split_once('=') {
+                m.insert(k.trim().to_string(), v.trim().to_string());
+            }
+        }
+    }
+    m
+}
+
+/// Every logind config file in the order systemd reads them.
+fn logind_files() -> Vec<String> {
+    let mut paths: Vec<std::path::PathBuf> = vec!["/usr/lib/systemd/logind.conf".into(), "/etc/systemd/logind.conf".into()];
+    let mut dropins: Vec<std::path::PathBuf> = Vec::new();
+    for dir in ["/usr/lib/systemd/logind.conf.d", "/etc/systemd/logind.conf.d"] {
+        dropins.extend(std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "conf")));
+    }
+    // Drop-ins are sorted by file name, whichever directory holds them.
+    dropins.sort_by_key(|p| p.file_name().map(|n| n.to_os_string()));
+    paths.extend(dropins);
+    paths.iter().filter_map(|p| std::fs::read_to_string(p).ok()).collect()
+}
+
+fn hibernate_delay_secs() -> u32 {
+    let mut secs = 7200;
+    for dir in ["/usr/lib/systemd/sleep.conf.d", "/etc/systemd/sleep.conf.d"] {
+        let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+        files.sort();
+        for f in files {
+            let text = std::fs::read_to_string(f).unwrap_or_default();
+            if let Some(v) = parse_logind([text.as_str()]).get("HibernateDelaySec") {
+                secs = time_span_secs(v).unwrap_or(secs);
+            }
+        }
+    }
+    secs
+}
+
+/// A systemd time span such as `7200`, `90min`, `2h` or `1h 30min`, in seconds.
+fn time_span_secs(text: &str) -> Option<u32> {
+    let mut total: u32 = 0;
+    let mut any = false;
+    let mut rest = text.trim();
+    while !rest.is_empty() {
+        let digits = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+        let n: u32 = rest[..digits].parse().ok()?;
+        rest = rest[digits..].trim_start();
+        let unit_len = rest.find(|c: char| c.is_ascii_digit() || c.is_whitespace()).unwrap_or(rest.len());
+        let scale = match &rest[..unit_len] {
+            "" | "s" | "sec" | "second" | "seconds" => 1,
+            "m" | "min" | "minute" | "minutes" => 60,
+            "h" | "hr" | "hour" | "hours" => 3600,
+            "d" | "day" | "days" => 86400,
+            _ => return None,
+        };
+        total = total.checked_add(n.checked_mul(scale)?)?;
+        any = true;
+        rest = rest[unit_len..].trim_start();
+    }
+    any.then_some(total)
+}
+
+/// Lid, power button and sleep delay. These are system settings, so they use the root helper.
+fn buttons_group(page: &Page) {
+    let g = page.collapsible("Lid & buttons", false);
+    let (can_edit, notice) = crate::sections::accounts::helper_notice("power", "changing what the lid and power button do");
+    if let Some(n) = notice {
+        g.top(&n);
+    }
+    let conf = parse_logind(logind_files().iter().map(String::as_str));
+    let hibernate = cmd::run(&["omarchy-hibernation-available"]).is_ok();
+    let mut actions = vec![("ignore", "Do nothing"), ("suspend", "Suspend")];
+    if hibernate {
+        actions.extend([("hibernate", "Hibernate"), ("suspend-then-hibernate", "Suspend, then hibernate")]);
+    }
+    actions.extend([("lock", "Lock"), ("poweroff", "Power off")]);
+
+    let laptop = std::path::Path::new("/proc/acpi/button/lid").exists();
+    let mut rows: Vec<(&'static str, &str, &str, &str)> = Vec::new();
+    if laptop {
+        rows.push(("HandleLidSwitch", "When the lid closes", "On battery.", "suspend"));
+        rows.push(("HandleLidSwitchExternalPower", "When the lid closes on power", "Plugged in. Follows the setting above unless you change it.", "suspend"));
+        rows.push(("HandleLidSwitchDocked", "When the lid closes while docked", "With an external screen connected.", "ignore"));
+    }
+    rows.push(("HandlePowerKey", "When you press the power button", "", "poweroff"));
+    for (key, title, desc, default) in rows {
+        let default = if key == "HandleLidSwitchExternalPower" { conf.get("HandleLidSwitch").map(String::as_str).unwrap_or(default) } else { default };
+        let current = conf.get(key).map(String::as_str).unwrap_or(default).to_string();
+        let mut options: Vec<(String, String)> = actions.iter().map(|(v, l)| (v.to_string(), l.to_string())).collect();
+        if !options.iter().any(|(v, _)| *v == current) {
+            options.push((current.clone(), current.clone()));
+        }
+        let (r, dd) = widgets::choice_row(title, desc, options, &current, {
+            let current = current.clone();
+            move |v| {
+                if v != current {
+                    crate::sections::accounts::run_admin(&["logind", key, &v], None, "Saved", "power");
+                }
+            }
+        });
+        dd.set_sensitive(can_edit);
+        widgets::keywords("lid close laptop button power key suspend hibernate ignore logind");
+        g.add(&r);
+    }
+
+    if hibernate {
+        let secs = hibernate_delay_secs();
+        let mut options = widgets::opts(&[("1800", "30 minutes"), ("3600", "1 hour"), ("7200", "2 hours"), ("10800", "3 hours"), ("14400", "4 hours")]);
+        let now = secs.to_string();
+        if !options.iter().any(|(v, _)| *v == now) {
+            options.push((now.clone(), format!("{} minutes", secs / 60)));
+        }
+        let (r, dd) = widgets::choice_row("Hibernate after suspending for", "Used by “Suspend, then hibernate”: wake-ups are quick at first, then the battery lasts longer.", options, &now, {
+            let now = now.clone();
+            move |v| {
+                if v != now {
+                    crate::sections::accounts::run_admin(&["sleep-delay", &v], None, "Saved", "power");
+                }
+            }
+        });
+        dd.set_sensitive(can_edit);
+        widgets::keywords("sleep delay hibernate timer battery");
+        g.add(&r);
+    }
 }
 
 /// How long the keyboard backlight stays on without input.
@@ -245,6 +395,23 @@ fn timeout_row() -> Option<gtk::Box> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn logind_later_files_win() {
+        let m = super::parse_logind(["[Login]\nHandlePowerKey=poweroff\n#HandleLidSwitch=x\n", "[Login]\nHandlePowerKey=ignore\nHandleLidSwitch = suspend\n"]);
+        assert_eq!(m["HandlePowerKey"], "ignore");
+        assert_eq!(m["HandleLidSwitch"], "suspend");
+    }
+
+    #[test]
+    fn time_spans() {
+        assert_eq!(super::time_span_secs("7200"), Some(7200));
+        assert_eq!(super::time_span_secs("90min"), Some(5400));
+        assert_eq!(super::time_span_secs("2h"), Some(7200));
+        assert_eq!(super::time_span_secs("1h 30min"), Some(5400));
+        assert_eq!(super::time_span_secs("soon"), None);
+        assert_eq!(super::time_span_secs(""), None);
+    }
+
     use super::*;
 
     #[test]

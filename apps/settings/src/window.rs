@@ -13,6 +13,7 @@ use std::rc::Rc;
 struct Ui {
     window: gtk::ApplicationWindow,
     stack: gtk::Stack,
+    nav: gtk::Box,
     nav_list: gtk::Box,
     nav_items: HashMap<&'static str, gtk::Button>,
     nav_groups: Vec<(gtk::Label, Vec<&'static str>)>,
@@ -92,8 +93,9 @@ fn build(app: &gtk::Application) {
     // Labels inside expand; don't let that widen the sidebar itself.
     nav.set_hexpand(false);
     let heading = widgets::label("SETTINGS", "menu-heading");
+    heading.set_hexpand(true);
     let mut compact_hide: Vec<gtk::Widget> = vec![heading.clone().upcast()];
-    nav.append(&heading);
+    nav.append(&nav_head(&heading));
 
     let search = gtk::SearchEntry::new();
     search.set_placeholder_text(Some("Search settings"));
@@ -146,6 +148,10 @@ fn build(app: &gtk::Application) {
                 s2.grab_focus();
                 glib::Propagation::Stop
             }
+            gdk::Key::b if ctrl => {
+                toggle_sidebar();
+                glib::Propagation::Stop
+            }
             gdk::Key::q | gdk::Key::w if ctrl => {
                 w2.close();
                 glib::Propagation::Stop
@@ -162,33 +168,19 @@ fn build(app: &gtk::Application) {
     search.connect_activate(|_| focus_first_hit());
 
     // Narrow windows (a tiled half-screen) get an icon-only sidebar.
-    let apply_width = {
-        let nav = nav.clone();
-        move |w: &gtk::ApplicationWindow| {
-            let width = if w.width() > 0 { w.width() } else { w.default_width() };
-            let compact = width > 0 && width < 980;
-            if compact == nav.has_css_class("compact") && nav.has_css_class("sized") {
-                return;
-            }
-            nav.add_css_class("sized");
-            if compact {
-                nav.add_css_class("compact");
-            } else {
-                nav.remove_css_class("compact");
-            }
-            if let Some(ui) = ui() {
-                let u = ui.borrow();
-                u.compact.set(compact);
-                for wdg in u.compact_fixed.iter().chain(&u.compact_items) {
-                    wdg.set_visible(!compact);
-                }
-            }
-            set_narrow(compact);
+    let apply_width = move |w: &gtk::ApplicationWindow| {
+        let width = if w.width() > 0 { w.width() } else { w.default_width() };
+        let narrow = width > 0 && width < 980;
+        if narrow == NARROW.with(|n| n.get()) && SIZED.with(|s| s.get()) {
+            return;
         }
+        SIZED.with(|s| s.set(true));
+        set_narrow(narrow);
+        apply_compact(narrow || prefs::get().sidebar_collapsed);
     };
-    let aw = apply_width.clone();
+    let aw = apply_width;
     window.connect_default_width_notify(move |w| aw(w));
-    let aw = apply_width.clone();
+    let aw = apply_width;
     window.connect_realize(move |w| aw(w));
     // Tiled windows are resized by the compositor; watch the real size too.
     let w2 = window.clone();
@@ -205,6 +197,7 @@ fn build(app: &gtk::Application) {
     let ui = Ui {
         window,
         stack,
+        nav: nav.clone(),
         nav_list: list,
         nav_items,
         nav_groups,
@@ -382,6 +375,62 @@ pub fn reload_sections(fresh: bool) {
 
 thread_local! {
     static NARROW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+thread_local! {
+    static SIZED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The button that collapses the sidebar to icons, beside the app heading.
+fn nav_head(heading: &gtk::Label) -> gtk::Box {
+    let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    row.add_css_class("nav-head");
+    row.append(heading);
+    let button = gtk::Button::from_icon_name("sidebar-show-symbolic");
+    button.add_css_class("nav-collapse");
+    button.set_tooltip_text(Some("Collapse or expand the sidebar (Ctrl+B)"));
+    button.set_valign(gtk::Align::Center);
+    button.connect_clicked(|_| toggle_sidebar());
+    row.append(&button);
+    row
+}
+
+/// The sidebar shows only icons: hide the labels, centre the icons and the toggle.
+fn apply_compact(compact: bool) {
+    let Some(ui) = ui() else { return };
+    let u = ui.borrow();
+    if compact {
+        u.nav.add_css_class("compact");
+    } else {
+        u.nav.remove_css_class("compact");
+    }
+    u.compact.set(compact);
+    for wdg in u.compact_fixed.iter().chain(&u.compact_items) {
+        wdg.set_visible(!compact);
+    }
+    centre_icons(u.nav.upcast_ref(), compact);
+}
+
+fn centre_icons(w: &gtk::Widget, compact: bool) {
+    if w.has_css_class("nav-item")
+        && let Some(content) = w.downcast_ref::<gtk::Button>().and_then(|b| b.child())
+    {
+        content.set_halign(if compact { gtk::Align::Center } else { gtk::Align::Fill });
+    }
+    if w.has_css_class("nav-collapse") {
+        w.set_halign(if compact { gtk::Align::Center } else { gtk::Align::End });
+        w.set_hexpand(compact);
+    }
+    let mut child = w.first_child();
+    while let Some(c) = child {
+        centre_icons(&c, compact);
+        child = c.next_sibling();
+    }
+}
+
+pub fn toggle_sidebar() {
+    prefs::update(|p| p.sidebar_collapsed = !p.sidebar_collapsed);
+    apply_compact(NARROW.with(|n| n.get()) || prefs::get().sidebar_collapsed);
 }
 
 fn set_narrow(narrow: bool) {

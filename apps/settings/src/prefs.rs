@@ -28,6 +28,8 @@ pub struct Prefs {
     pub theme: String,
     pub density: String,
     pub reduce_motion: bool,
+    /// The sidebar shows only icons, whatever the window width.
+    pub sidebar_collapsed: bool,
     pub glow: bool,
     /// How temperatures are shown (they are always stored in Celsius).
     pub temp_unit: TempUnit,
@@ -49,6 +51,7 @@ impl Default for Prefs {
             theme: "tokyo-night".into(),
             density: "comfortable".into(),
             reduce_motion: false,
+            sidebar_collapsed: false,
             glow: true,
             temp_unit: TempUnit::Celsius,
             last_section: "home".into(),

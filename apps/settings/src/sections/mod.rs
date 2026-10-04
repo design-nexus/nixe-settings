@@ -223,7 +223,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
         Section {
             id: "look",
             title: "Window Style",
-            icon: "applications-graphics-symbolic",
+            icon: "focus-windows-symbolic",
             group: "Personalization",
             description: "Gaps, borders, rounding, transparency, blur, shadows and animations.",
             keywords: "look feel gaps border rounding radius opacity transparency blur shadow animation cursor layout dwindle master scrolling",
@@ -234,7 +234,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
         Section {
             id: "bar",
             title: "Bar & Notifications",
-            icon: "preferences-system-details-symbolic",
+            icon: "preferences-system-notifications-symbolic",
             group: "Personalization",
             description: "Where the bar sits, how it looks, and how notifications behave.",
             keywords: "waybar panel top bottom transparent notifications do not disturb silence shell text size",
@@ -279,7 +279,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
         Section {
             id: "keybindings",
             title: "Keyboard Shortcuts",
-            icon: "preferences-desktop-keyboard-symbolic",
+            icon: "settings-shortcuts-symbolic",
             group: "Desktop",
             description: "Every shortcut you have, plus your own. Turn any of them off.",
             keywords: "keybindings shortcuts keys hotkeys bind unbind super",

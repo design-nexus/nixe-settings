@@ -149,6 +149,7 @@ fn measure(direction: &str) -> Option<f64> {
 
 fn wifi_tools(page: &Page) {
     let g = page.collapsible("Tools", false);
+    g.note("Choose a Wi-Fi band, test your speed, or restart Wi-Fi and Bluetooth.");
     if cmd::present("omarchy-network-band")
         && let Some((band, available)) = cmd::output(&["omarchy-network-band"]).as_deref().and_then(parse_band)
         && !available.is_empty()
@@ -217,53 +218,65 @@ fn parse_rule(text: &str) -> Option<(String, String)> {
     (!port.is_empty() && ["tcp", "udp", "any"].contains(&proto.as_str())).then(|| (port.to_string(), proto))
 }
 
+/// One numbered rule from `ufw status numbered`: (number, port, action, from).
+fn parse_ufw(text: &str) -> Vec<(String, String, String, String)> {
+    text.lines()
+        .filter_map(|l| {
+            let l = l.trim();
+            let rest = l.strip_prefix('[')?;
+            let (n, rule) = rest.split_once(']')?;
+            let n = n.trim();
+            if n.is_empty() || !n.chars().all(|c| c.is_ascii_digit()) {
+                return None;
+            }
+            // "22/tcp   ALLOW IN   Anywhere (v6)": the action is the first upper-case word after the port.
+            let words: Vec<&str> = rule.split_whitespace().collect();
+            let at = words.iter().position(|w| ["ALLOW", "DENY", "REJECT", "LIMIT"].contains(w))?;
+            let port = words[..at].join(" ");
+            let mut action = words[at].to_string();
+            let mut from = at + 1;
+            if let Some(dir) = words.get(at + 1).filter(|w| ["IN", "OUT", "FWD"].contains(w)) {
+                action = format!("{action} {dir}");
+                from += 1;
+            }
+            Some((n.to_string(), port, action, words[from..].join(" ")))
+        })
+        .collect()
+}
+
 fn firewall(page: &Page) {
     if !cmd::present("ufw") {
         return;
     }
     let g = page.collapsible("Firewall", false);
+    g.note("Other computers can only reach the ports you allow here.");
     let (can_edit, notice) = helper_notice("network", "changing the firewall");
     if let Some(n) = notice {
         g.top(&n);
     }
     let on = cmd::output(&["systemctl", "is-active", "ufw.service"]).is_some_and(|s| s == "active");
-    let (r, sw) = widgets::switch_row("Firewall", "Block connections from other computers unless a rule allows them.", on, move |now| {
+    let (r, sw) = widgets::switch_row("Block incoming connections", "Turns the firewall (ufw) on.", on, move |now| {
         if now != on {
             run_admin(&["firewall", if now { "enable" } else { "disable" }], None, if now { "Firewall is on" } else { "Firewall is off" }, "network");
         }
     });
     sw.set_sensitive(can_edit);
-    widgets::keywords("ufw block ports security");
+    widgets::keywords("firewall ufw block ports security");
     g.add(&r);
     if !can_edit {
         return;
     }
-    let (wrapper, content) = widgets::disclosure("Rules", "Show what is allowed. Asks for your password.");
-    let text = gtk::Label::new(None);
-    text.set_selectable(true);
-    text.set_xalign(0.0);
-    text.add_css_class("mono");
+    let (wrapper, content) = widgets::disclosure("Rules", "What other computers may reach. Showing them asks for your password.");
+    let list = widgets::vbox(0);
+    list.add_css_class("rule-list");
     let load = gtk::Button::with_label("Show rules");
     load.set_halign(gtk::Align::Start);
     {
-        let text = text.clone();
-        load.connect_clicked(move |b| {
-            b.set_sensitive(false);
-            let (b, text) = (b.clone(), text.clone());
-            cmd::background(
-                || crate::backend::accounts::helper(&["firewall", "rules"], None).map_err(|e| e.to_string()),
-                move |r| {
-                    b.set_sensitive(true);
-                    match r {
-                        Ok(out) => text.set_text(out.trim()),
-                        Err(e) => window::toast(&e),
-                    }
-                },
-            );
-        });
+        let list = list.clone();
+        load.connect_clicked(move |b| show_rules(Some(b), &list));
     }
     content.append(&load);
-    content.append(&text);
+    content.append(&list);
     g.add(&wrapper);
     let (r, _) = widgets::entry_row("Allow a port", "A port number, optionally with /tcp or /udp, e.g. 8080/tcp. Press Enter.", "", "8080/tcp", |t| {
         let t = t.trim().to_string();
@@ -277,19 +290,65 @@ fn firewall(page: &Page) {
     });
     widgets::keywords("open port allow rule");
     g.add(&r);
-    let (r, _) = widgets::entry_row("Remove a rule", "The rule's number from the list above. Press Enter.", "", "number", |t| {
-        let t = t.trim().to_string();
-        if t.is_empty() {
-            return;
-        }
-        if t.chars().all(|c| c.is_ascii_digit()) {
-            run_admin(&["firewall", "delete", &t], None, "Rule removed", "network");
-        } else {
-            window::toast("Enter the rule's number");
-        }
-    });
-    widgets::keywords("delete close port rule");
-    g.add(&r);
+}
+
+/// Read the rules (asks for the password) and list them, each with its own Remove.
+fn show_rules(button: Option<&gtk::Button>, list: &gtk::Box) {
+    if let Some(b) = button {
+        b.set_sensitive(false);
+    }
+    let (button, list) = (button.cloned(), list.clone());
+    cmd::background(
+        || crate::backend::accounts::helper(&["firewall", "rules"], None).map_err(|e| e.to_string()),
+        move |r| {
+            if let Some(b) = &button {
+                b.set_sensitive(true);
+            }
+            let out = match r {
+                Ok(out) => out,
+                Err(e) => return window::toast(&e),
+            };
+            if let Some(b) = &button {
+                b.set_visible(false);
+            }
+            widgets::forget_rows(&list);
+            while let Some(c) = list.first_child() {
+                list.remove(&c);
+            }
+            widgets::begin_section("network");
+            let rules = parse_ufw(&out);
+            if rules.is_empty() {
+                let l = widgets::label(if out.contains("inactive") { "The firewall is off." } else { "No rules: nothing is allowed in." }, "dim");
+                l.set_xalign(0.0);
+                list.append(&l);
+                return;
+            }
+            for (n, port, action, from) in rules {
+                let desc = if from.is_empty() { action.clone() } else { format!("{action} · from {from}") };
+                let desc = gtk::glib::markup_escape_text(&desc).to_string();
+                let remove = widgets::confirm_button("Remove", "Remove rule?", {
+                    let list = list.clone();
+                    move |b| {
+                        b.set_sensitive(false);
+                        let (n, list) = (n.clone(), list.clone());
+                        cmd::background(
+                            move || crate::backend::accounts::helper(&["firewall", "delete", &n], None).map_err(|e| e.to_string()),
+                            move |r| match r {
+                                // Numbers shift after a removal: read the list again.
+                                Ok(_) => {
+                                    window::toast("Rule removed");
+                                    show_rules(None, &list);
+                                }
+                                Err(e) => window::toast(&e),
+                            },
+                        );
+                    }
+                });
+                remove.set_valign(gtk::Align::Center);
+                list.append(&widgets::row(&port, &desc, Some(remove.upcast_ref())));
+            }
+        },
+    );
 }
 
 // ----- Tailscale -----
@@ -366,6 +425,7 @@ fn tailscale(page: &Page) {
 
 fn nordvpn(page: &Page) {
     let g = page.collapsible("NordVPN", false);
+    g.note("Connect through NordVPN's servers.");
     let status = cmd::output(&["nordvpn", "status"]).unwrap_or_default();
     let connected = status.lines().any(|l| l.trim().eq_ignore_ascii_case("status: connected"));
     let detail: Vec<String> = status
@@ -424,6 +484,17 @@ mod tests {
         assert_eq!(parse_rule("8080/TCP"), Some(("8080".into(), "tcp".into())));
         assert_eq!(parse_rule("80/icmp"), None);
         assert_eq!(parse_rule(""), None);
+    }
+
+    #[test]
+    fn ufw_rules() {
+        let out = "Status: active\n\n     To                         Action      From\n     --                         ------      ----\n[ 1] 22/tcp                     ALLOW IN    Anywhere\n[ 2] 8000:8010/udp              DENY IN     192.168.1.0/24\n[10] 22/tcp (v6)                ALLOW IN    Anywhere (v6)\n";
+        let r = parse_ufw(out);
+        assert_eq!(r.len(), 3);
+        assert_eq!(r[0], ("1".into(), "22/tcp".into(), "ALLOW IN".into(), "Anywhere".into()));
+        assert_eq!(r[1].3, "192.168.1.0/24");
+        assert_eq!(r[2].0, "10");
+        assert_eq!(r[2].1, "22/tcp (v6)");
     }
 
     #[test]

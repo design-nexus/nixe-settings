@@ -140,7 +140,11 @@ fn build(app: &gtk::Application) {
     nav.add_css_class("settings-navigation");
     // Labels inside expand; don't let that widen the sidebar itself.
     nav.set_hexpand(false);
-    let heading = widgets::label("SETTINGS", "menu-heading");
+    let heading = widgets::hbox(10);
+    let logo = gtk::Image::from_icon_name("io.github.design_nexus.Settings");
+    logo.set_pixel_size(22);
+    heading.append(&logo);
+    heading.append(&widgets::label("Settings", "menu-heading"));
     heading.set_hexpand(true);
     let mut compact_hide: Vec<gtk::Widget> = vec![heading.clone().upcast()];
     let (head, collapse_button) = nav_head(&heading);
@@ -327,6 +331,11 @@ fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
             continue;
         }
         if s.group != last_group {
+            // The icon-only sidebar shows a thin line where a group's heading would be.
+            let divider = gtk::Separator::new(gtk::Orientation::Horizontal);
+            divider.add_css_class("nav-divider");
+            divider.set_visible(false);
+            list.append(&divider);
             let g = widgets::label(&s.group.to_uppercase(), "nav-group");
             compact_items.push(g.clone().upcast());
             list.append(&g);
@@ -418,6 +427,13 @@ pub fn reload_sections(fresh: bool) {
     for w in &compact_items {
         w.set_visible(!u.compact.get());
     }
+    let mut c = u.nav_list.first_child();
+    while let Some(w) = c {
+        if w.has_css_class("nav-divider") {
+            w.set_visible(u.compact.get());
+        }
+        c = w.next_sibling();
+    }
     // Drop built extension pages (their page may have changed) and pages that are gone.
     let stale: Vec<&'static str> = u
         .pages
@@ -484,7 +500,7 @@ fn apply_width(w: &gtk::ApplicationWindow) {
 }
 
 /// The button that collapses the sidebar to icons, beside the app heading.
-fn nav_head(heading: &gtk::Label) -> (gtk::Box, gtk::Button) {
+fn nav_head(heading: &gtk::Box) -> (gtk::Box, gtk::Button) {
     let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     row.add_css_class("nav-head");
     row.append(heading);
@@ -511,6 +527,13 @@ fn apply_compact(compact: bool) {
         wdg.set_visible(!compact);
     }
     u.search_icon.set_visible(compact);
+    let mut c = u.nav_list.first_child();
+    while let Some(w) = c {
+        if w.has_css_class("nav-divider") {
+            w.set_visible(compact);
+        }
+        c = w.next_sibling();
+    }
     u.collapse_button.set_tooltip_text(Some(if compact { "Expand the sidebar (Ctrl+B)" } else { "Collapse the sidebar (Ctrl+B)" }));
     centre_icons(u.nav.upcast_ref(), compact);
 }
@@ -769,6 +792,18 @@ fn focus_first_hit() {
 
 /// Show a short message at the bottom of the window. A new one replaces the last.
 pub fn toast(message: &str) {
+    show_toast(message, None);
+}
+
+/// A toast with a button (Undo, Update, Open…): clicking it runs `action` and
+/// closes the toast. It stays up a little longer, to give time to reach it.
+pub fn toast_action(message: &str, button: &str, action: impl Fn() + 'static) {
+    show_toast(message, Some((button, Box::new(action))));
+}
+
+type ToastAction<'a> = Option<(&'a str, Box<dyn Fn()>)>;
+
+fn show_toast(message: &str, action: ToastAction) {
     let Some(ui) = ui() else {
         eprintln!("settings: {message}");
         return;
@@ -780,33 +815,51 @@ pub fn toast(message: &str) {
     let label = gtk::Label::new(Some(message));
     label.set_wrap(true);
     label.set_max_width_chars(70);
-    let bx = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    let bx = gtk::Box::new(gtk::Orientation::Horizontal, 12);
     bx.add_css_class("toast");
     bx.append(&label);
     let motion = !prefs::get().reduce_motion;
+    let has_action = action.is_some();
     let revealer = gtk::Revealer::builder()
         .transition_type(gtk::RevealerTransitionType::SlideUp)
         .transition_duration(if motion { 180 } else { 0 })
         .child(&bx)
         .halign(gtk::Align::Center)
         .valign(gtk::Align::End)
-        .can_target(false)
+        // Clicks pass through a plain toast; one with a button has to take them.
+        .can_target(has_action)
         .build();
+    if let Some((text, run)) = action {
+        let b = gtk::Button::with_label(text);
+        b.add_css_class("toast-action");
+        b.set_valign(gtk::Align::Center);
+        let r = revealer.clone();
+        b.connect_clicked(move |_| {
+            run();
+            dismiss_toast(&r, motion);
+        });
+        bx.append(&b);
+    }
     overlay.add_overlay(&revealer);
     revealer.set_reveal_child(true);
     ui.borrow_mut().toast = Some(revealer.clone());
     drop(ui);
-    glib::timeout_add_local_once(std::time::Duration::from_millis(3500), move || {
-        revealer.set_reveal_child(false);
-        glib::timeout_add_local_once(std::time::Duration::from_millis(if motion { 200 } else { 0 }), move || {
-            let Some(u) = self::ui() else { return };
-            // Only if it hasn't been replaced already.
-            let current = u.borrow().toast.as_ref() == Some(&revealer);
-            if current {
-                u.borrow_mut().toast = None;
-                overlay.remove_overlay(&revealer);
-            }
-        });
+    let shown = if has_action { 7000 } else { 3500 };
+    glib::timeout_add_local_once(std::time::Duration::from_millis(shown), move || dismiss_toast(&revealer, motion));
+}
+
+fn dismiss_toast(revealer: &gtk::Revealer, motion: bool) {
+    revealer.set_reveal_child(false);
+    let revealer = revealer.clone();
+    glib::timeout_add_local_once(std::time::Duration::from_millis(if motion { 200 } else { 0 }), move || {
+        let Some(u) = self::ui() else { return };
+        // Only if it hasn't been replaced already.
+        let current = u.borrow().toast.as_ref() == Some(&revealer);
+        if current {
+            let overlay = u.borrow().overlay.clone();
+            u.borrow_mut().toast = None;
+            overlay.remove_overlay(&revealer);
+        }
     });
 }
 

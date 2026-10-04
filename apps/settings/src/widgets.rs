@@ -178,6 +178,7 @@ impl Page {
             .build();
         let inner = vbox(0);
         let head = vbox(0);
+        head.add_css_class("collapsible-head");
         inner.append(&head);
         let list = group_list(true);
         inner.append(&list);
@@ -210,18 +211,22 @@ impl Page {
         });
         {
             // Rows are added after this returns: read their titles once the page is built.
-            let (list, head) = (list.clone(), head.clone());
+            let (list, head, toggle) = (list.clone(), head.clone(), toggle.clone());
             glib::idle_add_local_once(move || {
                 // A note says best what the group is for; otherwise list its rows.
-                if let Some(note) = head.first_child().and_downcast::<gtk::Label>() {
+                // The note moves up into the header, so it isn't shown twice.
+                if let Some(note) = head.first_child().and_downcast::<gtk::Label>().filter(|l| l.has_css_class("group-note")) {
                     summary.set_text(&note.text());
                     summary.set_visible(true);
+                    note.set_visible(false);
                     return;
                 }
+                // Row titles only while folded: once open, the rows are right there.
                 let titles = row_titles(&list);
                 if !titles.is_empty() {
                     summary.set_text(&titles.join(", "));
-                    summary.set_visible(true);
+                    summary.add_css_class("titles-summary");
+                    summary.set_visible(!toggle.has_css_class("open"));
                 }
             });
         }
@@ -375,6 +380,17 @@ fn set_toggle_open(toggle: &gtk::Button, open: bool) {
     } else {
         toggle.remove_css_class("open");
     }
+    fn walk(w: &gtk::Widget, open: bool) {
+        if w.has_css_class("titles-summary") {
+            w.set_visible(!open);
+        }
+        let mut c = w.first_child();
+        while let Some(child) = c {
+            walk(&child, open);
+            c = child.next_sibling();
+        }
+    }
+    walk(toggle.upcast_ref(), open);
 }
 
 thread_local! {

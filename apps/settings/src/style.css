@@ -101,11 +101,20 @@ window.settings-window .settings-navigation button.nav-search:hover image {
   color: @theme_text;
 }
 
-.settings-navigation .menu-heading {
+.settings-navigation .nav-head > box:first-child {
   margin: 0 8px;
-  font-size: 1.05em;
+}
+
+.settings-navigation .menu-heading {
+  font-size: 1.1em;
   font-weight: 700;
   color: @theme_text;
+}
+
+.settings-navigation separator.nav-divider {
+  margin: 8px 10px;
+  min-height: 1px;
+  background: alpha(@theme_border, 0.7);
 }
 
 .settings-navigation .nav-group {
@@ -270,8 +279,29 @@ window.settings-window button.group-toggle .settings-option-description {
   font-weight: 400;
 }
 
-.settings-group.collapsible revealer > box {
-  padding-top: 8px;
+/* Open, the title row and its rows read as one card. */
+window.settings-window button.group-toggle.open {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.settings-group.collapsible .settings-card {
+  border-top-width: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.settings-group.collapsible .settings-card > .card-row:first-child,
+.settings-group.collapsible .settings-card > :first-child > .card-row:first-child,
+.settings-group.collapsible .settings-card .card-row.first-shown {
+  border-top-color: alpha(@theme_text, 0.09);
+}
+
+/* A notice inside an open group joins the card too. */
+.collapsible-head .banner {
+  margin: 0;
+  border-radius: 0;
+  border-top-width: 0;
 }
 
 image.chevron {
@@ -671,6 +701,23 @@ window.settings-window .segmented button.segment:checked {
   box-shadow: 0 4px 16px alpha(@theme_shadow, 0.5), 0 0 14px alpha(@theme_glow, 0.14);
 }
 
+.toast {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.toast > label {
+  margin: 4px 0;
+}
+
+window.settings-window button.toast-action {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: @theme_accent;
+  font-weight: 700;
+}
+
 .dialog-card {
   background: @theme_bg;
   border: 1px solid alpha(@theme_border, 0.65);
@@ -798,8 +845,33 @@ window.settings-window .fader.preamp .fader-scale > trough > highlight {
 }
 
 .theme-card .theme-card-name {
-  padding: 8px 12px;
+  padding: 6px 10px;
   font-weight: 600;
+  font-size: 0.92em;
+}
+
+.theme-strip {
+  border-radius: 9px 9px 0 0;
+}
+
+/* The tick on the theme in use. */
+image.theme-tick {
+  margin: 6px;
+  padding: 3px;
+  border-radius: 999px;
+  background: @theme_accent;
+  color: @theme_bg;
+  -gtk-icon-size: 12px;
+  opacity: 0;
+}
+
+.theme-card.selected image.theme-tick {
+  opacity: 1;
+}
+
+window.settings-window button.show-all {
+  min-height: 28px;
+  padding: 0 14px;
 }
 
 .swatch {

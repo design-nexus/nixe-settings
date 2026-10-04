@@ -13,6 +13,49 @@ fn theme_dir(name: &str) -> Option<PathBuf> {
         .find(|p| p.exists())
 }
 
+/// The picture that best shows a theme: its preview, else a screenshot or its first wallpaper.
+fn theme_image(dir: &std::path::Path) -> Option<PathBuf> {
+    for name in ["preview.png", "theme.png", "preview.jpg", "theme.jpg"] {
+        let p = dir.join(name);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    let mut backgrounds: Vec<PathBuf> = std::fs::read_dir(dir.join("backgrounds"))
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|e| e.to_str()).is_some_and(|e| ["png", "jpg", "jpeg", "webp"].contains(&e.to_lowercase().as_str())))
+        .collect();
+    backgrounds.sort();
+    backgrounds.into_iter().next()
+}
+
+/// A strip of the theme's colours, for a theme with no picture at all.
+fn colour_strip(dir: &std::path::Path) -> Option<gtk::Box> {
+    let text = std::fs::read_to_string(dir.join("colors.toml")).ok()?;
+    let table: toml::Table = toml::from_str(&text).ok()?;
+    let keys = ["background", "foreground", "accent", "color1", "color2", "color3", "color4", "color5", "color6"];
+    let colours: Vec<String> = keys.iter().filter_map(|k| table.get(*k).and_then(|v| v.as_str()))
+        // Only plain hex colours go into the stylesheet.
+        .filter(|c| c.len() <= 9 && c.strip_prefix('#').is_some_and(|h| !h.is_empty() && h.chars().all(|ch| ch.is_ascii_hexdigit())))
+        .map(String::from)
+        .collect();
+    if colours.is_empty() {
+        return None;
+    }
+    let strip = widgets::hbox(0);
+    strip.add_css_class("theme-strip");
+    strip.set_homogeneous(true);
+    for c in colours {
+        let b = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        b.set_vexpand(true);
+        widgets::paint(&b, &c);
+        strip.append(&b);
+    }
+    Some(strip)
+}
+
 fn load_thumbnail(picture: &gtk::Picture, path: PathBuf) {
     let picture = picture.clone();
     cmd::background(
@@ -37,7 +80,7 @@ pub fn build(page: &Page) {
     let flow = gtk::FlowBox::new();
     flow.set_selection_mode(gtk::SelectionMode::None);
     flow.set_max_children_per_line(4);
-    flow.set_min_children_per_line(2);
+    flow.set_min_children_per_line(3);
     flow.set_row_spacing(10);
     flow.set_column_spacing(10);
     flow.set_homogeneous(true);
@@ -49,22 +92,40 @@ pub fn build(page: &Page) {
         .filter(|l| !l.is_empty())
         .map(String::from)
         .collect();
+    // The first few, and the current one wherever it is; the rest wait behind "Show all".
+    const FIRST: usize = 8;
+    let current_at = names.iter().position(|n| *n == current).unwrap_or(0);
     let cards: std::rc::Rc<std::cell::RefCell<Vec<(String, gtk::Button)>>> = Default::default();
-    for name in &names {
+    let mut hidden: Vec<gtk::Widget> = Vec::new();
+    for (i, name) in names.iter().enumerate() {
         let card = gtk::Button::new();
         card.add_css_class("theme-card");
+        card.set_tooltip_text(Some(name));
         let v = widgets::vbox(0);
+        let art = gtk::Overlay::new();
         let pic = gtk::Picture::new();
         pic.set_content_fit(gtk::ContentFit::Cover);
-        pic.set_size_request(160, 90);
+        pic.set_size_request(120, 68);
         pic.set_can_shrink(true);
+        pic.set_hexpand(true);
+        art.set_child(Some(&pic));
         if let Some(dir) = theme_dir(name) {
-            let preview = dir.join("preview.png");
-            if preview.exists() {
-                load_thumbnail(&pic, preview);
+            match theme_image(&dir) {
+                Some(image) => load_thumbnail(&pic, image),
+                None => {
+                    if let Some(strip) = colour_strip(&dir) {
+                        art.add_overlay(&strip);
+                    }
+                }
             }
         }
-        v.append(&pic);
+        // Marks the theme in use.
+        let tick = gtk::Image::from_icon_name("object-select-symbolic");
+        tick.add_css_class("theme-tick");
+        tick.set_halign(gtk::Align::End);
+        tick.set_valign(gtk::Align::Start);
+        art.add_overlay(&tick);
+        v.append(&art);
         let l = widgets::label(name, "theme-card-name");
         l.set_ellipsize(gtk::pango::EllipsizeMode::End);
         v.append(&l);
@@ -90,9 +151,32 @@ pub fn build(page: &Page) {
         });
         cards.borrow_mut().push((name.clone(), card.clone()));
         flow.insert(&card, -1);
+        if i >= FIRST
+            && i != current_at
+            && let Some(child) = flow.last_child()
+        {
+            child.set_visible(false);
+            hidden.push(child);
+        }
     }
     // No title of its own: the group's heading says it.
-    let theme_row = widgets::stacked_row("", "", flow.upcast_ref());
+    let content = widgets::vbox(10);
+    content.append(&flow);
+    if !hidden.is_empty() {
+        let total = names.len();
+        let more = gtk::Button::with_label(&format!("Show all {total} themes"));
+        more.add_css_class("show-all");
+        more.set_halign(gtk::Align::Center);
+        more.connect_clicked(move |b| {
+            let show = !hidden.first().is_some_and(|w| w.is_visible());
+            for w in &hidden {
+                w.set_visible(show);
+            }
+            b.set_label(&if show { "Show fewer".to_string() } else { format!("Show all {total} themes") });
+        });
+        content.append(&more);
+    }
+    let theme_row = widgets::stacked_row("", "", content.upcast_ref());
     theme_row.add_css_class("bare");
     widgets::keywords(&format!("theme {}", names.join(" ")));
     g.add(&theme_row);

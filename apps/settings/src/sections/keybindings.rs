@@ -171,6 +171,7 @@ pub fn build(page: &Page) {
         let del = gtk::Button::from_icon_name("user-trash-symbolic");
         del.add_css_class("flat");
         del.set_tooltip_text(Some("Remove"));
+        let removed = b.clone();
         del.connect_clicked(move |_| {
             EDITING.with(|e| e.set(None));
             store::update(true, |s| {
@@ -180,6 +181,13 @@ pub fn build(page: &Page) {
             });
             store::flush();
             window::rebuild("keybindings");
+            let back = removed.clone();
+            window::toast_action("Shortcut removed", "Undo", move || {
+                let back = back.clone();
+                store::update(true, move |s| s.binds.insert(i.min(s.binds.len()), back));
+                store::flush();
+                window::rebuild("keybindings");
+            });
         });
         content.append(&del);
         let desc = format!("<tt>{}</tt>", glib::markup_escape_text(&b.command));

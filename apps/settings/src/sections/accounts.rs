@@ -337,6 +337,7 @@ pub fn build(page: &Page) {
     // ----- Sudo -----
     if cmd::present("omarchy-sudo-passwordless") {
         let g = page.collapsible("Administrator access", false);
+        g.note("Use sudo without typing your password, for a while.");
         let (r, _) = widgets::button_row(
             "Passwordless sudo",
             "Turn off the sudo password prompt for a limited time. Run it again to turn it back on early.",

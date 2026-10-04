@@ -22,13 +22,76 @@ pub fn cpu_model() -> String {
         .lines()
         .find(|l| l.starts_with("model name"))
         .and_then(|l| l.split_once(':'))
-        .map(|(_, v)| v.trim().to_string())
+        .map(|(_, v)| tidy_cpu(v))
         .unwrap_or_default()
+}
+
+/// "Intel(R) Core(TM) Ultra 9 285H CPU @ 2.90GHz" → "Intel Core Ultra 9 285H".
+pub fn tidy_cpu(name: &str) -> String {
+    let name = name.split(" @ ").next().unwrap_or(name);
+    let name = name.replace("(R)", "").replace("(TM)", "").replace("(tm)", "");
+    let words: Vec<&str> = name
+        .split_whitespace()
+        .filter(|w| !matches!(*w, "CPU" | "Processor"))
+        // AMD's "8-Core Processor" says nothing the core count doesn't.
+        .filter(|w| !w.ends_with("-Core"))
+        .collect();
+    words.join(" ")
 }
 
 pub fn model() -> String {
     let dmi = |f: &str| read_trim(format!("/sys/class/dmi/id/{f}"));
-    format!("{} {}", dmi("sys_vendor"), dmi("product_name")).trim().to_string()
+    tidy_model(&dmi("sys_vendor"), &dmi("product_name"))
+}
+
+/// A readable maker and model: short maker names, no repeated model codes.
+/// ("ASUSTeK COMPUTER INC.", "ROG Zephyrus G16 GU605CW_GU605CW") → "ASUS ROG Zephyrus G16 GU605CW".
+pub fn tidy_model(vendor: &str, product: &str) -> String {
+    let short = [
+        ("asustek", "ASUS"),
+        ("hewlett", "HP"),
+        ("lenovo", "Lenovo"),
+        ("dell", "Dell"),
+        ("micro-star", "MSI"),
+        ("gigabyte", "Gigabyte"),
+        ("acer", "Acer"),
+        ("framework", "Framework"),
+        ("apple", "Apple"),
+        ("samsung", "Samsung"),
+        ("microsoft", "Microsoft"),
+        ("system76", "System76"),
+        ("tuxedo", "TUXEDO"),
+    ];
+    let lower = vendor.to_lowercase();
+    let vendor = short.iter().find(|(k, _)| lower.starts_with(k)).map(|(_, v)| v.to_string()).unwrap_or_else(|| {
+        // Drop company suffixes.
+        vendor
+            .split_whitespace()
+            .filter(|w| !matches!(w.trim_end_matches(['.', ',']).to_lowercase().as_str(), "inc" | "corp" | "corporation" | "co" | "ltd" | "computer" | "llc" | "gmbh"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    });
+    // "GU605CW_GU605CW": a code repeated after an underscore.
+    let product: Vec<String> = product
+        .split_whitespace()
+        .map(|w| match w.split_once('_') {
+            Some((a, b)) if a == b => a.to_string(),
+            _ => w.to_string(),
+        })
+        .collect();
+    let mut product = product.join(" ");
+    // Some makers repeat their name in the product.
+    if product.to_lowercase().starts_with(&vendor.to_lowercase()) {
+        product = product[vendor.len()..].trim().to_string();
+    }
+    // Placeholder strings some boards ship with.
+    let junk = |s: &str| s.is_empty() || ["to be filled by o.e.m.", "system product name", "default string"].contains(&s.to_lowercase().as_str());
+    match (junk(&vendor), junk(&product)) {
+        (true, true) => String::new(),
+        (true, false) => product,
+        (false, true) => vendor,
+        (false, false) => format!("{vendor} {product}"),
+    }
 }
 
 pub fn uptime_secs() -> u64 {
@@ -247,6 +310,19 @@ pub fn packages() -> Packages {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tidy_names() {
+        assert_eq!(tidy_cpu(" Intel(R) Core(TM) Ultra 9 285H"), "Intel Core Ultra 9 285H");
+        assert_eq!(tidy_cpu("Intel(R) Core(TM) i7-8650U CPU @ 1.90GHz"), "Intel Core i7-8650U");
+        assert_eq!(tidy_cpu("AMD Ryzen 7 7840U w/ Radeon 780M Graphics"), "AMD Ryzen 7 7840U w/ Radeon 780M Graphics");
+        assert_eq!(tidy_cpu("AMD Ryzen 9 5900X 12-Core Processor"), "AMD Ryzen 9 5900X");
+        assert_eq!(tidy_model("ASUSTeK COMPUTER INC.", "ROG Zephyrus G16 GU605CW_GU605CW"), "ASUS ROG Zephyrus G16 GU605CW");
+        assert_eq!(tidy_model("LENOVO", "21K5"), "Lenovo 21K5");
+        assert_eq!(tidy_model("Framework", "Laptop 13 (AMD Ryzen 7040Series)"), "Framework Laptop 13 (AMD Ryzen 7040Series)");
+        assert_eq!(tidy_model("Example Corp.", "Example Box"), "Example Box");
+        assert_eq!(tidy_model("To Be Filled By O.E.M.", "To Be Filled By O.E.M."), "");
+    }
 
     #[test]
     fn formats_sizes_and_durations() {

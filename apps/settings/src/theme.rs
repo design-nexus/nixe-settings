@@ -288,8 +288,27 @@ thread_local! {
 }
 
 /// Install the stylesheet and the current palette on the default display.
+/// Icons the icon themes don't have, shipped inside the program.
+const ICONS: &[(&str, &str)] = &[("settings-shortcuts-symbolic", include_str!("../data/icons/settings-shortcuts-symbolic.svg"))];
+
+/// Write the built-in icons where GTK's icon lookup finds them.
+fn install_icons(display: &gdk::Display) {
+    let dir = crate::paths::cache_home().join("settings/icons");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    for (name, svg) in ICONS {
+        let path = dir.join(format!("{name}.svg"));
+        if std::fs::read_to_string(&path).ok().as_deref() != Some(*svg) {
+            let _ = std::fs::write(&path, svg);
+        }
+    }
+    gtk::IconTheme::for_display(display).add_search_path(&dir);
+}
+
 pub fn install() {
     let display = gdk::Display::default().expect("no display");
+    install_icons(&display);
     let provider = gtk::CssProvider::new();
     gtk::style_context_add_provider_for_display(&display, &provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
     PROVIDER.with(|p| *p.borrow_mut() = Some(provider));

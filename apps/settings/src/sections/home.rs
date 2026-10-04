@@ -36,6 +36,41 @@ fn even_flow(max_per_line: u32) -> gtk::FlowBox {
     f
 }
 
+/// Wrap evenly: five tiles go 5, 3 + 2 or 2 + 2 + 1, never 4 + 1.
+fn balance_rows(f: &gtk::FlowBox) {
+    let last = std::cell::Cell::new(-1);
+    f.add_tick_callback(move |f, _| {
+        let width = f.width();
+        if width != last.get() && width > 0 {
+            last.set(width);
+            let n = std::iter::successors(f.first_child(), |c| c.next_sibling()).count() as u32;
+            // The widest tile's natural width, so captions aren't cut short.
+            let tile = std::iter::successors(f.first_child(), |c| c.next_sibling())
+                .map(|c| c.measure(gtk::Orientation::Horizontal, -1).1)
+                .max()
+                .unwrap_or(0)
+                .max(1);
+            let fit = ((width + 12) / (tile + 12)).max(1) as u32;
+            let per = balanced_per_line(n, fit);
+            if f.max_children_per_line() != per {
+                f.set_min_children_per_line(per);
+                f.set_max_children_per_line(per);
+            }
+        }
+        glib::ControlFlow::Continue
+    });
+}
+
+/// How many to put on each line so `n` items, at most `fit` a line, come out even.
+fn balanced_per_line(n: u32, fit: u32) -> u32 {
+    if n == 0 {
+        return 1;
+    }
+    let fit = fit.clamp(1, n);
+    let lines = n.div_ceil(fit);
+    n.div_ceil(lines)
+}
+
 fn flow_add(f: &gtk::FlowBox, w: &impl IsA<gtk::Widget>) {
     f.insert(w, -1);
     if let Some(c) = f.last_child() {
@@ -57,11 +92,21 @@ fn fact(grid: &gtk::Grid, i: i32, title: &str, value: &str) -> gtk::Label {
     cell.append(&widgets::label(title, "home-fact-title"));
     let v = widgets::label(value, "home-fact");
     v.set_selectable(true);
+    // Selectable by mouse, but not a focus stop: a focused label shows a text cursor.
+    v.set_focusable(false);
     v.set_ellipsize(gtk::pango::EllipsizeMode::End);
     v.set_tooltip_text(Some(value));
     cell.append(&v);
     grid.attach(&cell, i % 3, i / 3, 1, 1);
     v
+}
+
+/// "4.0.0.r6694.g821ae58" → "4.0.0": the build suffix of a development version.
+fn short_version(v: &str) -> String {
+    match v.split_once(".r") {
+        Some((base, rest)) if rest.split_once(".g").is_some_and(|(n, _)| n.chars().all(|c| c.is_ascii_digit())) => base.to_string(),
+        _ => v.to_string(),
+    }
 }
 
 fn hero(page: &Page) -> Hero {
@@ -88,6 +133,8 @@ fn hero(page: &Page) -> Hero {
     grid.set_row_spacing(12);
     let omarchy = cmd::output(&["omarchy-version"]).unwrap_or_default();
     let channel = cmd::output(&["omarchy-version-channel"]).unwrap_or_default();
+    let full_version = omarchy.clone();
+    let omarchy = short_version(&omarchy);
     let omarchy = match (omarchy.is_empty(), channel.is_empty()) {
         (true, _) => "—".to_string(),
         (false, true) => omarchy,
@@ -97,7 +144,10 @@ fn hero(page: &Page) -> Hero {
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
         .and_then(|v| v.get("tag").and_then(|x| x.as_str()).map(String::from))
         .unwrap_or_else(|| "—".into());
-    fact(&grid, 0, "Omarchy", &omarchy);
+    let v = fact(&grid, 0, "Omarchy", &omarchy);
+    if !full_version.is_empty() {
+        v.set_tooltip_text(Some(&full_version));
+    }
     fact(&grid, 1, "Memory", &sysinfo::bytes_text(sysinfo::memory().total));
     fact(&grid, 2, "Kernel", &cmd::output(&["uname", "-r"]).unwrap_or_default());
     fact(&grid, 3, "Processor", &sysinfo::cpu_model());
@@ -180,6 +230,7 @@ fn tiles(page: &Page) -> Tiles {
         b.ring.warn_when_low();
     }
     let temp = sysinfo::cpu_temp().map(|_| tile(&flow, "Temperature", None));
+    balance_rows(&flow);
     let wrap = widgets::vbox(0);
     wrap.add_css_class("home-block");
     wrap.append(&flow);
@@ -661,4 +712,24 @@ pub fn build(page: &Page) {
     storage(page, disk);
     updates_group(page, hero);
     quick_actions(page);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn even_rows() {
+        assert_eq!(balanced_per_line(5, 5), 5);
+        assert_eq!(balanced_per_line(5, 4), 3);
+        assert_eq!(balanced_per_line(5, 2), 2);
+        assert_eq!(balanced_per_line(4, 3), 2);
+        assert_eq!(balanced_per_line(3, 9), 3);
+    }
+
+    #[test]
+    fn versions() {
+        assert_eq!(short_version("4.0.0.r6694.g821ae58"), "4.0.0");
+        assert_eq!(short_version("3.1.2"), "3.1.2");
+    }
 }

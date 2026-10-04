@@ -270,7 +270,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             title: "Night Light",
             icon: "night-light-symbolic",
             group: "Personalization",
-            description: "Warmer colours in the evening with hyprsunset.",
+            description: "Warmer colors in the evening with hyprsunset.",
             keywords: "hyprsunset blue light temperature warm evening schedule",
             files: || hypr(&["hyprsunset.conf"]),
             build: Build::Native(nightlight::build),

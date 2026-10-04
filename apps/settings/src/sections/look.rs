@@ -4,7 +4,7 @@ use crate::widgets::{self, Page, hypr_slider, hypr_switch};
 
 pub fn build(page: &Page) {
     let g = page.group("Spacing");
-    g.add(&hypr_slider("general.gaps_in", "Inner gaps", "Space between neighbouring windows.", (0.0, 40.0, 1.0), 0, " px", true));
+    g.add(&hypr_slider("general.gaps_in", "Inner gaps", "Space between neighboring windows.", (0.0, 40.0, 1.0), 0, " px", true));
     g.add(&hypr_slider(
         "general.gaps_out",
         "Outer gaps",
@@ -44,7 +44,7 @@ pub fn build(page: &Page) {
     g.add(&hypr_slider(
         "decoration.blur.vibrancy",
         "Vibrancy",
-        "Colour saturation of the blurred background.",
+        "Color saturation of the blurred background.",
         (0.0, 1.0, 0.01),
         2,
         "",

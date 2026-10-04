@@ -328,7 +328,7 @@ pub fn build(page: &Page) {
     past_last.append(&r);
     g.add(&past_last);
     let (r, _) = widgets::switch_row(
-        "Keep swiping past neighbours",
+        "Keep swiping past neighbors",
         "Swipe through several workspaces in one go.",
         forever.unwrap_or(false),
         |on| store::update(true, |s| s.gestures.swipe_forever = Some(on)),

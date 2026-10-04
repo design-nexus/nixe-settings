@@ -57,7 +57,7 @@ pub fn helper(args: &[&str], stdin: Option<&str>) -> Result<String> {
     match output.status.code() {
         Some(0) => Ok(out),
         // pkexec: 126 is a dismissed prompt, 127 a failed authentication.
-        Some(126) | Some(127) => bail!("Cancelled"),
+        Some(126) | Some(127) => bail!("Canceled"),
         _ => bail!("{}", if err.trim().is_empty() { "The change failed" } else { err.trim() }),
     }
 }

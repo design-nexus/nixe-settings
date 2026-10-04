@@ -1,5 +1,6 @@
-//! The main window: navigation sidebar with search, and a stack of
-//! section pages that are built the first time they're shown.
+//! The main window: a top bar (sidebar toggle, where you are, the page's
+//! config files, search, close), the navigation sidebar, a stack of section
+//! pages built the first time they're shown, and a status bar.
 
 use crate::sections::{self, Section};
 use crate::widgets::{self, SEARCH};
@@ -26,9 +27,15 @@ struct Ui {
     sections: Vec<Section>,
     current: &'static str,
     overlay: gtk::Overlay,
-    /// Shown instead of the search entry in the icon-only sidebar.
-    search_icon: gtk::Button,
     collapse_button: gtk::Button,
+    /// Where you are, in the top bar: the page's group and its name.
+    crumb_group: gtk::Label,
+    crumb_group_sep: gtk::Label,
+    crumb: gtk::Label,
+    /// Holds the current page's "open the config file" button.
+    edit: gtk::Box,
+    /// The page's description, in the status bar.
+    status: gtk::Label,
     /// The "nothing matches" page's message.
     empty_label: gtk::Label,
     /// The toast on screen, if any: a new one replaces it.
@@ -37,11 +44,6 @@ struct Ui {
 
 /// The stack page shown when a search finds nothing.
 const EMPTY_PAGE: &str = "__no-results";
-
-thread_local! {
-    /// The icon-only sidebar was opened just to search.
-    static TEMP_EXPANDED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-}
 
 fn search_empty_page() -> (gtk::Box, gtk::Label) {
     let page = gtk::Box::new(gtk::Orientation::Vertical, 8);
@@ -60,20 +62,16 @@ fn search_empty_page() -> (gtk::Box, gtk::Label) {
     (page, title)
 }
 
-/// Focus the search entry, opening the icon-only sidebar for now if need be.
+/// Show the search field in the top bar and put the cursor in it.
 fn focus_search(search: &gtk::SearchEntry) {
-    let compact = ui().is_some_and(|u| u.borrow().compact.get());
-    if compact {
-        TEMP_EXPANDED.with(|t| t.set(true));
-        apply_compact(false);
-    }
+    search.set_visible(true);
     search.grab_focus();
 }
 
-fn end_temporary_expand() {
-    if TEMP_EXPANDED.with(|t| t.replace(false)) {
-        apply_compact(NARROW.with(|n| n.get()) || prefs::get().sidebar_collapsed);
-    }
+/// Clear the search and put the field away.
+fn close_search(search: &gtk::SearchEntry) {
+    search.set_text("");
+    search.set_visible(false);
 }
 
 thread_local! {
@@ -148,44 +146,7 @@ fn build(app: &gtk::Application) {
     nav.add_css_class("settings-navigation");
     // Labels inside expand; don't let that widen the sidebar itself.
     nav.set_hexpand(false);
-    let heading = widgets::hbox(10);
-    let logo = gtk::Image::from_icon_name("io.github.design_nexus.Settings");
-    logo.set_pixel_size(22);
-    heading.append(&logo);
-    heading.append(&widgets::label("Settings", "menu-heading"));
-    heading.set_hexpand(true);
-    let mut compact_hide: Vec<gtk::Widget> = vec![heading.clone().upcast()];
-    let (head, collapse_button) = nav_head(&heading);
-    nav.append(&head);
-
-    let search = gtk::SearchEntry::new();
-    search.set_placeholder_text(Some("Search settings"));
-    search.add_css_class("settings-search");
-    nav.append(&search);
-    compact_hide.push(search.clone().upcast());
-
-    // The icon-only sidebar keeps a way to search: it opens the sidebar for now.
-    let search_icon = gtk::Button::from_icon_name("system-search-symbolic");
-    search_icon.add_css_class("nav-search");
-    search_icon.set_tooltip_text(Some("Search settings (Ctrl+F)"));
-    search_icon.set_halign(gtk::Align::Center);
-    search_icon.set_visible(false);
-    {
-        let search = search.clone();
-        search_icon.connect_clicked(move |_| focus_search(&search));
-    }
-    nav.append(&search_icon);
-    // Back to icons once the search is done with.
-    let focus = gtk::EventControllerFocus::new();
-    {
-        let search = search.clone();
-        focus.connect_leave(move |_| {
-            if search.text().is_empty() {
-                end_temporary_expand();
-            }
-        });
-    }
-    search.add_controller(focus);
+    let compact_hide: Vec<gtk::Widget> = Vec::new();
 
     let list = gtk::Box::new(gtk::Orientation::Vertical, 0);
     let (nav_items, nav_groups, compact_items) = fill_nav(&list, &sections);
@@ -198,14 +159,6 @@ fn build(app: &gtk::Application) {
         .build();
     nav.append(&nav_scroll);
 
-    let footer = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    footer.add_css_class("nav-footer");
-    let version = widgets::label(concat!("Settings ", env!("CARGO_PKG_VERSION")), "dim");
-    version.set_hexpand(true);
-    footer.append(&version);
-    nav.append(&footer);
-    compact_hide.push(footer.clone().upcast());
-
     // ----- Content -----
     let stack = gtk::Stack::new();
     stack.add_css_class("settings-content");
@@ -216,11 +169,83 @@ fn build(app: &gtk::Application) {
     stack.add_named(&empty, Some(EMPTY_PAGE));
 
     let body = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    body.set_vexpand(true);
     body.append(&nav);
     body.append(&stack);
 
+    // ----- Top bar: the sidebar toggle and where you are; the page's config
+    // files, search and close -----
+    let top = widgets::hbox(4);
+    top.add_css_class("top-bar");
+    let collapse_button = widgets::bar_button("sidebar-show-symbolic", "Collapse the sidebar (Ctrl+B)");
+    collapse_button.connect_clicked(|_| toggle_sidebar());
+    top.append(&collapse_button);
+    let crumbs = widgets::hbox(10);
+    crumbs.add_css_class("crumbs");
+    crumbs.append(&widgets::label("Settings", "crumb-root"));
+    crumbs.append(&widgets::label("/", "crumb-sep"));
+    let crumb_group = widgets::label("", "crumb-root");
+    crumbs.append(&crumb_group);
+    let crumb_group_sep = widgets::label("/", "crumb-sep");
+    crumbs.append(&crumb_group_sep);
+    let crumb = widgets::label("", "crumb");
+    crumb.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    crumbs.append(&crumb);
+    crumbs.set_hexpand(true);
+    top.append(&crumbs);
+    let edit = widgets::hbox(0);
+    top.append(&edit);
+    let search = gtk::SearchEntry::new();
+    search.set_placeholder_text(Some("Search settings"));
+    search.add_css_class("bar-search");
+    search.set_width_chars(26);
+    search.set_visible(false);
+    top.append(&search);
+    let find = widgets::bar_button("system-search-symbolic", "Search settings (Ctrl+F)");
+    {
+        let search = search.clone();
+        find.connect_clicked(move |_| {
+            if search.is_visible() && search.text().is_empty() {
+                search.set_visible(false);
+            } else {
+                focus_search(&search);
+            }
+        });
+    }
+    top.append(&find);
+    let close = widgets::bar_button("window-close-symbolic", "Close (Ctrl+Q)");
+    {
+        let w = window.clone();
+        close.connect_clicked(move |_| w.close());
+    }
+    top.append(&close);
+
+    // ----- Status bar: the shortcuts, and what the page is for -----
+    let status_bar = widgets::hbox(16);
+    status_bar.add_css_class("status-bar");
+    let help = gtk::Button::new();
+    help.add_css_class("status-help");
+    let help_content = widgets::hbox(10);
+    help_content.append(&widgets::label("F1", "status-key"));
+    help_content.append(&widgets::label("Shortcuts", ""));
+    help.set_child(Some(&help_content));
+    help.set_tooltip_text(Some("Show the keyboard shortcuts"));
+    help.connect_clicked(|_| show_shortcuts());
+    status_bar.append(&help);
+    let status = widgets::label("", "status-readout");
+    status.set_hexpand(true);
+    status.set_xalign(1.0);
+    status.set_ellipsize(gtk::pango::EllipsizeMode::End);
+    status_bar.append(&status);
+
+    let frame = widgets::vbox(0);
+    frame.add_css_class("window-frame");
+    frame.append(&top);
+    frame.append(&body);
+    frame.append(&status_bar);
+
     let overlay = gtk::Overlay::new();
-    overlay.set_child(Some(&body));
+    overlay.set_child(Some(&frame));
     window.set_child(Some(&overlay));
 
     // ----- Keys -----
@@ -232,6 +257,10 @@ fn build(app: &gtk::Application) {
         match key {
             gdk::Key::f if ctrl => {
                 focus_search(&s2);
+                glib::Propagation::Stop
+            }
+            gdk::Key::F1 => {
+                show_shortcuts();
                 glib::Propagation::Stop
             }
             gdk::Key::b if ctrl => {
@@ -250,12 +279,8 @@ fn build(app: &gtk::Application) {
                 w2.close();
                 glib::Propagation::Stop
             }
-            gdk::Key::Escape if !s2.text().is_empty() => {
-                s2.set_text("");
-                glib::Propagation::Stop
-            }
-            gdk::Key::Escape if TEMP_EXPANDED.with(|t| t.get()) => {
-                end_temporary_expand();
+            gdk::Key::Escape if s2.is_visible() => {
+                close_search(&s2);
                 glib::Propagation::Stop
             }
             _ => glib::Propagation::Proceed,
@@ -320,8 +345,12 @@ fn build(app: &gtk::Application) {
         sections,
         current: "",
         overlay,
-        search_icon,
         collapse_button,
+        crumb_group,
+        crumb_group_sep,
+        crumb,
+        edit,
+        status,
         empty_label,
         toast: None,
     };
@@ -554,18 +583,58 @@ fn apply_width(w: &gtk::ApplicationWindow) {
     apply_compact(narrow || prefs::get().sidebar_collapsed);
 }
 
-/// The button that collapses the sidebar to icons, beside the app heading.
-fn nav_head(heading: &gtk::Box) -> (gtk::Box, gtk::Button) {
-    let row = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    row.add_css_class("nav-head");
-    row.append(heading);
-    let button = gtk::Button::from_icon_name("sidebar-show-symbolic");
-    button.add_css_class("nav-collapse");
-    button.set_tooltip_text(Some("Collapse the sidebar (Ctrl+B)"));
-    button.set_valign(gtk::Align::Center);
-    button.connect_clicked(|_| toggle_sidebar());
-    row.append(&button);
-    (row, button)
+/// Every keyboard shortcut, for the shortcuts dialog.
+pub const SHORTCUTS: &[(&[&str], &str)] = &[
+    (&["Ctrl", "F"], "Search settings"),
+    (&["↑ / ↓"], "Previous or next result, while searching"),
+    (&["Enter"], "Go to the result shown"),
+    (&["Esc"], "Clear the search"),
+    (&["Alt", "←"], "Back to the page before"),
+    (&["Alt", "→"], "Forward again"),
+    (&["Ctrl", "B"], "Collapse or expand the sidebar"),
+    (&["F1"], "Show these shortcuts"),
+    (&["Ctrl", "Q"], "Close (Ctrl+W too)"),
+];
+
+pub fn show_shortcuts() {
+    let Some(win) = window() else { return };
+    let dialog = gtk::Window::builder().transient_for(&win).modal(true).title("Keyboard shortcuts").default_width(480).build();
+    dialog.add_css_class("settings-window");
+    dialog.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
+    let card = widgets::vbox(12);
+    card.add_css_class("dialog-card");
+    card.append(&widgets::label("Keyboard shortcuts", "dialog-title"));
+    dialog.set_child(Some(&card));
+    let keys = gtk::EventControllerKey::new();
+    let d = dialog.clone();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        if key == gdk::Key::Escape {
+            d.close();
+            return glib::Propagation::Stop;
+        }
+        glib::Propagation::Proceed
+    });
+    dialog.add_controller(keys);
+    let list = widgets::vbox(0);
+    list.add_css_class("settings-card");
+    for (keys, what) in SHORTCUTS {
+        let caps = widgets::hbox(4);
+        for (i, k) in keys.iter().enumerate() {
+            if i > 0 {
+                caps.append(&widgets::label("+", "dim"));
+            }
+            caps.append(&widgets::label(k, "key-cap"));
+        }
+        list.append(&widgets::row(what, "", Some(caps.upcast_ref())));
+    }
+    widgets::mark_first_rows(list.upcast_ref());
+    card.append(&list);
+    let close = gtk::Button::with_label("Close");
+    close.set_halign(gtk::Align::End);
+    let d = dialog.clone();
+    close.connect_clicked(move |_| d.close());
+    card.append(&close);
+    dialog.present();
 }
 
 /// The sidebar shows only icons: hide the labels, centre the icons and the toggle.
@@ -581,7 +650,6 @@ fn apply_compact(compact: bool) {
     for wdg in u.compact_fixed.iter().chain(&u.compact_items) {
         wdg.set_visible(!compact);
     }
-    u.search_icon.set_visible(compact);
     show_dividers(&u.nav_list, compact);
     u.collapse_button.set_tooltip_text(Some(if compact { "Expand the sidebar (Ctrl+B)" } else { "Collapse the sidebar (Ctrl+B)" }));
     centre_icons(u.nav.upcast_ref(), compact);
@@ -607,10 +675,6 @@ fn centre_icons(w: &gtk::Widget, compact: bool) {
     {
         content.set_halign(if compact { gtk::Align::Center } else { gtk::Align::Fill });
     }
-    if w.has_css_class("nav-collapse") {
-        w.set_halign(if compact { gtk::Align::Center } else { gtk::Align::End });
-        w.set_hexpand(compact);
-    }
     let mut child = w.first_child();
     while let Some(c) = child {
         centre_icons(&c, compact);
@@ -619,7 +683,6 @@ fn centre_icons(w: &gtk::Widget, compact: bool) {
 }
 
 pub fn toggle_sidebar() {
-    TEMP_EXPANDED.with(|t| t.set(false));
     prefs::update(|p| p.sidebar_collapsed = !p.sidebar_collapsed);
     apply_compact(NARROW.with(|n| n.get()) || prefs::get().sidebar_collapsed);
 }
@@ -701,7 +764,7 @@ fn ensure_built(id: &'static str) {
     };
     let Some(section) = section else { return };
     let sid = section.id;
-    let page = widgets::page(sid, section.title, section.description, &section.config_files());
+    let page = widgets::page(sid);
     section.run(&page);
     mark_page(&page.root, NARROW.with(|n| n.get()));
     let stack = ui.borrow().stack.clone();
@@ -781,6 +844,20 @@ pub fn navigate(id: &str) {
     }
     u.stack.set_visible_child_name(id);
     u.current = id;
+    if let Some(s) = u.sections.iter().find(|s| s.id == id) {
+        u.crumb.set_text(s.title);
+        u.crumb_group.set_text(s.group);
+        u.crumb_group.set_visible(!s.group.is_empty());
+        u.crumb_group_sep.set_visible(!s.group.is_empty());
+        u.status.set_text(s.description);
+        while let Some(c) = u.edit.first_child() {
+            u.edit.remove(&c);
+        }
+        let files = s.config_files();
+        if !files.is_empty() {
+            u.edit.append(&widgets::config_button(&files));
+        }
+    }
     let window = u.window.clone();
     drop(u);
     prefs::update(|p| p.last_section = id.to_string());

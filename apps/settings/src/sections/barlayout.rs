@@ -226,7 +226,7 @@ fn widget_row(ed: &Ed, slot: Slot, name: &str, len: usize, anchor: bool, size: i
     let title_line = widgets::hbox(8);
     title_line.append(&widgets::label(name, "bar-item-name"));
     if anchor {
-        let t = widgets::tag("Centred");
+        let t = widgets::tag("Centered");
         t.set_tooltip_text(Some("The bar keeps this widget in the middle of the screen."));
         title_line.append(&t);
     }

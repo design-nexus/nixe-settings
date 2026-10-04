@@ -241,7 +241,7 @@ pub fn build(page: &Page) {
         let dd = theme_dd.clone();
         let (r, _) = widgets::switch_row(
             "Follow Omarchy theme",
-            "Match the desktop's colours and update live whenever the Omarchy theme changes.",
+            "Match the desktop's colors and update live whenever the Omarchy theme changes.",
             p.mode == prefs::ThemeMode::Omarchy,
             move |on| {
                 prefs::update(|p| p.mode = if on { prefs::ThemeMode::Omarchy } else { prefs::ThemeMode::Theme });
@@ -282,7 +282,7 @@ pub fn build(page: &Page) {
         }
         glib::ControlFlow::Continue
     });
-    g.add(&widgets::row("Current colours", "", Some(swatches.upcast_ref())));
+    g.add(&widgets::row("Current colors", "", Some(swatches.upcast_ref())));
 
     let (r, _) = widgets::switch_row("Glow", "Soft accent glow around focused and selected elements.", p.glow, |on| {
         prefs::update(|p| p.glow = on);
@@ -353,7 +353,7 @@ fn apps_group(page: &Page) {
         g.add(&r);
         return;
     }
-    g.note("Windows and dialogs in other apps use the Omarchy theme's colours, and change with it. Powered by hyprchroma.");
+    g.note("Windows and dialogs in other apps use the Omarchy theme's colors, and change with it. Powered by hyprchroma.");
 
     let st = chroma::state();
     let status_row = widgets::row("Status", &status_text(&st), None);
@@ -486,7 +486,7 @@ fn apps_group(page: &Page) {
         "Undo hyprchroma's changes to GTK and KDE files and put back the default styling. Sync again to re-theme.",
         Some(b.upcast_ref()),
     ));
-    let source = widgets::row("Colours from", "", None);
+    let source = widgets::row("Colors from", "", None);
     content.append(&source);
     cmd::background(chroma::palette_source, move |src| {
         if let Some(t) = source.first_child()

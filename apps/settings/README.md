@@ -22,7 +22,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 
   ![Settings: Home](docs/home.png)
 
-- **Organised and searchable**: pages are grouped into Connections, Hardware,
+- **Organized and searchable**: pages are grouped into Connections, Hardware,
   Personalization, Desktop, Input, Accounts and System. Each group of settings
   sits on one card, and less-used groups fold away until you open them.
   <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
@@ -37,7 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   or reset; **Export** and **Import** move all of Settings' settings to
   another computer as one file.
 - **Apps follow the theme**: GTK, libadwaita, Qt and KDE windows and dialogs
-  take the Omarchy theme's colours (through
+  take the Omarchy theme's colors (through
   [hyprchroma](https://github.com/NobleDoodle/hyprchroma), if installed), plus
   the interface font and an icon theme that stays put when you change themes.
 - **Units**: show temperatures in °C or °F (Appearance → Settings window).
@@ -102,7 +102,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   - **ASUS** (needs `asusctl`): performance profiles, battery charge limit, a
     **fan curve graph** you drag (per profile and fan, with presets), firmware
     settings such as GPU mode and panel overdrive, and CPU/GPU power limits. Plus
-    **Aura Lighting**: effects, an inline colour picker, **Follow Omarchy theme**
+    **Aura Lighting**: effects, an inline color picker, **Follow Omarchy theme**
     (keeps your effect across theme changes), which power states light the
     keyboard, the **Slash lightbar**, AniMe Matrix, XG Mobile light and drive lights.
   - **Logitech**: battery, pointer speed, scrolling, buttons, backlight,

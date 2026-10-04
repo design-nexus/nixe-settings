@@ -85,7 +85,7 @@ pub fn build(page: &Page) {
 
     let g = page.group("Now");
     let (r, _) =
-        widgets::switch_row("Night light", "Warm the screen colours right away. Also in the Omarchy menu.", on_now, |_| {
+        widgets::switch_row("Night light", "Warm the screen colors right away. Also in the Omarchy menu.", on_now, |_| {
             cmd::spawn(&["omarchy-toggle-nightlight"])
         });
     g.add(&r);

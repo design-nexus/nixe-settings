@@ -67,31 +67,15 @@ pub struct Page {
     pub body: gtk::Box,
 }
 
-pub fn page(section: &str, title: &str, description: &str, files: &[PathBuf]) -> Page {
+/// A page. Its name shows in the top bar and its description in the status
+/// bar, so the page itself starts straight with its content.
+pub fn page(section: &str) -> Page {
     CURRENT_SECTION.with(|s| *s.borrow_mut() = section.to_string());
     CURRENT_GROUP.with(|g| *g.borrow_mut() = None);
 
     let body = gtk::Box::new(gtk::Orientation::Vertical, 0);
     body.add_css_class("settings-page");
-
-    let header = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-    header.add_css_class("section-header");
-    let text = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    text.set_hexpand(true);
-    let t = gtk::Label::new(Some(title));
-    t.add_css_class("section-title");
-    t.set_xalign(0.0);
-    let d = gtk::Label::new(Some(description));
-    d.add_css_class("section-description");
-    d.set_xalign(0.0);
-    d.set_wrap(true);
-    text.append(&t);
-    text.append(&d);
-    header.append(&text);
-    if !files.is_empty() {
-        header.append(&open_config_button(files));
-    }
-    body.append(&header);
+    body.add_css_class(&format!("page-{section}"));
 
     body.set_hexpand(true);
 
@@ -127,7 +111,7 @@ impl Page {
         wrapper.add_css_class("settings-group");
         let head = gtk::Box::new(gtk::Orientation::Vertical, 0);
         if !title.is_empty() {
-            let l = gtk::Label::new(Some(title));
+            let l = gtk::Label::new(Some(&title.to_uppercase()));
             l.add_css_class("group-title");
             l.set_xalign(0.0);
             head.append(&l);
@@ -430,29 +414,21 @@ pub fn reveal_for_search(wrapper: Option<&gtk::Widget>) {
     });
 }
 
-// ---------- Open config ----------
+// ---------- Config files and bar buttons ----------
 
-pub fn open_config_button(files: &[PathBuf]) -> gtk::Widget {
-    let make_content = || {
-        let b = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        b.append(&gtk::Image::from_icon_name("text-editor-symbolic"));
-        b.append(&gtk::Label::new(Some("Open config")));
-        b
-    };
-    if files.len() == 1 {
-        let path = files[0].clone();
-        let button = gtk::Button::new();
-        button.set_child(Some(&make_content()));
-        button.add_css_class("open-config");
-        button.set_valign(gtk::Align::Center);
-        button.set_tooltip_text(Some(&paths::pretty(&path)));
-        button.connect_clicked(move |_| cmd::open_in_editor(&path));
-        return button.upcast();
+/// Opens a page's config file; a menu picks one when there are several.
+pub fn config_button(files: &[PathBuf]) -> gtk::Widget {
+    if let [path] = files {
+        let path = path.clone();
+        let b = bar_button("text-editor-symbolic", &format!("Open {}", paths::pretty(&path)));
+        b.connect_clicked(move |_| cmd::open_in_editor(&path));
+        return b.upcast();
     }
     let menu = gtk::MenuButton::new();
-    menu.set_child(Some(&make_content()));
-    menu.add_css_class("open-config");
+    menu.set_icon_name("text-editor-symbolic");
+    menu.add_css_class("bar-button");
     menu.set_valign(gtk::Align::Center);
+    menu.set_tooltip_text(Some("Open a config file"));
     let list = gtk::Box::new(gtk::Orientation::Vertical, 2);
     let popover = gtk::Popover::new();
     for path in files {
@@ -460,7 +436,6 @@ pub fn open_config_button(files: &[PathBuf]) -> gtk::Widget {
         b.add_css_class("flat");
         if let Some(label) = b.child().and_downcast::<gtk::Label>() {
             label.set_xalign(0.0);
-            label.add_css_class("mono");
         }
         let p = path.clone();
         let pop = popover.clone();
@@ -473,6 +448,15 @@ pub fn open_config_button(files: &[PathBuf]) -> gtk::Widget {
     popover.set_child(Some(&list));
     menu.set_popover(Some(&popover));
     menu.upcast()
+}
+
+/// A flat icon button for the top bar and dialog headers.
+pub fn bar_button(icon: &str, tooltip: &str) -> gtk::Button {
+    let b = gtk::Button::from_icon_name(icon);
+    b.add_css_class("bar-button");
+    b.set_tooltip_text(Some(tooltip));
+    b.set_valign(gtk::Align::Center);
+    b
 }
 
 // ---------- Rows ----------
@@ -1142,7 +1126,7 @@ pub fn colour_picker(current: &str, theme: Option<(&str, &str)>, on_change: impl
     // Custom: the full picker.
     let custom = gtk::Button::from_icon_name("color-select-symbolic");
     custom.add_css_class("swatch-button");
-    custom.set_tooltip_text(Some("Custom colour…"));
+    custom.set_tooltip_text(Some("Custom color…"));
     {
         let pick = pick.clone();
         let entry = entry.clone();

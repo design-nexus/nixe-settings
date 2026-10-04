@@ -29,13 +29,13 @@ pub const TARGETS: &[Target] = &[
         cli: "qt-kde",
         key: "qtKde",
         title: "Qt & KDE apps",
-        desc: "KDE apps and Qt apps using KDE colour schemes. Other Qt apps follow GTK already.",
+        desc: "KDE apps and Qt apps using KDE color schemes. Other Qt apps follow GTK already.",
     },
     Target {
         cli: "dark-reader",
         key: "darkReader",
         title: "Web pages (Dark Reader)",
-        desc: "Recolours websites in the theme. Needs the Dark Reader browser extension.",
+        desc: "Recolors websites in the theme. Needs the Dark Reader browser extension.",
     },
     Target { cli: "pear", key: "pear", title: "YouTube Music (Pear Desktop)", desc: "Themes the Pear Desktop app." },
 ];

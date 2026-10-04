@@ -135,9 +135,14 @@ fn existing_binds() -> Vec<Existing> {
         .iter()
         .filter(|b| !b.get("mouse").and_then(|m| m.as_bool()).unwrap_or(false))
         .filter_map(|b| {
-            let key = b.get("key")?.as_str()?.to_string();
+            let mut key = b.get("key")?.as_str()?.to_string();
+            // Number-row binds are made by keycode, with no key name.
             if key.is_empty() {
-                return None;
+                let code = b.get("keycode").and_then(|c| c.as_u64()).unwrap_or(0);
+                if code == 0 {
+                    return None;
+                }
+                key = format!("code:{code}");
             }
             let mask = b.get("modmask")?.as_u64()?;
             let description = b.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
@@ -213,6 +218,30 @@ pub fn build(page: &Page) {
     keys_line.append(&keys);
     keys_line.append(&recorder(&keys));
     form.append(&keys_line);
+    // Say when the keys already do something.
+    let clash = widgets::label("", "clash-warning");
+    clash.set_wrap(true);
+    clash.set_visible(false);
+    form.append(&clash);
+    {
+        let taken: Vec<(String, String)> = existing_binds()
+            .into_iter()
+            .map(|e| (e.keys, e.description))
+            .chain(custom.iter().enumerate().filter(|(i, _)| Some(*i) != editing).map(|(_, b)| (normalise(&b.keys), if b.description.is_empty() { b.command.clone() } else { b.description.clone() })))
+            .collect();
+        let clash = clash.clone();
+        keys.connect_changed(move |e| {
+            let k = normalise(&e.text());
+            match taken.iter().find(|(keys, _)| !k.is_empty() && keys.eq_ignore_ascii_case(&k)) {
+                Some((_, what)) => {
+                    let what = if what.is_empty() { "another shortcut".to_string() } else { format!("“{what}”") };
+                    clash.set_text(&format!("These keys already do {what}. Yours will replace it."));
+                    clash.set_visible(true);
+                }
+                None => clash.set_visible(false),
+            }
+        });
+    }
     let desc = gtk::Entry::new();
     desc.set_placeholder_text(Some("What it does (shown in the keybindings menu)"));
     if let Some(b) = &current {
@@ -292,29 +321,82 @@ pub fn build(page: &Page) {
     }
 
     // ----- Everything else -----
-    let g = page.collapsible("All shortcuts", false);
-    g.note("Switch one off to free its keys. Search above filters this list too.");
-    for e in existing_binds() {
-        let content = widgets::hbox(12);
-        content.append(&caps(&e.keys));
-        let sw = gtk::Switch::new();
-        sw.set_active(true);
-        sw.set_valign(gtk::Align::Center);
-        let k = e.keys.clone();
-        sw.connect_active_notify(move |sw| {
-            let on = sw.is_active();
-            let k = k.clone();
-            store::update(true, |s| {
-                s.unbinds.retain(|u| *u != k);
-                if !on {
-                    s.unbinds.push(k);
-                }
+    let existing = existing_binds();
+    let filter = gtk::SearchEntry::new();
+    filter.set_placeholder_text(Some(&format!("Filter {} shortcuts", existing.len())));
+    filter.add_css_class("shortcut-filter");
+    let g = page.plain_group("All shortcuts");
+    g.note("Switch one off to free its keys for something else.");
+    g.add(&filter);
+    let mut rows: Vec<(gtk::Box, String)> = Vec::new();
+    let mut cards: Vec<(gtk::Box, Vec<usize>)> = Vec::new();
+    for cat in CATEGORIES {
+        let in_cat: Vec<&Existing> = existing.iter().filter(|e| category(&e.description, &e.keys) == *cat).collect();
+        if in_cat.is_empty() {
+            continue;
+        }
+        let g = page.group(cat);
+        let mut mine = Vec::new();
+        for e in in_cat {
+            let content = widgets::hbox(12);
+            content.append(&caps(&e.keys));
+            let sw = gtk::Switch::new();
+            sw.set_active(true);
+            sw.set_valign(gtk::Align::Center);
+            sw.set_tooltip_text(Some("Off frees these keys"));
+            let k = e.keys.clone();
+            sw.connect_active_notify(move |sw| {
+                let on = sw.is_active();
+                let k = k.clone();
+                store::update(true, |s| {
+                    s.unbinds.retain(|u| *u != k);
+                    if !on {
+                        s.unbinds.push(k);
+                    }
+                });
             });
-        });
-        content.append(&sw);
-        let title = if e.description.is_empty() { e.keys.clone() } else { e.description.clone() };
-        g.add(&widgets::row(&title, "", Some(content.upcast_ref())));
-        widgets::keywords(&e.keys);
+            content.append(&sw);
+            let title = if e.description.is_empty() { e.keys.clone() } else { e.description.clone() };
+            let row = widgets::row(&title, "", Some(content.upcast_ref()));
+            g.add(&row);
+            widgets::keywords(&e.keys);
+            mine.push(rows.len());
+            rows.push((row, crate::search::normalise(&format!("{title} {} {cat}", e.keys))));
+        }
+        cards.push((g.wrapper.clone(), mine));
+    }
+    filter.connect_search_changed(move |f| {
+        let terms = crate::search::terms(&f.text());
+        for (row, text) in &rows {
+            row.set_visible(terms.is_empty() || crate::search::matches(text, &terms));
+        }
+        for (card, idx) in &cards {
+            card.set_visible(idx.iter().any(|i| rows[*i].0.is_visible()));
+            widgets::mark_first_rows(card.upcast_ref());
+        }
+    });
+}
+
+/// The groups the full list is split into, in order.
+const CATEGORIES: &[&str] = &["Apps & menus", "Windows", "Workspaces & monitors", "Screenshots & recording", "Media & hardware"];
+
+/// Which group a shortcut goes in, by what it says it does and its key.
+fn category(description: &str, keys: &str) -> &'static str {
+    let d = description.to_lowercase();
+    let has = |words: &[&str]| words.iter().any(|w| d.contains(w));
+    if keys.contains("XF86") || has(&["volume", "brightness", "mute", "media", "play", "pause", "track", "backlight", "microphone"]) {
+        "Media & hardware"
+    } else if has(&["screenshot", "screen record", "recording", "color picker", "colour picker", "ocr", "qr code", "capture"]) {
+        "Screenshots & recording"
+    } else if has(&["workspace", "monitor"]) {
+        "Workspaces & monitors"
+    } else if has(&[
+        "window", "focus", "full screen", "fullscreen", "float", "group", "split", "resize", "grow", "shrink", "swap", "pin", "close", "kill",
+        "pseudo", "tile", "move", "scratchpad", "transparen", "width",
+    ]) {
+        "Windows"
+    } else {
+        "Apps & menus"
     }
 }
 
@@ -326,6 +408,15 @@ mod tests {
     fn builds_keys_from_modmask() {
         assert_eq!(keys_string(64 | 1, "W"), "SUPER + SHIFT + W");
         assert_eq!(keys_string(0, "XF86AudioMute"), "XF86AudioMute");
+    }
+
+    #[test]
+    fn sorts_into_groups() {
+        assert_eq!(category("Mute", "XF86AudioMute"), "Media & hardware");
+        assert_eq!(category("Full screen", "SUPER + F"), "Windows");
+        assert_eq!(category("Move window to workspace 1", "SUPER + SHIFT + code:10"), "Workspaces & monitors");
+        assert_eq!(category("Color picker", "SUPER + PRINT"), "Screenshots & recording");
+        assert_eq!(category("Browser (private)", "SUPER + ALT + SHIFT + B"), "Apps & menus");
     }
 
     #[test]

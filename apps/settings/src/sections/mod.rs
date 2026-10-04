@@ -10,6 +10,7 @@ use std::rc::Rc;
 pub mod about;
 pub mod accounts;
 pub mod apps;
+pub mod arrange;
 pub mod audio;
 pub mod bar;
 pub mod boot;
@@ -198,6 +199,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             visible: always,
         },
         Section {
+            id: "idle",
+            title: "Lock Screen",
+            icon: "system-lock-screen-symbolic",
+            group: "Hardware",
+            description: "When the screensaver starts, the screen locks and the computer sleeps.",
+            keywords: "idle screensaver lock sleep suspend timeout stay awake idle inhibit",
+            files: || vec![paths::shell_json()],
+            build: Build::Native(idle::build),
+            visible: always,
+        },
+        Section {
             id: "printers",
             title: "Printers",
             icon: "printer-symbolic",
@@ -243,6 +255,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             visible: always,
         },
         Section {
+            id: "plugins",
+            title: "Bar Plugins",
+            icon: "package-x-generic-symbolic",
+            group: "Personalization",
+            description: "Omarchy shell plugins: turn them on or off and keep them updated.",
+            keywords: "plugins extensions widgets bar update enable disable remove",
+            files: || vec![paths::shell_json()],
+            build: Build::Native(plugins::build),
+            visible: always,
+        },
+        Section {
             id: "nightlight",
             title: "Night Light",
             icon: "night-light-symbolic",
@@ -251,17 +274,6 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "hyprsunset blue light temperature warm evening schedule",
             files: || hypr(&["hyprsunset.conf"]),
             build: Build::Native(nightlight::build),
-            visible: always,
-        },
-        Section {
-            id: "idle",
-            title: "Lock Screen",
-            icon: "system-lock-screen-symbolic",
-            group: "Personalization",
-            description: "When the screensaver starts, the screen locks and the computer sleeps.",
-            keywords: "idle screensaver lock sleep suspend timeout stay awake idle inhibit",
-            files: || vec![paths::shell_json()],
-            build: Build::Native(idle::build),
             visible: always,
         },
         // ----- Desktop -----
@@ -355,17 +367,6 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             build: Build::Native(accounts::build),
             visible: always,
         },
-        Section {
-            id: "boot",
-            title: "Boot & Login",
-            icon: "system-reboot-symbolic",
-            group: "Accounts",
-            description: "Boot and login screens, hibernation, snapshots and the boot menu.",
-            keywords: "boot login plymouth sddm hibernation hibernate swap snapshot restore limine direct boot efi",
-            files: Vec::new,
-            build: Build::Native(boot::build),
-            visible: always,
-        },
         // ----- System -----
         Section {
             id: "region",
@@ -376,6 +377,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "region date date time timezone clock ntp language locale hostname name region",
             files: Vec::new,
             build: Build::Native(region::build),
+            visible: always,
+        },
+        Section {
+            id: "boot",
+            title: "Boot & Login",
+            icon: "system-reboot-symbolic",
+            group: "System",
+            description: "Boot and login screens, hibernation, snapshots and the boot menu.",
+            keywords: "boot login plymouth sddm hibernation hibernate swap snapshot restore limine direct boot efi",
+            files: Vec::new,
+            build: Build::Native(boot::build),
             visible: always,
         },
         Section {
@@ -420,17 +432,6 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "extensions add-ons addons devices brands asus aura logitech obsbot webcam headset razer corsair install github",
             files: Vec::new,
             build: Build::Native(extensions::build),
-            visible: always,
-        },
-        Section {
-            id: "plugins",
-            title: "Plugins",
-            icon: "package-x-generic-symbolic",
-            group: "System",
-            description: "Omarchy shell plugins: turn them on or off and keep them updated.",
-            keywords: "plugins extensions widgets bar update enable disable remove",
-            files: || vec![paths::shell_json()],
-            build: Build::Native(plugins::build),
             visible: always,
         },
         Section {

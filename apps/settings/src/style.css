@@ -762,6 +762,9 @@ window.settings-window button.toast-action {
 
 .eq-panel {
   padding: 16px 16px 12px;
+  /* Stands on its own, like a card. */
+  background: mix(@theme_bg, @theme_muted, 0.25);
+  border-color: alpha(@theme_border, 0.55);
 }
 
 .gesture-grid {
@@ -1073,4 +1076,71 @@ window.settings-window button.home-badge.pending {
 
 .quick-actions button {
   min-height: 40px;
+}
+
+/* ---------- Displays ---------- */
+
+.arrange-canvas {
+  margin: 8px 0;
+  border-radius: 10px;
+  background: alpha(@theme_bg, 0.6);
+}
+
+window.identify-window {
+  background: alpha(@theme_bg, 0.82);
+}
+
+.identify-name {
+  font-size: 64px;
+  font-weight: 800;
+  color: @theme_accent;
+}
+
+.identify-model {
+  font-size: 20px;
+  color: @theme_dim_text;
+}
+
+/* ---------- Keyboard shortcuts ---------- */
+
+.clash-warning {
+  color: @theme_danger;
+  font-size: 0.9em;
+}
+
+.shortcut-filter {
+  margin-bottom: 4px;
+}
+
+/* ---------- Launcher lists ---------- */
+
+.launcher-icon {
+  margin-right: 2px;
+}
+
+/* Edit and Remove show on the row being pointed at or focused. */
+.launcher-row .row-actions {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+.launcher-row:hover .row-actions,
+.launcher-row:focus-within .row-actions {
+  opacity: 1;
+}
+
+.filter-row {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+/* Buttons for a whole group, on the line of its title. */
+.group-tools {
+  margin: -36px 0 8px;
+}
+
+.group-tools button {
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 0.92em;
 }

@@ -32,6 +32,8 @@ struct Launcher {
     /// The file name without `.desktop`, which the remove scripts take.
     id: String,
     name: String,
+    /// Icon name or file, from the desktop file.
+    icon: String,
     kind: Kind,
 }
 
@@ -41,13 +43,14 @@ fn parse_launcher(id: &str, text: &str) -> Option<Launcher> {
     let field = |key: &str| text.lines().find_map(|l| l.strip_prefix(key)).map(|v| v.trim().to_string());
     let name = field("Name=").filter(|n| !n.is_empty()).unwrap_or_else(|| id.to_string());
     let exec = field("Exec=")?;
+    let icon = field("Icon=").unwrap_or_default();
     if let Some(rest) = exec.strip_prefix("omarchy-launch-webapp ") {
-        return Some(Launcher { id: id.into(), name, kind: Kind::Web(rest.trim().trim_matches('"').to_string()) });
+        return Some(Launcher { id: id.into(), name, icon, kind: Kind::Web(rest.trim().trim_matches('"').to_string()) });
     }
     if exec.starts_with("xdg-terminal-exec") && exec.contains("app-id=TUI.") {
         let float = exec.contains("TUI.float");
         let command = exec.split_once(" -e ").map(|(_, c)| c.trim().to_string())?;
-        return Some(Launcher { id: id.into(), name, kind: Kind::Tui(command, float) });
+        return Some(Launcher { id: id.into(), name, icon, kind: Kind::Tui(command, float) });
     }
     None
 }
@@ -78,33 +81,104 @@ fn after(done: &'static str) -> impl FnOnce(anyhow::Result<String>) + 'static {
     }
 }
 
+/// The launcher's icon, small, at the start of its row.
+fn launcher_icon(icon: &str, fallback: &str) -> gtk::Image {
+    let img = if icon.starts_with('/') && std::path::Path::new(icon).exists() {
+        gtk::Image::from_file(icon)
+    } else if !icon.is_empty() && gtk::gdk::Display::default().is_some_and(|d| gtk::IconTheme::for_display(&d).has_icon(icon)) {
+        gtk::Image::from_icon_name(icon)
+    } else {
+        gtk::Image::from_icon_name(fallback)
+    };
+    img.set_pixel_size(28);
+    img.set_valign(gtk::Align::Center);
+    img.add_css_class("launcher-icon");
+    img
+}
+
+/// A launcher's row: its icon, name and detail, with Edit and Remove that show
+/// on hover or keyboard focus.
+fn launcher_row(l: &Launcher, desc: &str, fallback_icon: &str, edit: impl Fn() + 'static, remove: impl Fn() + 'static) -> gtk::Box {
+    let actions = widgets::hbox(2);
+    actions.add_css_class("row-actions");
+    let e = gtk::Button::from_icon_name("document-edit-symbolic");
+    e.add_css_class("flat");
+    e.set_tooltip_text(Some("Edit"));
+    e.connect_clicked(move |_| edit());
+    let r = gtk::Button::from_icon_name("user-trash-symbolic");
+    r.add_css_class("flat");
+    r.set_tooltip_text(Some("Remove"));
+    r.connect_clicked(move |b| {
+        b.set_sensitive(false);
+        remove();
+    });
+    actions.append(&e);
+    actions.append(&r);
+    let row = widgets::row(&l.name, desc, Some(actions.upcast_ref()));
+    row.add_css_class("launcher-row");
+    row.prepend(&launcher_icon(&l.icon, fallback_icon));
+    row
+}
+
+/// A filter box above a long list of rows (more than eight).
+fn list_filter(g: &widgets::Group, rows: Vec<(gtk::Box, String)>, what: &str) {
+    if rows.len() <= 8 {
+        return;
+    }
+    let f = gtk::SearchEntry::new();
+    f.set_placeholder_text(Some(&format!("Filter {} {what}", rows.len())));
+    f.set_hexpand(true);
+    // The first row of the card, so an open group stays one card.
+    let holder = widgets::hbox(0);
+    holder.add_css_class("settings-option");
+    holder.add_css_class("card-row");
+    holder.add_css_class("filter-row");
+    holder.append(&f);
+    g.list.prepend(&holder);
+    let list = g.list.clone();
+    f.connect_search_changed(move |f| {
+        let terms = crate::search::terms(&f.text());
+        for (row, text) in &rows {
+            row.set_visible(terms.is_empty() || crate::search::matches(text, &terms));
+        }
+        widgets::mark_first_rows(list.upcast_ref());
+    });
+}
+
 fn web_apps(page: &Page, all: &[Launcher]) {
     if !cmd::present("omarchy-webapp-install") {
         return;
     }
     let g = page.collapsible("Web apps", false);
     g.note("A website that opens in its own window and shows up in the app launcher.");
+    let mut rows = Vec::new();
     for l in all {
         if let Kind::Web(url) = &l.kind {
-            let id = l.id.clone();
-            let remove = widgets::confirm_button("Remove", "Remove app?", move |b| {
-                b.set_sensitive(false);
-                cmd::run_async(&["omarchy-webapp-remove", &id], after("Web app removed"));
-            });
-            let edit = gtk::Button::from_icon_name("document-edit-symbolic");
-            edit.add_css_class("flat");
-            edit.set_tooltip_text(Some("Edit"));
-            {
-                let (id, name, url) = (l.id.clone(), l.name.clone(), url.clone());
-                edit.connect_clicked(move |_| edit_web_app(&id, &name, &url));
-            }
-            let controls = widgets::hbox(6);
-            controls.append(&edit);
-            controls.append(&remove);
-            g.add(&widgets::row(&l.name, &gtk::glib::markup_escape_text(url), Some(controls.upcast_ref())));
+            let (id, name, url2) = (l.id.clone(), l.name.clone(), url.clone());
+            let edit = {
+                let (id, name, url) = (id.clone(), name.clone(), url2.clone());
+                move || edit_web_app(&id, &name, &url)
+            };
+            let remove = move || {
+                let (name, url) = (name.clone(), url2.clone());
+                cmd::run_async(&["omarchy-webapp-remove", &id], move |r| {
+                    window::rebuild("software");
+                    match r {
+                        // Removing deletes the launcher; putting it back makes it again.
+                        Ok(_) => window::toast_action(&format!("Removed {name}"), "Undo", move || {
+                            cmd::run_async(&["omarchy-webapp-install", &name, &url, ""], after("Web app restored"));
+                        }),
+                        Err(e) => window::toast(&format!("{e}")),
+                    }
+                });
+            };
+            let row = launcher_row(l, &gtk::glib::markup_escape_text(url), "applications-internet-symbolic", edit, remove);
+            g.add(&row);
             widgets::keywords("webapp web app website launcher pwa");
+            rows.push((row, crate::search::normalise(&format!("{} {url}", l.name))));
         }
     }
+    list_filter(&g, rows, "web apps");
     let name = gtk::Entry::new();
     name.set_placeholder_text(Some("Name"));
     let url = gtk::Entry::new();
@@ -183,28 +257,35 @@ fn terminal_apps(page: &Page, all: &[Launcher]) {
     }
     let g = page.collapsible("Terminal apps", false);
     g.note("A command-line program with an entry in the app launcher.");
+    let mut rows = Vec::new();
     for l in all {
         if let Kind::Tui(command, float) = &l.kind {
-            let id = l.id.clone();
-            let remove = widgets::confirm_button("Remove", "Remove app?", move |b| {
-                b.set_sensitive(false);
-                cmd::run_async(&["omarchy-tui-remove", &id], after("Terminal app removed"));
-            });
             let desc = format!("{} · {}", gtk::glib::markup_escape_text(command), if *float { "floating" } else { "tiled" });
-            let edit = gtk::Button::from_icon_name("document-edit-symbolic");
-            edit.add_css_class("flat");
-            edit.set_tooltip_text(Some("Edit"));
-            {
-                let (id, name, command, float) = (l.id.clone(), l.name.clone(), command.clone(), *float);
-                edit.connect_clicked(move |_| edit_terminal_app(&id, &name, &command, float));
-            }
-            let controls = widgets::hbox(6);
-            controls.append(&edit);
-            controls.append(&remove);
-            g.add(&widgets::row(&l.name, &desc, Some(controls.upcast_ref())));
+            let (id, name, command2, float) = (l.id.clone(), l.name.clone(), command.clone(), *float);
+            let edit = {
+                let (id, name, command) = (id.clone(), name.clone(), command2.clone());
+                move || edit_terminal_app(&id, &name, &command, float)
+            };
+            let remove = move || {
+                let (name, command) = (name.clone(), command2.clone());
+                cmd::run_async(&["omarchy-tui-remove", &id], move |r| {
+                    window::rebuild("software");
+                    match r {
+                        Ok(_) => window::toast_action(&format!("Removed {name}"), "Undo", move || {
+                            let style = if float { "float" } else { "tile" };
+                            cmd::run_async(&["omarchy-tui-install", &name, &command, style, "utilities-terminal"], after("Terminal app restored"));
+                        }),
+                        Err(e) => window::toast(&format!("{e}")),
+                    }
+                });
+            };
+            let row = launcher_row(l, &desc, "utilities-terminal-symbolic", edit, remove);
+            g.add(&row);
             widgets::keywords("tui terminal app launcher command");
+            rows.push((row, crate::search::normalise(&format!("{} {command}", l.name))));
         }
     }
+    list_filter(&g, rows, "terminal apps");
     let name = gtk::Entry::new();
     name.set_placeholder_text(Some("Name"));
     let command = gtk::Entry::new();

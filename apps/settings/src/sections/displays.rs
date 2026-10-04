@@ -1,4 +1,5 @@
 use crate::backend::state::Monitor;
+use super::arrange;
 use crate::backend::{hypr, store};
 use crate::widgets::{self, Page, opts};
 use crate::{cmd, window};
@@ -127,28 +128,65 @@ fn laptop_screen(page: &Page) {
             glib::timeout_add_local_once(std::time::Duration::from_millis(900), || window::rebuild("displays"));
         })
     };
-    let controls = widgets::hbox(8);
-    let on = gtk::Button::with_label("Turn on");
-    on.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal", "on"]));
-    let off = gtk::Button::with_label("Turn off");
-    off.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal", "off"]));
-    controls.append(&on);
-    controls.append(&off);
-    g.add(&widgets::row("Built-in screen", "Switch the laptop's own screen on or off. Recover brings it back if it stays dark.", Some(controls.upcast_ref())));
-    widgets::keywords("internal laptop display eDP clamshell off disable recover");
+    // Omarchy keeps each of these as a flag file while it's in effect.
+    let flag = |name: &str| crate::paths::home().join(format!(".local/state/omarchy/toggles/hypr/{name}.lua")).exists();
+    let (r, _) = widgets::switch_row(
+        "Built-in screen",
+        "Turn the laptop's own screen off, for example with the lid closed on a desk.",
+        !flag("internal-monitor-disable"),
+        move |on| run(if on { &["omarchy-hyprland-monitor-internal", "on"] } else { &["omarchy-hyprland-monitor-internal", "off"] }),
+    );
+    g.add(&r);
+    widgets::keywords("internal laptop display eDP clamshell off disable");
     if cmd::present("omarchy-hyprland-monitor-internal-mirror") {
-        let controls = widgets::hbox(8);
-        let mirror = gtk::Button::with_label("Mirror");
-        mirror.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal-mirror", "on"]));
-        let stop = gtk::Button::with_label("Stop mirroring");
-        stop.connect_clicked(move |_| run(&["omarchy-hyprland-monitor-internal-mirror", "off"]));
-        controls.append(&mirror);
-        controls.append(&stop);
-        g.add(&widgets::row("Mirror to an external screen", "Show the laptop's screen on the connected monitor too, for presenting.", Some(controls.upcast_ref())));
+        let (r, _) = widgets::switch_row(
+            "Mirror to an external screen",
+            "Show the laptop's screen on the connected monitor too, for presenting.",
+            flag("internal-monitor-mirror"),
+            move |on| run(if on { &["omarchy-hyprland-monitor-internal-mirror", "on"] } else { &["omarchy-hyprland-monitor-internal-mirror", "off"] }),
+        );
+        g.add(&r);
         widgets::keywords("duplicate projector presentation external monitor");
     }
     let (r, _) = widgets::button_row("Recover the built-in screen", "Use this if the laptop screen stays dark after unplugging a monitor.", "Recover", move |_| run(&["omarchy-hyprland-monitor-internal", "recover"]));
     widgets::keywords("black dark blank fix");
+    g.add(&r);
+}
+
+/// Two or more displays: drag them into place, and see which is which.
+fn arrangement(page: &Page, monitors: &[Value]) {
+    let num = |m: &Value, k: &str| m.get(k).and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let rects: Vec<arrange::Rect> = monitors
+        .iter()
+        .filter(|m| !m.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false))
+        .map(|m| {
+            let (w, h) = arrange::logical_size(num(m, "width"), num(m, "height"), num(m, "scale"), m.get("transform").and_then(|v| v.as_i64()).unwrap_or(0));
+            arrange::Rect { name: m.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(), x: num(m, "x"), y: num(m, "y"), w, h }
+        })
+        .collect();
+    if rects.len() < 2 {
+        return;
+    }
+    let g = page.group("Arrangement");
+    g.note("Drag a display to where it sits on your desk. It snaps to the edge of the one next to it.");
+    let canvas = arrange::canvas(rects, |positions| {
+        let previous = store::read(|s| s.monitors.clone());
+        let live: Vec<(String, Option<Monitor>)> = positions.iter().map(|(n, _, _)| (n.clone(), live_monitor(n))).collect();
+        store::update(true, move |s| {
+            for ((name, x, y), (_, current)) in positions.iter().zip(live) {
+                let m = s.monitors.entry(name.clone()).or_insert_with(|| current.unwrap_or_default());
+                m.position = Some(format!("{x}x{y}"));
+            }
+        });
+        store::flush();
+        confirm_or_revert(previous);
+    });
+    let card = widgets::stacked_row("", "", canvas.upcast_ref());
+    card.add_css_class("bare");
+    widgets::keywords("arrange arrangement position layout drag left right above below multiple monitors");
+    g.add(&card);
+    let (r, _) = widgets::button_row("Identify", "Shows each display's name on the display itself.", "Identify", |_| arrange::identify());
+    widgets::keywords("which monitor name");
     g.add(&r);
 }
 
@@ -159,6 +197,7 @@ fn monitors(page: &Page) {
         return;
     }
     let brightness = cmd::output(&["omarchy-brightness-display", "--no-osd"]).and_then(|s| s.trim().parse::<f64>().ok());
+    arrangement(page, &monitors);
 
     for m in &monitors {
         let name = m.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();

@@ -869,7 +869,12 @@ fn filter(query: &str) {
         }
     }
     for (label, ids) in &u.nav_groups {
-        label.set_visible(ids.iter().any(|id| u.nav_items.get(id).is_some_and(|b| b.is_visible())));
+        let any = ids.iter().any(|id| u.nav_items.get(id).is_some_and(|b| b.is_visible()));
+        label.set_visible(any && !u.compact.get());
+        // The icon-only sidebar's divider for this group goes with it.
+        if let Some(divider) = label.prev_sibling().filter(|w| w.has_css_class("nav-divider")) {
+            divider.set_visible(any && u.compact.get());
+        }
     }
     let current = u.current;
     let current_visible = u.nav_items.get(current).is_some_and(|b| b.is_visible());

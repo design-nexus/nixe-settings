@@ -293,36 +293,33 @@ pub fn build(page: &Page) {
     let shells = passwd::shells();
 
     // ----- You -----
+    // Your own account, its password and shell; other people are listed below.
     if let Some(mine) = users.iter().find(|u| u.name == me) {
         let g = page.group("You");
-        let (r, _) = widgets::info_row("Signed in as", &me);
-        g.add(&r);
-        let (r, _) = widgets::info_row("Groups", &acc::groups_of(mine, &groups).join(", "));
-        g.add(&r);
-        if can_edit {
+        let member_of = acc::groups_of(mine, &groups);
+        g.add(&user_row(mine, &me, &groups, can_edit, &member_of));
+        widgets::keywords("passwd login signed in groups");
+        if can_edit && !shells.is_empty() {
+            let opts: Vec<(String, String)> = shells.iter().map(|s| (s.clone(), s.rsplit('/').next().unwrap_or(s).to_string())).collect();
             let name = me.clone();
-            let (r, _) = widgets::button_row("Password", "Change the password you sign in and use sudo with.", "Change password", move |_| {
-                change_password(&name)
+            let (r, _) = widgets::choice_row("Login shell", "The shell new terminals start with. Applies to new terminals.", opts, &mine.shell, move |sh| {
+                apply(args(&["set-shell", &name, &sh]), None, "Shell changed")
             });
-            widgets::keywords("passwd login");
+            widgets::keywords("bash zsh fish chsh");
             g.add(&r);
-            if !shells.is_empty() {
-                let opts: Vec<(String, String)> = shells.iter().map(|s| (s.clone(), s.rsplit('/').next().unwrap_or(s).to_string())).collect();
-                let name = me.clone();
-                let (r, _) = widgets::choice_row("Login shell", "The shell new terminals start with. Applies to new terminals.", opts, &mine.shell, move |sh| {
-                    apply(args(&["set-shell", &name, &sh]), None, "Shell changed")
-                });
-                widgets::keywords("bash zsh fish chsh");
-                g.add(&r);
-            }
         }
     }
 
     // ----- Users -----
-    let g = page.group("Users");
-    g.note("Deleting a user keeps their home folder, so no files are lost.");
-    for u in &users {
-        g.add(&user_row(u, &me, &groups, can_edit));
+    let g = page.group("Other users");
+    let others: Vec<&User> = users.iter().filter(|u| u.name != me).collect();
+    g.note(if others.is_empty() {
+        "Nobody else has an account on this computer."
+    } else {
+        "Deleting a user keeps their home folder, so no files are lost."
+    });
+    for u in others {
+        g.add(&user_row(u, &me, &groups, can_edit, &[]));
     }
     if can_edit {
         let shell = users.iter().find(|u| u.name == me).map(|u| u.shell.clone()).filter(|s| shells.contains(s)).unwrap_or_else(|| "/bin/bash".into());
@@ -352,7 +349,8 @@ pub fn build(page: &Page) {
     sign_in_section(page);
 }
 
-fn user_row(u: &User, me: &str, groups: &[Group], can_edit: bool) -> gtk::Box {
+/// A user with their actions. `member_of` lists groups to show under the name (yours).
+fn user_row(u: &User, me: &str, groups: &[Group], can_edit: bool, member_of: &[String]) -> gtk::Box {
     let is_me = u.name == me;
     let admin = acc::is_admin(u, groups);
     let locked = acc::is_locked(&u.name);
@@ -361,6 +359,9 @@ fn user_row(u: &User, me: &str, groups: &[Group], can_edit: bool) -> gtk::Box {
         bits.push(u.full_name.clone());
     }
     bits.push(u.home.clone());
+    if !member_of.is_empty() {
+        bits.push(format!("member of {}", member_of.join(", ")));
+    }
     let controls = widgets::hbox(8);
     if can_edit {
         if !is_me {
@@ -398,12 +399,13 @@ fn user_row(u: &User, me: &str, groups: &[Group], can_edit: bool) -> gtk::Box {
         }
         let edit = gtk::Button::from_icon_name("document-edit-symbolic");
         edit.add_css_class("flat");
-        edit.set_tooltip_text(Some("Edit"));
+        edit.set_tooltip_text(Some(if is_me { "Edit your full name and shell" } else { "Edit name, username and shell" }));
         let user = u.clone();
         edit.connect_clicked(move |_| edit_user(&user, is_me));
         controls.append(&edit);
         let name = u.name.clone();
-        let pw = gtk::Button::with_label("Password");
+        let pw = gtk::Button::with_label(if is_me { "Change password" } else { "Password" });
+        pw.set_tooltip_text(Some(if is_me { "The password you sign in and use sudo with" } else { "Set a new password for this user" }));
         pw.connect_clicked(move |_| change_password(&name));
         controls.append(&pw);
         if !is_me {

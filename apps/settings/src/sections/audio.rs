@@ -250,7 +250,8 @@ pub fn build(page: &Page) {
     g.add(&r);
 
     // ----- Equalizer -----
-    let g = page.group("Equalizer & preamp");
+    // No card around it: the equalizer panel is its own frame.
+    let g = page.plain_group("Equalizer & preamp");
     g.note(
         "The <b>preamp</b> makes everything louder before it reaches the speakers — use it when even full volume is too \
          quiet. The nine bands shape the tone.",
@@ -530,6 +531,7 @@ pub fn build(page: &Page) {
     }
 
     let eq_row = widgets::stacked_row("", "", panel.upcast_ref());
+    eq_row.add_css_class("bare");
     widgets::keywords("equalizer preamp boost louder bass treble eq band 31 63 125 250 500 1k 2k 4k 8k");
     g.add(&eq_row);
 

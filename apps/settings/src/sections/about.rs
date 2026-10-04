@@ -145,19 +145,20 @@ pub fn build(page: &Page) {
         let (r, _) = widgets::info_row("Channel", &ch);
         g.add(&r);
     }
+    // Home is the one place that lists and installs system updates.
+    let cached = crate::backend::pkgupdates::cached();
+    let waiting = (cached.checked > 0).then(|| cached.count());
     let (r, _) = widgets::button_row(
-        "Update",
-        "Update Omarchy and all system packages. Opens a terminal to show progress.",
-        "Update now",
-        |_| cmd::spawn(&["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"]),
+        "Updates",
+        &match waiting {
+            Some(0) => "Omarchy and every package are up to date. Home lists updates when there are some.".to_string(),
+            Some(n) => format!("{n} waiting: Omarchy, packages, the AUR and firmware. Home lists them and installs them."),
+            None => "Omarchy, package, AUR and firmware updates are listed and installed on Home.".to_string(),
+        },
+        "Open Home",
+        |_| window::navigate("home"),
     );
-    widgets::keywords("upgrade pacman packages");
-    g.add(&r);
-    let (r, _) =
-        widgets::button_row("Waiting updates", "Every package, AUR and firmware update, listed on Home.", "Open Home", |_| {
-            window::navigate("home")
-        });
-    widgets::keywords("available list aur firmware");
+    widgets::keywords("update upgrade pacman packages available list aur firmware");
     g.add(&r);
     let (r, _) = widgets::button_row(
         "Snapshot",

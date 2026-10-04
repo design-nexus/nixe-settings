@@ -70,7 +70,7 @@ fn installed_desc(e: &Extension) -> String {
         }
     }
     if !m.version.is_empty() {
-        parts.push(format!("<tt>{}</tt> {}", glib::markup_escape_text(e.id()), glib::markup_escape_text(&m.version)));
+        parts.push(format!("Version {}", glib::markup_escape_text(&m.version)));
     }
     parts.retain(|p| !p.is_empty());
     parts.join("\n")
@@ -129,28 +129,54 @@ pub fn build(page: &Page) {
             );
             g.add(&r);
         }
+        // Rescan and update checks sit by the heading, not among the extensions.
+        let tools = widgets::hbox(8);
+        tools.set_halign(gtk::Align::End);
+        tools.add_css_class("group-tools");
+        let rescan = gtk::Button::with_label("Look for devices");
+        rescan.set_tooltip_text(Some("After plugging something in, ask every extension what it can see"));
+        rescan.connect_clicked(|b| {
+            busy(b, "Looking…", || Ok(ext::refresh_pages()), |changed| {
+                window::toast(if changed { "Found changes" } else { "Nothing new" });
+                after_change();
+            });
+        });
+        let check = gtk::Button::with_label("Check for updates");
+        check.set_tooltip_text(Some("Settings also checks once a day when it opens"));
+        check.connect_clicked(|b| {
+            busy(b, "Checking…", || Ok(crate::backend::updates::check(true)), |s| {
+                if s.extensions.is_empty() {
+                    window::toast("Extensions are up to date");
+                }
+                window::after_update_check(s);
+            });
+        });
+        tools.append(&rescan);
+        tools.append(&check);
+        g.top(&tools);
         for e in installed.clone() {
             let controls = widgets::hbox(8);
-            let update = gtk::Button::from_icon_name("view-refresh-symbolic");
-            update.add_css_class("flat");
-            update.set_tooltip_text(Some("Update"));
-            let e2 = e.clone();
-            let id_for_clear = e.id().to_string();
-            update.connect_clicked(move |b| {
-                let id_for_clear = id_for_clear.clone();
-                let (e3, name) = (e2.clone(), e2.manifest.name.clone());
-                busy(b, "", move || manage::update(&e3), move |changed| {
-                    crate::backend::updates::clear_extension(&id_for_clear);
-                    window::toast(&if changed { format!("Updated {name}") } else { format!("{name} is up to date") });
-                    if changed {
-                        after_change();
-                    }
+            let has_update = pending.iter().any(|p| p == e.id());
+            if has_update {
+                let update = gtk::Button::with_label("Update");
+                update.add_css_class("suggested-action");
+                let e2 = e.clone();
+                let id_for_clear = e.id().to_string();
+                update.connect_clicked(move |b| {
+                    let id_for_clear = id_for_clear.clone();
+                    let (e3, name) = (e2.clone(), e2.manifest.name.clone());
+                    busy(b, "Updating…", move || manage::update(&e3), move |changed| {
+                        crate::backend::updates::clear_extension(&id_for_clear);
+                        window::toast(&if changed { format!("Updated {name}") } else { format!("{name} is up to date") });
+                        if changed {
+                            after_change();
+                        }
+                    });
                 });
-            });
-            update.set_visible(e.root.join(".git").exists());
-            controls.append(&update);
+                controls.append(&update);
+            }
             let e2 = e.clone();
-            let remove = widgets::confirm_button("Remove", "Click again to remove", move |b| {
+            let remove = widgets::confirm_button("Remove", "Remove?", move |b| {
                 let (e3, name) = (e2.clone(), e2.manifest.name.clone());
                 let id = e3.id().to_string();
                 busy(b, "Removing…", move || manage::remove(&e3), move |_| {
@@ -159,7 +185,6 @@ pub fn build(page: &Page) {
                     after_change();
                 });
             });
-            remove.add_css_class("destructive-action");
             controls.append(&remove);
             let on = gtk::Switch::new();
             on.set_active(ext::enabled(e.id()));
@@ -173,40 +198,21 @@ pub fn build(page: &Page) {
             });
             controls.append(&on);
             let row = widgets::row(&e.manifest.name, &installed_desc(&e), Some(controls.upcast_ref()));
-            if pending.iter().any(|p| p == e.id()) {
+            // The same icon it has in the catalog, or its first page's.
+            let icon = catalog
+                .iter()
+                .find(|c| c.id == e.id())
+                .map(|c| c.icon.clone())
+                .or_else(|| ext::cached_pages(e.id()).and_then(|p| p.first().map(|p| p.icon.clone())))
+                .filter(|i| !i.is_empty())
+                .unwrap_or_else(|| "application-x-addon-symbolic".into());
+            row.insert_child_after(&gtk::Image::from_icon_name(&icon), None::<&gtk::Widget>);
+            if has_update {
                 widgets::tag_row(&row, "Update available");
             }
             g.add(&row);
-            widgets::keywords("enable disable turn on off hide extension");
+            widgets::keywords("enable disable turn on off hide extension update rescan refresh detect");
         }
-        let (r, _) = widgets::button_row(
-            "Look for devices again",
-            "After plugging something in, ask every extension what it can see.",
-            "Refresh",
-            |b| {
-                busy(b, "Looking…", || Ok(ext::refresh_pages()), |changed| {
-                    window::toast(if changed { "Found changes" } else { "Nothing new" });
-                    after_change();
-                });
-            },
-        );
-        widgets::keywords("rescan refresh detect hardware plugged");
-        g.add(&r);
-        let (r, _) = widgets::button_row(
-            "Check for updates",
-            "Settings also checks once a day when it opens.",
-            "Check now",
-            |b| {
-                busy(b, "Checking…", || Ok(crate::backend::updates::check(true)), |s| {
-                    if s.extensions.is_empty() {
-                        window::toast("Extensions are up to date");
-                    }
-                    window::after_update_check(s);
-                });
-            },
-        );
-        widgets::keywords("update check new version");
-        g.add(&r);
     }
 
     // ----- Available -----

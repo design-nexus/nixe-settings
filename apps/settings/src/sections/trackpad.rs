@@ -126,21 +126,19 @@ fn finger_card(fingers: u8) -> gtk::Box {
     card
 }
 
-/// On / Off buttons for an Omarchy device switch (`omarchy-toggle-touchpad on|off`).
+/// A switch for an Omarchy device toggle (`omarchy-toggle-touchpad on|off`). The device
+/// is off while Omarchy keeps its name in `toggles/hypr/<kind>-disabled-name`.
 fn device_switch(g: &crate::widgets::Group, title: &str, desc: &str, script: &'static str, keywords: &str) {
-    let controls = widgets::hbox(8);
-    for (label, arg) in [("Turn on", "on"), ("Turn off", "off")] {
-        let b = gtk::Button::with_label(label);
-        b.connect_clicked(move |_| {
-            cmd::run_async(&[script, arg], move |r| {
-                if let Err(e) = r {
-                    window::toast(&format!("{e}"));
-                }
-            })
-        });
-        controls.append(&b);
-    }
-    g.add(&widgets::row(title, desc, Some(controls.upcast_ref())));
+    let kind = script.trim_start_matches("omarchy-toggle-");
+    let on = !crate::paths::home().join(format!(".local/state/omarchy/toggles/hypr/{kind}-disabled-name")).exists();
+    let (r, _) = widgets::switch_row(title, desc, on, move |now| {
+        cmd::run_async(&[script, if now { "on" } else { "off" }], move |r| {
+            if let Err(e) = r {
+                window::toast(&format!("{e}"));
+            }
+        })
+    });
+    g.add(&r);
     widgets::keywords(keywords);
 }
 

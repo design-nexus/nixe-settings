@@ -37,28 +37,32 @@ fn even_flow(max_per_line: u32) -> gtk::FlowBox {
 }
 
 /// Wrap evenly: five tiles go 5, 3 + 2 or 2 + 2 + 1, never 4 + 1.
-fn balance_rows(f: &gtk::FlowBox) {
-    let last = std::cell::Cell::new(-1);
-    f.add_tick_callback(move |f, _| {
-        let width = f.width();
-        if width != last.get() && width > 0 {
-            last.set(width);
-            let n = std::iter::successors(f.first_child(), |c| c.next_sibling()).count() as u32;
-            // The widest tile's natural width, so captions aren't cut short.
-            let tile = std::iter::successors(f.first_child(), |c| c.next_sibling())
-                .map(|c| c.measure(gtk::Orientation::Horizontal, -1).1)
-                .max()
-                .unwrap_or(0)
-                .max(1);
-            let fit = ((width + 12) / (tile + 12)).max(1) as u32;
-            let per = balanced_per_line(n, fit);
-            if f.max_children_per_line() != per {
-                f.set_min_children_per_line(per);
-                f.set_max_children_per_line(per);
-            }
+/// Returns a zero-height strip to put beside the flow: it reports width changes.
+fn balance_rows(f: &gtk::FlowBox) -> gtk::DrawingArea {
+    let probe = gtk::DrawingArea::new();
+    probe.set_hexpand(true);
+    probe.set_content_height(0);
+    probe.set_can_target(false);
+    let f = f.clone();
+    probe.connect_resize(move |_, width, _| {
+        if width <= 0 {
+            return;
         }
-        glib::ControlFlow::Continue
+        let n = std::iter::successors(f.first_child(), |c| c.next_sibling()).count() as u32;
+        // The widest tile's natural width, so captions aren't cut short.
+        let tile = std::iter::successors(f.first_child(), |c| c.next_sibling())
+            .map(|c| c.measure(gtk::Orientation::Horizontal, -1).1)
+            .max()
+            .unwrap_or(0)
+            .max(1);
+        let fit = ((width + 12) / (tile + 12)).max(1) as u32;
+        let per = balanced_per_line(n, fit);
+        if f.max_children_per_line() != per {
+            f.set_min_children_per_line(per);
+            f.set_max_children_per_line(per);
+        }
     });
+    probe
 }
 
 /// How many to put on each line so `n` items, at most `fit` a line, come out even.
@@ -230,9 +234,10 @@ fn tiles(page: &Page) -> Tiles {
         b.ring.warn_when_low();
     }
     let temp = sysinfo::cpu_temp().map(|_| tile(&flow, "Temperature", None));
-    balance_rows(&flow);
+    let probe = balance_rows(&flow);
     let wrap = widgets::vbox(0);
     wrap.add_css_class("home-block");
+    wrap.append(&probe);
     wrap.append(&flow);
     page.body.append(&wrap);
     Tiles { cpu, memory, disk, battery, temp }

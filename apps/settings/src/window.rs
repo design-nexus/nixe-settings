@@ -230,6 +230,14 @@ fn build(app: &gtk::Application) {
                 toggle_sidebar();
                 glib::Propagation::Stop
             }
+            gdk::Key::Left if mods.contains(gdk::ModifierType::ALT_MASK) => {
+                go_back();
+                glib::Propagation::Stop
+            }
+            gdk::Key::Right if mods.contains(gdk::ModifierType::ALT_MASK) => {
+                go_forward();
+                glib::Propagation::Stop
+            }
             gdk::Key::q | gdk::Key::w if ctrl => {
                 w2.close();
                 glib::Propagation::Stop
@@ -246,18 +254,34 @@ fn build(app: &gtk::Application) {
         }
     });
     window.add_controller(keys);
+    // The mouse's back and forward buttons.
+    let side = gtk::GestureClick::new();
+    side.set_button(0);
+    side.connect_pressed(|g, _, _, _| match g.current_button() {
+        8 => go_back(),
+        9 => go_forward(),
+        _ => {}
+    });
+    window.add_controller(side);
     search.connect_search_changed(|e| filter(&e.text()));
     search.connect_activate(|_| focus_first_hit());
 
     // Narrow windows (a tiled half-screen) get an icon-only sidebar.
     window.connect_default_width_notify(apply_width);
     window.connect_realize(apply_width);
-    // Tiled windows are resized by the compositor; watch the real size too.
-    let w2 = window.clone();
-    glib::timeout_add_local(std::time::Duration::from_millis(400), move || {
-        apply_width(&w2);
-        glib::ControlFlow::Continue
-    });
+    // Tiled windows are resized by the compositor: an invisible layer over the
+    // whole window reports each real size change.
+    let probe = gtk::DrawingArea::new();
+    probe.set_can_target(false);
+    {
+        let w2 = window.clone();
+        probe.connect_resize(move |_, _, _| {
+            let w2 = w2.clone();
+            // After this layout pass, when the window's width is the new one.
+            glib::idle_add_local_once(move || apply_width(&w2));
+        });
+    }
+    overlay.add_overlay(&probe);
 
     window.connect_close_request(|_| {
         crate::backend::store::flush();
@@ -371,7 +395,26 @@ fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
 /// What to do with a finished update check.
 pub fn after_update_check(s: crate::backend::updates::Status) {
     if s.settings_update() && prefs::get().announced_version != s.latest {
-        toast(&format!("Settings {} is available: see About", s.latest));
+        let latest = s.latest.clone();
+        if crate::backend::updates::self_updatable() {
+            toast_action(&format!("Settings {latest} is available"), "Update", move || {
+                let latest = latest.clone();
+                toast("Updating Settings…");
+                crate::cmd::background(
+                    || crate::backend::updates::update_settings().map_err(|e| format!("{e:#}")),
+                    move |r| match r {
+                        Ok(()) => {
+                            let here = ui().map(|u| u.borrow().current).unwrap_or("about");
+                            toast_action(&format!("Settings {latest} is installed"), "Restart", move || restart(here));
+                            rebuild_if_built("about");
+                        }
+                        Err(e) => toast(&format!("Couldn't update: {e}")),
+                    },
+                );
+            });
+        } else {
+            toast_action(&format!("Settings {latest} is available"), "Details", || navigate("about"));
+        }
         prefs::update(|p| p.announced_version = s.latest.clone());
     }
     if prefs::get().auto_update_extensions && !s.extensions.is_empty() {
@@ -599,6 +642,34 @@ fn ensure_built(id: &'static str) {
     ui.borrow_mut().pages.insert(sid, page.root);
 }
 
+thread_local! {
+    /// Pages to go back and forward to (Alt+Left / Alt+Right, the mouse's side buttons).
+    static BACK: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    static FORWARD: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    /// Set while going through history, or while search moves between pages.
+    static NO_HISTORY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub fn go_back() {
+    step_history(true);
+}
+
+pub fn go_forward() {
+    step_history(false);
+}
+
+fn step_history(back: bool) {
+    let Some(current) = ui().map(|u| u.borrow().current) else { return };
+    let (from, to) = if back { (&BACK, &FORWARD) } else { (&FORWARD, &BACK) };
+    let Some(id) = from.with(|h| h.borrow_mut().pop()) else { return };
+    if !current.is_empty() {
+        to.with(|h| h.borrow_mut().push(current));
+    }
+    NO_HISTORY.with(|n| n.set(true));
+    navigate(id);
+    NO_HISTORY.with(|n| n.set(false));
+}
+
 pub fn navigate(id: &str) {
     let Some(ui) = ui() else { return };
     // Pages that were renamed or split: the old ids still work.
@@ -622,6 +693,18 @@ pub fn navigate(id: &str) {
     };
     let Some(id) = resolved else { return };
     ensure_built(id);
+    let previous = ui.borrow().current;
+    if !previous.is_empty() && previous != id && !NO_HISTORY.with(|n| n.get()) {
+        BACK.with(|h| {
+            let mut h = h.borrow_mut();
+            h.push(previous);
+            // Plenty to go back through, without growing for ever.
+            if h.len() > 50 {
+                h.remove(0);
+            }
+        });
+        FORWARD.with(|h| h.borrow_mut().clear());
+    }
     let mut u = ui.borrow_mut();
     if let Some(prev) = u.nav_items.get(u.current) {
         prev.remove_css_class("active");
@@ -642,6 +725,8 @@ pub fn navigate(id: &str) {
 pub fn rebuild(id: &'static str) {
     let Some(ui) = ui() else { return };
     let old = ui.borrow_mut().pages.remove(id);
+    // Where the page was scrolled to, so redrawing it doesn't jump back to the top.
+    let scrolled = old.as_ref().map(|p| p.vadjustment().value()).unwrap_or(0.0);
     if let Some(old) = old {
         SEARCH.with(|s| s.borrow_mut().retain(|item| item.section != id));
         ui.borrow().stack.remove(&old);
@@ -650,6 +735,22 @@ pub fn rebuild(id: &'static str) {
     ensure_built(id);
     if current == id {
         ui.borrow().stack.set_visible_child_name(id);
+    }
+    if scrolled > 0.0
+        && let Some(page) = ui.borrow().pages.get(id).cloned()
+    {
+        // Once laid out: before that the page has no height to scroll through.
+        let adj = page.vadjustment();
+        // The adjustment keeps the value within the page's height.
+        let restore = adj.connect_changed(move |a| a.set_value(scrolled));
+        // Only for the first layouts; later changes are the page's own.
+        let adj2 = adj.clone();
+        let restore = std::cell::Cell::new(Some(restore));
+        glib::timeout_add_local_once(std::time::Duration::from_millis(600), move || {
+            if let Some(h) = restore.take() {
+                adj2.disconnect(h);
+            }
+        });
     }
 }
 
@@ -744,7 +845,10 @@ fn filter(query: &str) {
     if let Some(first) = first_match
         && (!current_visible || !section_hits.contains_key(current))
     {
+        // Typing moves between pages; only where the search started goes in the history.
+        NO_HISTORY.with(|n| n.set(true));
         navigate(first);
+        NO_HISTORY.with(|n| n.set(false));
     }
     highlight_first_hit(&terms);
 }

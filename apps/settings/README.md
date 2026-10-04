@@ -17,6 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   network and per-core use; every disk and the installed package count. It also
   lists every update waiting to be installed (Omarchy, packages, the AUR and
   firmware) with a one-click **Update now**, and shows the count in the sidebar.
+  Quick settings at the top switch Do not disturb and the power profile.
   To open on the last page shown instead, see Appearance → Settings window.
 
   ![Settings: Home](docs/home.png)
@@ -25,8 +26,16 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   Personalization, Desktop, Input, Accounts and System. Each group of settings
   sits on one card, and less-used groups fold away until you open them.
   <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
-  every page.
+  every page, by its own words or everyday ones ("volume", "hotkeys",
+  "wifi"), with a count per page in the sidebar; <kbd>↑</kbd>/<kbd>↓</kbd> go
+  through the results. <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> (or the
+  mouse's side buttons) go back and forward between pages.
+- **Stays current**: Wi-Fi, Bluetooth, Sound, Power, Displays, Printers and
+  Services update by themselves while open.
 - **Open config** on every page opens the underlying file in your default editor.
+- **Your changes** (About) lists every option changed here, by page, to find
+  or reset; **Export** and **Import** move all of Settings' settings to
+  another computer as one file.
 - **Apps follow the theme**: GTK, libadwaita, Qt and KDE windows and dialogs
   take the Omarchy theme's colours (through
   [hyprchroma](https://github.com/NobleDoodle/hyprchroma), if installed), plus
@@ -59,17 +68,19 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
   - window style: gaps, borders, rounding, opacity, blur, shadows, animations,
     cursor;
   - tiling and workspaces, keyboard shortcuts (add your own, edit them, switch
-    any off), lock screen and idle, and a night light schedule;
+    any off, all listed by kind with a filter, and a warning when keys are
+    already taken), lock screen and idle, and a night light schedule;
   - keyboard layouts and Caps Lock, mouse settings (per-device too), and
-    displays (with a 15-second "keep these settings?" safety revert);
-  - Wi-Fi, Bluetooth, power profiles and brightness, default apps, plugins,
+    displays (with a 15-second "keep these settings?" safety revert; with
+    two or more, drag them into place and **Identify** them);
+  - Wi-Fi, Bluetooth, power profiles and brightness, default apps, bar plugins,
     and updates;
   - **users**: add and delete users, change passwords, make someone an
     administrator, lock accounts, manage groups, SSH keys and the SSH server,
     and set up a security key, fingerprint or sudoless Docker. Changing users
     and groups uses a small root helper, installed once from Settings →
     Users;
-  - **network**: DNS provider, Wi-Fi band, firewall (ufw), Tailscale, NordVPN,
+  - **network**: DNS provider, Wi-Fi band, firewall (ufw, with its rules listed), Tailscale, NordVPN,
     and a speed test;
   - **time & language**: time zone, automatic time, system language and
     the computer's name;

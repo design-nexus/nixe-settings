@@ -708,8 +708,56 @@ fn quick_actions(page: &Page) {
     widgets::keywords("snapshot lock restart reboot shut down power off");
 }
 
+// ---------- Quick settings ----------
+
+/// The switches people reach for most, at the top: Do Not Disturb and the power profile.
+fn quick_settings(page: &Page) {
+    let profiles: Vec<String> = cmd::output(&["omarchy-powerprofiles-list"])
+        .unwrap_or_default()
+        .lines()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    let has_dnd = cmd::present("omarchy-shell");
+    if profiles.is_empty() && !has_dnd {
+        return;
+    }
+    let g = page.group("Quick settings");
+    if has_dnd {
+        let (r, _) = widgets::switch_row("Do not disturb", "Silence notifications until you turn it back on.", crate::backend::notify::dnd(), |on| {
+            cmd::background(move || crate::backend::notify::set_dnd(on), |r| {
+                if let Err(e) = r {
+                    window::toast(&format!("Couldn't change Do not disturb: {e}"));
+                }
+            });
+        });
+        widgets::keywords("dnd silence notifications quiet");
+        g.add(&r);
+    }
+    if !profiles.is_empty() {
+        let current = cmd::output(&["powerprofilesctl", "get"]).unwrap_or_default();
+        let label = |p: &str| match p {
+            "power-saver" => "Saver".to_string(),
+            "balanced" => "Balanced".to_string(),
+            "performance" => "Performance".to_string(),
+            other => other.to_string(),
+        };
+        let options: Vec<(String, String)> = profiles.iter().map(|p| (p.clone(), label(p))).collect();
+        let seg = widgets::segmented(&options, &current, |p| {
+            cmd::run_async(&["powerprofilesctl", "set", &p], |r| {
+                if let Err(e) = r {
+                    window::toast(&format!("{e}"));
+                }
+            });
+        });
+        g.add(&widgets::row("Power profile", "Battery life or speed, right now. Power &amp; Battery sets it per power source.", Some(seg.upcast_ref())));
+        widgets::keywords("performance balanced power saver battery");
+    }
+}
+
 pub fn build(page: &Page) {
     let hero = Rc::new(hero(page));
+    quick_settings(page);
     let tiles = tiles(page);
     let disk = tiles.disk.clone();
     let act = activity(page);

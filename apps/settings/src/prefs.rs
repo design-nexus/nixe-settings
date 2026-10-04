@@ -79,6 +79,11 @@ fn load() -> Prefs {
     std::fs::read_to_string(paths::prefs_file()).ok().and_then(|text| toml::from_str(&text).ok()).unwrap_or_default()
 }
 
+/// Take what's on disk now (after restoring a backup), replacing this thread's copy.
+pub fn reload() {
+    PREFS.with(|p| *p.borrow_mut() = load());
+}
+
 pub fn get() -> Prefs {
     PREFS.with(|p| p.borrow().clone())
 }

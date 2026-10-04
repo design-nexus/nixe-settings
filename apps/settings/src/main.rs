@@ -7,6 +7,7 @@ mod cmd;
 mod dialog;
 mod ext;
 mod fangraph;
+mod live;
 mod paths;
 mod prefs;
 mod search;

@@ -136,8 +136,157 @@ fn glib_escape(t: &str) -> String {
     gtk::glib::markup_escape_text(t).to_string()
 }
 
+/// Everything changed here, by page, with a way to see it and to undo it.
+fn changes_group(page: &Page) {
+    let g = page.collapsible("Your changes", false);
+    let st = crate::backend::store::read(|s| s.clone());
+    // Hyprland options, by the page their row is on.
+    let mut by_page: Vec<(String, Vec<(String, String)>)> = Vec::new();
+    for key in st.options.keys() {
+        let (title, section) = widgets::option_row(key).unwrap_or_else(|| (key.clone(), String::new()));
+        match by_page.iter_mut().find(|(s, _)| *s == section) {
+            Some((_, list)) => list.push((key.clone(), title)),
+            None => by_page.push((section, vec![(key.clone(), title)])),
+        }
+    }
+    for (section, list) in by_page {
+        let page_title = crate::window::section_title(&section).unwrap_or("Other options").to_string();
+        let names: Vec<String> = list.iter().map(|(_, t)| glib_escape(t)).collect();
+        let controls = widgets::hbox(8);
+        if !section.is_empty() {
+            let show = gtk::Button::with_label("Show");
+            let (sec, first) = (section.clone(), list[0].1.clone());
+            show.connect_clicked(move |_| crate::window::show_option(&sec, &first));
+            controls.append(&show);
+        }
+        let keys: Vec<String> = list.iter().map(|(k, _)| k.clone()).collect();
+        let sec = section.clone();
+        let reset = widgets::confirm_button("Reset", "Reset all?", move |_| {
+            let keys = keys.clone();
+            crate::backend::store::update(true, move |s| {
+                for k in &keys {
+                    s.options.remove(k);
+                }
+            });
+            crate::backend::store::flush();
+            window::toast("Back to your own config and Omarchy's defaults");
+            // Its page shows the old values until redrawn.
+            if let Some(id) = window::section_id(&sec) {
+                window::rebuild_if_built(id);
+            }
+            window::rebuild("about");
+        });
+        reset.set_tooltip_text(Some("Reset every option on this page that was changed here"));
+        controls.append(&reset);
+        g.add(&widgets::row(&page_title, &names.join(", "), Some(controls.upcast_ref())));
+        widgets::keywords("changed modified reset defaults");
+    }
+    // Other things Settings manages, each kept on its own page.
+    let mut others: Vec<(&str, String)> = Vec::new();
+    if !st.binds.is_empty() || !st.unbinds.is_empty() {
+        others.push(("keybindings", format!("{} of your own, {} turned off", st.binds.len(), st.unbinds.len())));
+    }
+    if !st.monitors.is_empty() {
+        others.push(("displays", format!("{} display{} set up here", st.monitors.len(), if st.monitors.len() == 1 { "" } else { "s" })));
+    }
+    if !st.window_rules.is_empty() || !st.layer_rules.is_empty() || !st.autostart.is_empty() {
+        others.push(("rules", format!("{} startup programs, {} rules", st.autostart.len(), st.window_rules.len() + st.layer_rules.len())));
+    }
+    if !st.devices.is_empty() {
+        others.push(("mouse", format!("Settings for {} device{}", st.devices.len(), if st.devices.len() == 1 { "" } else { "s" })));
+    }
+    if st.gestures != Default::default() {
+        others.push(("trackpad", "Swipe and pinch gestures".to_string()));
+    }
+    if st.max_volume.is_some_and(|v| v != 100) {
+        others.push(("audio", "Maximum volume".to_string()));
+    }
+    let total = st.options.len();
+    g.note(&match (total, others.is_empty()) {
+        (0, true) => "Nothing changed yet: everything uses your own config files and Omarchy's defaults.".to_string(),
+        (0, false) => "What Settings manages for you, by page.".to_string(),
+        (n, _) => format!("{n} option{} changed here. Reset hands them back to your own config or Omarchy's defaults.", if n == 1 { "" } else { "s" }),
+    });
+    for (id, desc) in others {
+        let (r, _) = widgets::button_row(window::section_title(id).unwrap_or(id), &desc, "Show", move |_| window::navigate(id));
+        g.add(&r);
+    }
+}
+
+/// Export everything to a file, or bring a backup in.
+fn backup_group(page: &Page) {
+    use crate::backend::backup;
+    let g = page.group("Move your settings");
+    g.note("Everything Settings keeps — its own preferences, Hyprland options, shortcuts, displays, sound and lighting — in one file.");
+    let (r, _) = widgets::button_row("Export", "Save a backup file to keep or to bring to another computer.", "Export…", |_| {
+        let dialog = gtk::FileDialog::builder().title("Export settings").initial_name("omarchy-settings.json").modal(true).build();
+        dialog.save(window::window().as_ref(), gtk::gio::Cancellable::NONE, |res| {
+            let Ok(file) = res else { return };
+            let Some(path) = file.path() else { return };
+            match backup::export().and_then(|text| cmd::atomic_write(&path, &text)) {
+                Ok(()) => window::toast(&format!("Saved {}", path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default())),
+                Err(e) => window::toast(&format!("Couldn't export: {e:#}")),
+            }
+        });
+    });
+    widgets::keywords("export backup save copy transfer migrate");
+    g.add(&r);
+    let (r, _) = widgets::button_row("Import", "Replace these settings with a backup's. Settings restarts to use them.", "Import…", |_| {
+        let dialog = gtk::FileDialog::builder().title("Import settings").modal(true).build();
+        dialog.open(window::window().as_ref(), gtk::gio::Cancellable::NONE, |res| {
+            let Ok(file) = res else { return };
+            let Some(path) = file.path() else { return };
+            let files = match std::fs::read_to_string(&path).map_err(anyhow::Error::from).and_then(|t| backup::read_backup(&t)) {
+                Ok(f) => f,
+                Err(e) => return window::toast(&format!("Couldn't import: {e:#}")),
+            };
+            let names: Vec<String> = files.iter().map(|(n, _)| n.clone()).collect();
+            crate::dialog::ask(
+                "Import these settings?",
+                &format!("This replaces {} here. Settings restarts afterwards.", names.join(", ")),
+                vec![],
+                "Import",
+                None,
+                move |_, _| {
+                    if let Err(e) = backup::import(&files) {
+                        return Some(format!("{e:#}"));
+                    }
+                    restored();
+                    None
+                },
+            );
+        });
+    });
+    widgets::keywords("import restore backup load transfer migrate");
+    g.add(&r);
+}
+
+/// Take a restored backup into use, then restart for the rest.
+fn restored() {
+    use crate::backend::{audio, state::State, store};
+    let fresh = State::load(&crate::paths::state_file());
+    store::update(true, move |s| *s = fresh);
+    store::flush();
+    crate::prefs::reload();
+    crate::theme::apply();
+    cmd::background(
+        || {
+            let eq = audio::load();
+            if eq.enabled { audio::install_and_start(&eq).map_err(|e| format!("{e:#}")) } else { Ok(()) }
+        },
+        |r| {
+            if let Err(e) = r {
+                window::toast(&format!("Couldn't apply the sound settings: {e}"));
+            }
+            window::restart("about");
+        },
+    );
+}
+
 pub fn build(page: &Page) {
     settings_group(page);
+    changes_group(page);
+    backup_group(page);
     let g = page.group("Omarchy");
     let (r, _) = widgets::info_row("Version", &cmd::output(&["omarchy-version"]).unwrap_or_default());
     g.add(&r);

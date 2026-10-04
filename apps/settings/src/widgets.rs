@@ -750,6 +750,24 @@ pub fn label(text: &str, class: &str) -> gtk::Label {
 
 // ---------- Rows bound to Hyprland options ----------
 
+thread_local! {
+    /// What each Hyprland option row is called and which page it's on, for the
+    /// list of changed settings.
+    static OPTION_ROWS: RefCell<std::collections::HashMap<String, (String, String)>> = RefCell::default();
+}
+
+fn remember_option(key: &str, title: &str) {
+    let section = CURRENT_SECTION.with(|s| s.borrow().clone());
+    OPTION_ROWS.with(|m| {
+        m.borrow_mut().entry(key.to_string()).or_insert((title.to_string(), section));
+    });
+}
+
+/// The title and page of the row for a Hyprland option, once that page has been built.
+pub fn option_row(key: &str) -> Option<(String, String)> {
+    OPTION_ROWS.with(|m| m.borrow().get(key).cloned())
+}
+
 /// Small circular "reset" button that hands the option back to the user's config.
 fn reset_button(key: &str, on_reset: impl Fn() + 'static) -> gtk::Button {
     let b = gtk::Button::from_icon_name("edit-undo-symbolic");
@@ -781,6 +799,7 @@ fn after_reload(f: impl Fn() + 'static) {
 }
 
 pub fn hypr_switch(key: &'static str, title: &str, desc: &str) -> gtk::Box {
+    remember_option(key, title);
     let current = store::option(key).and_then(|v| v.as_bool()).or_else(|| hypr::get_bool(key)).unwrap_or(false);
     let guard = Rc::new(Cell::new(false));
     let reset_slot: Rc<RefCell<Option<gtk::Button>>> = Rc::new(RefCell::new(None));
@@ -823,6 +842,7 @@ pub fn hypr_slider(
     unit: &str,
     integer: bool,
 ) -> gtk::Box {
+    remember_option(key, title);
     let current = store::option(key).and_then(|v| v.as_f64()).or_else(|| hypr::get_f64(key)).unwrap_or(range.0);
     let guard = Rc::new(Cell::new(false));
     let reset_slot: Rc<RefCell<Option<gtk::Button>>> = Rc::new(RefCell::new(None));
@@ -863,6 +883,7 @@ pub fn hypr_choice(key: &'static str, title: &str, desc: &str, options: Vec<(Str
 
 /// `numeric`: the option is an integer in Hyprland, the ids are its values.
 pub fn hypr_choice_typed(key: &'static str, title: &str, desc: &str, options: Vec<(String, String)>, numeric: bool) -> gtk::Box {
+    remember_option(key, title);
     let as_id = |v: &Value| match v {
         Value::String(s) => s.clone(),
         Value::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
@@ -906,6 +927,7 @@ pub fn hypr_choice_typed(key: &'static str, title: &str, desc: &str, options: Ve
 }
 
 pub fn hypr_entry(key: &'static str, title: &str, desc: &str, placeholder: &str) -> gtk::Box {
+    remember_option(key, title);
     let current =
         store::option(key).and_then(|v| v.as_str().map(String::from)).or_else(|| hypr::get_str(key)).unwrap_or_default();
     let reset_slot: Rc<RefCell<Option<gtk::Button>>> = Rc::new(RefCell::new(None));

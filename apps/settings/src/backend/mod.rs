@@ -1,6 +1,7 @@
 pub mod accounts;
 pub mod appearance;
 pub mod audio;
+pub mod backup;
 pub mod bt;
 pub mod chroma;
 pub mod gestures;

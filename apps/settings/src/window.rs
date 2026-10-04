@@ -117,6 +117,11 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     if std::env::var_os("SETTINGS_SNAPSHOT").is_none() {
         crate::cmd::background(|| crate::backend::updates::check(false), after_update_check);
     }
+    // Pages showing live system state redraw when it changes.
+    glib::timeout_add_seconds_local(4, || {
+        watch_current();
+        glib::ControlFlow::Continue
+    });
     // Build the other pages a little at a time while nothing else is happening,
     // so the first search finds everything without a pause.
     glib::timeout_add_local_once(std::time::Duration::from_secs(3), prebuild_next);
@@ -483,13 +488,7 @@ pub fn reload_sections(fresh: bool) {
     for w in &compact_items {
         w.set_visible(!u.compact.get());
     }
-    let mut c = u.nav_list.first_child();
-    while let Some(w) = c {
-        if w.has_css_class("nav-divider") {
-            w.set_visible(u.compact.get());
-        }
-        c = w.next_sibling();
-    }
+    show_dividers(&u.nav_list, u.compact.get());
     // Drop built extension pages (their page may have changed) and pages that are gone.
     let stale: Vec<&'static str> = u
         .pages
@@ -583,15 +582,23 @@ fn apply_compact(compact: bool) {
         wdg.set_visible(!compact);
     }
     u.search_icon.set_visible(compact);
-    let mut c = u.nav_list.first_child();
+    show_dividers(&u.nav_list, compact);
+    u.collapse_button.set_tooltip_text(Some(if compact { "Expand the sidebar (Ctrl+B)" } else { "Collapse the sidebar (Ctrl+B)" }));
+    centre_icons(u.nav.upcast_ref(), compact);
+}
+
+/// The icon-only sidebar's group dividers: shown for groups with a page showing.
+fn show_dividers(list: &gtk::Box, compact: bool) {
+    let mut c = list.first_child();
     while let Some(w) = c {
         if w.has_css_class("nav-divider") {
-            w.set_visible(compact);
+            let any = std::iter::successors(w.next_sibling(), |n| n.next_sibling())
+                .take_while(|n| !n.has_css_class("nav-divider"))
+                .any(|n| n.has_css_class("nav-item") && n.is_visible());
+            w.set_visible(compact && any);
         }
         c = w.next_sibling();
     }
-    u.collapse_button.set_tooltip_text(Some(if compact { "Expand the sidebar (Ctrl+B)" } else { "Collapse the sidebar (Ctrl+B)" }));
-    centre_icons(u.nav.upcast_ref(), compact);
 }
 
 fn centre_icons(w: &gtk::Widget, compact: bool) {
@@ -634,6 +641,40 @@ fn mark_page(page: &gtk::ScrolledWindow, narrow: bool) {
             body.remove_css_class("narrow");
         }
     }
+}
+
+thread_local! {
+    /// The last state seen for each watched page, and whether a check is running.
+    static SEEN: RefCell<HashMap<&'static str, String>> = RefCell::default();
+    static CHECKING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Check the page on screen, if it's one that shows live state; redraw it if that changed.
+fn watch_current() {
+    let Some(ui) = ui() else { return };
+    let (id, visible) = {
+        let u = ui.borrow();
+        (u.current, u.window.is_visible() && u.window.is_active())
+    };
+    // Only for the window in use, and one check at a time.
+    let Some(signature) = crate::live::signature_for(id) else { return };
+    if !visible || CHECKING.with(|c| c.replace(true)) {
+        return;
+    }
+    crate::cmd::background(signature, move |now| {
+        CHECKING.with(|c| c.set(false));
+        let before = SEEN.with(|s| s.borrow_mut().insert(id, now.clone()));
+        let still_here = self::ui().is_some_and(|u| u.borrow().current == id);
+        if before.is_some_and(|b| b != now) && still_here && !busy_on_page() {
+            rebuild(id);
+        }
+    });
+}
+
+/// The user is typing in a field or has a menu open: don't redraw under them.
+fn busy_on_page() -> bool {
+    let Some(focus) = window().and_then(|w| gtk::prelude::GtkWindowExt::focus(&w)) else { return false };
+    std::iter::successors(Some(focus), |w| w.parent()).any(|w| w.is::<gtk::Text>() || w.is::<gtk::Popover>())
 }
 
 /// Build one page that hasn't been yet, then come back for the next.
@@ -871,11 +912,8 @@ fn filter(query: &str) {
     for (label, ids) in &u.nav_groups {
         let any = ids.iter().any(|id| u.nav_items.get(id).is_some_and(|b| b.is_visible()));
         label.set_visible(any && !u.compact.get());
-        // The icon-only sidebar's divider for this group goes with it.
-        if let Some(divider) = label.prev_sibling().filter(|w| w.has_css_class("nav-divider")) {
-            divider.set_visible(any && u.compact.get());
-        }
     }
+    show_dividers(&u.nav_list, u.compact.get());
     let current = u.current;
     let current_visible = u.nav_items.get(current).is_some_and(|b| b.is_visible());
     let nothing = !terms.is_empty() && first_match.is_none();
@@ -1050,6 +1088,35 @@ fn dismiss_toast(revealer: &gtk::Revealer, motion: bool) {
             overlay.remove_overlay(&revealer);
         }
     });
+}
+
+/// A page's title by its id, if it's in the sidebar.
+pub fn section_title(id: &str) -> Option<&'static str> {
+    ui().and_then(|u| u.borrow().sections.iter().find(|s| s.id == id).map(|s| s.title))
+}
+
+/// The sidebar's own (static) id for a page id.
+pub fn section_id(id: &str) -> Option<&'static str> {
+    ui().and_then(|u| u.borrow().sections.iter().find(|s| s.id == id).map(|s| s.id))
+}
+
+/// Find a Hyprland option's row: go to its page and mark it.
+pub fn show_option(section: &str, title: &str) {
+    navigate(section);
+    let row = SEARCH.with(|s| {
+        let t = crate::search::normalise(title);
+        s.borrow().iter().find(|i| i.section == section && i.text.starts_with(&t)).map(|i| i.row.clone())
+    });
+    if let Some(row) = row {
+        widgets::reveal_for_search(None);
+        if let Some(g) = SEARCH.with(|s| s.borrow().iter().find(|i| i.row == row).and_then(|i| i.group.clone())) {
+            widgets::reveal_for_search(Some(&g));
+        }
+        row.add_css_class("search-hit");
+        scroll_to(&row);
+        let r = row.clone();
+        glib::timeout_add_local_once(std::time::Duration::from_secs(3), move || r.remove_css_class("search-hit"));
+    }
 }
 
 pub fn window() -> Option<gtk::ApplicationWindow> {

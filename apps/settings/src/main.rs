@@ -9,6 +9,7 @@ mod ext;
 mod fangraph;
 mod paths;
 mod prefs;
+mod search;
 mod sections;
 mod theme;
 mod units;

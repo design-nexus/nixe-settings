@@ -31,7 +31,7 @@ fn register(row: &impl IsA<gtk::Widget>, title: &str, desc: &str, keywords: &str
     SEARCH.with(|s| {
         s.borrow_mut().push(SearchItem {
             section,
-            text: format!("{title} {desc} {keywords}").to_lowercase(),
+            text: crate::search::normalise(&format!("{title} {desc} {keywords}")),
             row: row.clone().upcast(),
             group,
         })
@@ -43,7 +43,7 @@ pub fn keywords(words: &str) {
     SEARCH.with(|s| {
         if let Some(last) = s.borrow_mut().last_mut() {
             last.text.push(' ');
-            last.text.push_str(&words.to_lowercase());
+            last.text.push_str(&crate::search::normalise(words));
         }
     });
 }

@@ -161,6 +161,11 @@ window.settings-window .settings-navigation button.nav-search:hover image {
   font-weight: 600;
 }
 
+.settings-navigation .search-count {
+  background: alpha(@theme_accent, 0.18);
+  color: @theme_accent;
+}
+
 .settings-navigation .nav-badge {
   font-size: 0.68em;
   padding: 0 6px;

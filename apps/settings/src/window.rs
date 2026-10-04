@@ -117,6 +117,9 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     if std::env::var_os("SETTINGS_SNAPSHOT").is_none() {
         crate::cmd::background(|| crate::backend::updates::check(false), after_update_check);
     }
+    // Build the other pages a little at a time while nothing else is happening,
+    // so the first search finds everything without a pause.
+    glib::timeout_add_local_once(std::time::Duration::from_secs(3), prebuild_next);
     // The sidebar used what extensions said last time; ask again in case devices came or went.
     crate::cmd::background(crate::ext::refresh_pages, |changed| {
         if changed {
@@ -264,6 +267,16 @@ fn build(app: &gtk::Application) {
     });
     window.add_controller(side);
     search.connect_search_changed(|e| filter(&e.text()));
+    let arrows = gtk::EventControllerKey::new();
+    arrows.connect_key_pressed(|_, key, _, _| match key {
+        gdk::Key::Down if step_hit(true) => glib::Propagation::Stop,
+        gdk::Key::Up if step_hit(false) => glib::Propagation::Stop,
+        _ => glib::Propagation::Proceed,
+    });
+    // Before the entry's text handling sees them.
+    arrows.set_propagation_phase(gtk::PropagationPhase::Capture);
+    search.add_controller(arrows);
+    search.set_tooltip_text(Some("Up and Down go through the results; Enter goes to the one shown"));
     search.connect_activate(|_| focus_first_hit());
 
     // Narrow windows (a tiled half-screen) get an icon-only sidebar.
@@ -623,6 +636,19 @@ fn mark_page(page: &gtk::ScrolledWindow, narrow: bool) {
     }
 }
 
+/// Build one page that hasn't been yet, then come back for the next.
+fn prebuild_next() {
+    let Some(ui) = ui() else { return };
+    let next = {
+        let u = ui.borrow();
+        u.sections.iter().filter(|s| (s.visible)()).map(|s| s.id).find(|id| !u.pages.contains_key(id))
+    };
+    if let Some(id) = next {
+        ensure_built(id);
+        glib::timeout_add_local_once(std::time::Duration::from_millis(250), prebuild_next);
+    }
+}
+
 fn ensure_built(id: &'static str) {
     let Some(ui) = ui() else { return };
     if ui.borrow().pages.contains_key(id) {
@@ -762,10 +788,15 @@ pub fn rebuild_if_built(id: &'static str) {
     }
 }
 
+thread_local! {
+    /// Search results in page order, and which one Up / Down is on.
+    static HITS: RefCell<Vec<(&'static str, gtk::Widget)>> = const { RefCell::new(Vec::new()) };
+    static HIT_AT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 fn filter(query: &str) {
     let Some(ui) = ui() else { return };
-    let q = query.trim().to_lowercase();
-    let terms: Vec<&str> = q.split_whitespace().collect();
+    let terms = crate::search::terms(query);
 
     if !terms.is_empty() {
         let ids: Vec<&'static str> = ui.borrow().sections.iter().filter(|s| (s.visible)()).map(|s| s.id).collect();
@@ -779,26 +810,25 @@ fn filter(query: &str) {
         let u = ui.borrow();
         u.sections
             .iter()
-            .filter(|s| {
-                let hay = format!("{} {} {}", s.title, s.description, s.keywords).to_lowercase();
-                !terms.is_empty() && terms.iter().all(|t| hay.contains(t))
-            })
+            .filter(|s| crate::search::matches(&crate::search::normalise(&format!("{} {} {}", s.title, s.description, s.keywords)), &terms))
             .map(|s| s.id)
             .collect()
     };
 
+    let mut hit_rows: Vec<(String, gtk::Widget)> = Vec::new();
     SEARCH.with(|s| {
         let items = s.borrow();
         let mut groups_visible: HashMap<gtk::Widget, bool> = HashMap::new();
         let mut groups_hit: Vec<gtk::Widget> = Vec::new();
         for item in items.iter() {
             item.row.remove_css_class("search-hit");
-            let hit = !terms.is_empty() && terms.iter().all(|t| item.text.contains(t));
+            let hit = crate::search::matches(&item.text, &terms);
             let whole_section = title_hits.iter().any(|id| *id == item.section);
             let show = terms.is_empty() || hit || whole_section;
             item.row.set_visible(show);
             if hit {
                 *section_hits.entry(item.section.clone()).or_default() += 1;
+                hit_rows.push((item.section.clone(), item.row.clone()));
             }
             if let Some(g) = &item.group {
                 let e = groups_visible.entry(g.clone()).or_insert(false);
@@ -820,11 +850,20 @@ fn filter(query: &str) {
     });
 
     let u = ui.borrow();
+    // Results in the sidebar's order, for Up and Down.
+    let mut ordered: Vec<(&'static str, gtk::Widget)> = Vec::new();
+    for s in &u.sections {
+        ordered.extend(hit_rows.iter().filter(|(sec, _)| sec == s.id).map(|(_, r)| (s.id, r.clone())));
+    }
+    HITS.with(|h| *h.borrow_mut() = ordered);
+    HIT_AT.with(|h| h.set(0));
+
     let mut first_match: Option<&'static str> = None;
     for s in &u.sections {
         let Some(button) = u.nav_items.get(s.id) else { continue };
         let visible = terms.is_empty() || section_hits.contains_key(s.id) || title_hits.contains(&s.id);
         button.set_visible(visible);
+        set_search_count(button, if terms.is_empty() { None } else { section_hits.get(s.id).copied() });
         if visible && first_match.is_none() && !terms.is_empty() {
             first_match = Some(s.id);
         }
@@ -850,22 +889,66 @@ fn filter(query: &str) {
         navigate(first);
         NO_HISTORY.with(|n| n.set(false));
     }
-    highlight_first_hit(&terms);
+    if !terms.is_empty() {
+        // Start on the first result on the page shown.
+        let current = ui.borrow().current;
+        let at = HITS.with(|h| h.borrow().iter().position(|(s, _)| *s == current));
+        if let Some(at) = at {
+            show_hit(at);
+        }
+    }
 }
 
-fn highlight_first_hit(terms: &[&str]) {
-    if terms.is_empty() {
-        return;
+/// How many results a page has, after its name in the sidebar while searching.
+fn set_search_count(button: &gtk::Button, count: Option<usize>) {
+    let Some(content) = button.child().and_downcast::<gtk::Box>() else { return };
+    let existing = std::iter::successors(content.first_child(), |c| c.next_sibling()).find(|c| c.has_css_class("search-count"));
+    match (count, existing) {
+        (Some(n), Some(l)) => {
+            if let Some(l) = l.downcast_ref::<gtk::Label>() {
+                l.set_text(&n.to_string());
+            }
+            l.set_visible(true);
+        }
+        (Some(n), None) => {
+            let l = widgets::tag(&n.to_string());
+            l.add_css_class("search-count");
+            l.set_tooltip_text(Some("Settings on this page that match"));
+            content.append(&l);
+        }
+        (None, Some(l)) => l.set_visible(false),
+        (None, None) => {}
     }
-    let Some(ui) = ui() else { return };
-    let current = ui.borrow().current;
-    let row = SEARCH.with(|s| {
-        s.borrow().iter().find(|i| i.section == current && terms.iter().all(|t| i.text.contains(t))).map(|i| i.row.clone())
+}
+
+/// Mark result `at`, going to its page and scrolling to it.
+fn show_hit(at: usize) {
+    let Some((section, row)) = HITS.with(|h| h.borrow().get(at).cloned()) else { return };
+    HIT_AT.with(|h| h.set(at));
+    HITS.with(|h| {
+        for (_, r) in h.borrow().iter() {
+            r.remove_css_class("search-hit");
+        }
     });
-    if let Some(row) = row {
-        row.add_css_class("search-hit");
-        scroll_to(&row);
+    let current = ui().map(|u| u.borrow().current);
+    if current != Some(section) {
+        NO_HISTORY.with(|n| n.set(true));
+        navigate(section);
+        NO_HISTORY.with(|n| n.set(false));
     }
+    row.add_css_class("search-hit");
+    scroll_to(&row);
+}
+
+/// Up / Down in the search box: the previous or next result, across pages.
+fn step_hit(forward: bool) -> bool {
+    let n = HITS.with(|h| h.borrow().len());
+    if n == 0 {
+        return false;
+    }
+    let at = HIT_AT.with(|h| h.get());
+    show_hit(if forward { (at + 1) % n } else { (at + n - 1) % n });
+    true
 }
 
 fn scroll_to(row: &gtk::Widget) {
@@ -885,10 +968,7 @@ fn scroll_to(row: &gtk::Widget) {
 }
 
 fn focus_first_hit() {
-    let Some(ui) = ui() else { return };
-    let current = ui.borrow().current;
-    let row = SEARCH
-        .with(|s| s.borrow().iter().find(|i| i.section == current && i.row.has_css_class("search-hit")).map(|i| i.row.clone()));
+    let row = HITS.with(|h| h.borrow().get(HIT_AT.with(|a| a.get())).map(|(_, r)| r.clone()));
     if let Some(row) = row {
         row.child_focus(gtk::DirectionType::TabForward);
     }
@@ -983,6 +1063,11 @@ fn snapshot_and_quit(app: &gtk::Application, out: std::path::PathBuf) {
     );
     window.present();
     let app = app.clone();
+    // SETTINGS_SNAPSHOT_SEARCH=words shows what a search for them finds.
+    if let Ok(q) = std::env::var("SETTINGS_SNAPSHOT_SEARCH") {
+        filter(&q);
+        apply_compact(false);
+    }
     let wait = std::env::var("SETTINGS_SNAPSHOT_WAIT").ok().and_then(|v| v.parse().ok()).unwrap_or(1800);
     glib::timeout_add_local_once(std::time::Duration::from_millis(wait), move || {
         // SETTINGS_SNAPSHOT_PAGE=1 renders the whole current page, not just what fits.

@@ -598,12 +598,12 @@ pub const SHORTCUTS: &[(&[&str], &str)] = &[
 
 pub fn show_shortcuts() {
     let Some(win) = window() else { return };
-    let dialog = gtk::Window::builder().transient_for(&win).modal(true).title("Keyboard shortcuts").default_width(480).build();
+    let dialog = gtk::Window::builder().transient_for(&win).modal(true).title("Keyboard shortcuts").default_width(520).build();
     dialog.add_css_class("settings-window");
     dialog.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
     let card = widgets::vbox(12);
     card.add_css_class("dialog-card");
-    card.append(&widgets::label("Keyboard shortcuts", "dialog-title"));
+    card.append(&widgets::label("Keyboard shortcuts", "section-title"));
     dialog.set_child(Some(&card));
     let keys = gtk::EventControllerKey::new();
     let d = dialog.clone();
@@ -628,7 +628,15 @@ pub fn show_shortcuts() {
         list.append(&widgets::row(what, "", Some(caps.upcast_ref())));
     }
     widgets::mark_first_rows(list.upcast_ref());
-    card.append(&list);
+    let scroll = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        // Scrolls without a scrollbar, which would cover the key caps.
+        .vscrollbar_policy(gtk::PolicyType::External)
+        .propagate_natural_height(true)
+        .max_content_height(560)
+        .child(&list)
+        .build();
+    card.append(&scroll);
     let close = gtk::Button::with_label("Close");
     close.set_halign(gtk::Align::End);
     let d = dialog.clone();

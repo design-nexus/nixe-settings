@@ -189,7 +189,7 @@ fn changes_group(page: &Page) {
     if !st.monitors.is_empty() {
         others.push(("displays", format!("{} display{} set up here", st.monitors.len(), if st.monitors.len() == 1 { "" } else { "s" })));
     }
-    let n_startup = st.autostart.len() + crate::backend::autostart::list().into_iter().filter(|i| i.enabled).count();
+    let n_startup = st.autostart.len() + crate::backend::autostart::list().into_iter().filter(|i| i.enabled && !i.is_system).count();
     if !st.window_rules.is_empty() || !st.layer_rules.is_empty() || n_startup > 0 {
         others.push(("rules", format!("{n_startup} startup program{}, {} rules", if n_startup == 1 { "" } else { "s" }, st.window_rules.len() + st.layer_rules.len())));
     }

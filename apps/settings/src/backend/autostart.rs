@@ -28,6 +28,9 @@ struct RawDesktop {
     hidden: Option<bool>,
     no_display: Option<bool>,
     autostart_enabled: Option<bool>,
+    only_show_in: Option<Vec<String>>,
+    not_show_in: Option<Vec<String>>,
+    try_exec: Option<String>,
 }
 
 fn read_desktop_file(path: &Path) -> Option<RawDesktop> {
@@ -42,8 +45,55 @@ fn read_desktop_file(path: &Path) -> Option<RawDesktop> {
     let hidden = kf.boolean(GROUP, "Hidden").ok();
     let no_display = kf.boolean(GROUP, "NoDisplay").ok();
     let autostart_enabled = kf.boolean(GROUP, "X-GNOME-Autostart-enabled").ok();
+    let list = |key: &str| kf.string_list(GROUP, key).ok().map(|l| l.iter().map(|s| s.to_string()).collect::<Vec<String>>());
+    let only_show_in = list("OnlyShowIn");
+    let not_show_in = list("NotShowIn");
+    let try_exec = kf.string(GROUP, "TryExec").ok().map(|s| s.to_string());
 
-    Some(RawDesktop { name, exec, comment, icon, hidden, no_display, autostart_enabled })
+    Some(RawDesktop { name, exec, comment, icon, hidden, no_display, autostart_enabled, only_show_in, not_show_in, try_exec })
+}
+
+/// Desktops named in `XDG_CURRENT_DESKTOP` (colon separated).
+fn current_desktops() -> Vec<String> {
+    std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().split(':').filter(|d| !d.is_empty()).map(str::to_string).collect()
+}
+
+/// Whether `OnlyShowIn` / `NotShowIn` let the entry start in these desktops.
+fn shown_in(only: Option<&[String]>, not: Option<&[String]>, desktops: &[String]) -> bool {
+    let named = |list: &[String]| list.iter().any(|d| desktops.iter().any(|c| c.eq_ignore_ascii_case(d)));
+    if let Some(only) = only
+        && !only.is_empty()
+        && !named(only)
+    {
+        return false;
+    }
+    !not.is_some_and(named)
+}
+
+/// Whether the `TryExec` program exists and can be run.
+fn try_exec_ok(try_exec: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let runnable = |p: &Path| p.metadata().is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0);
+    if try_exec.contains('/') {
+        return runnable(Path::new(try_exec));
+    }
+    std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|d| runnable(&d.join(try_exec))))
+}
+
+/// Drop the desktop-entry field codes (`%U`, `%f`, …) that only mean something to a launcher.
+pub fn strip_field_codes(exec: &str) -> String {
+    let mut out = String::new();
+    let mut chars = exec.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '%' {
+            out.push(c);
+            continue;
+        }
+        if chars.next() == Some('%') {
+            out.push('%');
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 pub fn system_dirs() -> Vec<PathBuf> {
@@ -99,6 +149,7 @@ pub fn list_from(user_dir: &Path, sys_dirs: &[PathBuf]) -> Vec<Item> {
         }
     }
 
+    let desktops = current_desktops();
     let all_ids: HashSet<String> = system_entries.keys().chain(user_entries.keys()).cloned().collect();
     let mut items = Vec::new();
 
@@ -108,6 +159,16 @@ pub fn list_from(user_dir: &Path, sys_dirs: &[PathBuf]) -> Vec<Item> {
 
         let no_display = usr.and_then(|u| u.no_display).or_else(|| sys.and_then(|s| s.no_display)).unwrap_or(false);
         if no_display {
+            continue;
+        }
+
+        let only = usr.and_then(|u| u.only_show_in.as_deref()).or_else(|| sys.and_then(|s| s.only_show_in.as_deref()));
+        let not = usr.and_then(|u| u.not_show_in.as_deref()).or_else(|| sys.and_then(|s| s.not_show_in.as_deref()));
+        if !shown_in(only, not, &desktops) {
+            continue;
+        }
+        let try_exec = usr.and_then(|u| u.try_exec.as_deref()).or_else(|| sys.and_then(|s| s.try_exec.as_deref()));
+        if try_exec.is_some_and(|t| !try_exec_ok(t)) {
             continue;
         }
 
@@ -156,40 +217,31 @@ pub fn set_enabled_in(user_dir: &Path, id: &str, is_system: bool, enabled: bool)
     std::fs::create_dir_all(user_dir).map_err(|e| format!("Couldn't create autostart directory: {e}"))?;
     let path = user_dir.join(id);
 
+    let kf = gtk::glib::KeyFile::new();
+    let loaded = path.exists() && kf.load_from_file(&path, gtk::glib::KeyFileFlags::NONE).is_ok();
+    let has_exec = loaded && kf.string(GROUP, "Exec").is_ok();
+
     if enabled {
-        if is_system && path.exists() {
-            // If the user file only exists to hide the system file, removing it restores the system default
-            let is_minimal_mask = std::fs::read_to_string(&path).map(|t| {
-                let lines: Vec<&str> = t.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
-                lines.len() <= 2 && lines.contains(&"Hidden=true")
-            }).unwrap_or(false);
-
-            if is_minimal_mask {
-                let _ = std::fs::remove_file(&path);
-                return Ok(());
+        // A user file with no command only exists to mask the system entry. It would replace
+        // that entry whole (command and all) if kept, so removing it is what turns the entry back on.
+        if is_system && !has_exec {
+            if path.exists() {
+                std::fs::remove_file(&path).map_err(|e| format!("Couldn't enable {id}: {e}"))?;
             }
-        }
-
-        let kf = gtk::glib::KeyFile::new();
-        if path.exists() {
-            let _ = kf.load_from_file(&path, gtk::glib::KeyFileFlags::NONE);
+            return Ok(());
         }
         kf.set_boolean(GROUP, "Hidden", false);
         kf.set_boolean(GROUP, "X-GNOME-Autostart-enabled", true);
-        kf.save_to_file(&path).map_err(|e| format!("Couldn't save {id}: {e}"))?;
     } else {
-        let kf = gtk::glib::KeyFile::new();
-        if path.exists() {
-            let _ = kf.load_from_file(&path, gtk::glib::KeyFileFlags::NONE);
-        } else {
+        if !loaded && !is_system {
             kf.set_string(GROUP, "Type", "Application");
         }
         kf.set_boolean(GROUP, "Hidden", true);
-        kf.set_boolean(GROUP, "X-GNOME-Autostart-enabled", false);
-        kf.save_to_file(&path).map_err(|e| format!("Couldn't save {id}: {e}"))?;
+        if has_exec {
+            kf.set_boolean(GROUP, "X-GNOME-Autostart-enabled", false);
+        }
     }
-
-    Ok(())
+    kf.save_to_file(&path).map_err(|e| format!("Couldn't save {id}: {e}"))
 }
 
 pub fn set_enabled(id: &str, is_system: bool, enabled: bool) -> Result<(), String> {
@@ -238,6 +290,10 @@ pub fn add_app_in(user_dir: &Path, app: &gio::AppInfo) -> Result<String, String>
         if src.exists() {
             let kf = gtk::glib::KeyFile::new();
             if kf.load_from_file(&src, gtk::glib::KeyFileFlags::NONE).is_ok() {
+                if let Ok(exec) = kf.string(GROUP, "Exec") {
+                    kf.set_string(GROUP, "Exec", &strip_field_codes(&exec));
+                }
+                let _ = kf.remove_key(GROUP, "DBusActivatable");
                 kf.set_boolean(GROUP, "Hidden", false);
                 kf.set_boolean(GROUP, "X-GNOME-Autostart-enabled", true);
                 if kf.save_to_file(&target).is_ok() {
@@ -249,7 +305,7 @@ pub fn add_app_in(user_dir: &Path, app: &gio::AppInfo) -> Result<String, String>
     }
 
     if !copied {
-        let exec = app.commandline().map(|c| c.to_string_lossy().to_string()).unwrap_or_default();
+        let exec = app.commandline().map(|c| strip_field_codes(&c.to_string_lossy())).unwrap_or_default();
         let icon = app.icon().and_then(|i| i.to_string()).map(|s| s.to_string()).unwrap_or_default();
         let kf = gtk::glib::KeyFile::new();
         kf.set_string(GROUP, "Type", "Application");
@@ -376,11 +432,49 @@ mod tests {
     }
 
     #[test]
-    fn lists_system_and_user_items() {
-        let items = list();
-        assert!(!items.is_empty());
-        let names: Vec<&str> = items.iter().map(|i| i.name.as_str()).collect();
-        assert!(names.contains(&"1Password"));
-        assert!(names.contains(&"Dropbox"));
+    fn reenabling_a_system_item_restores_it() {
+        let temp = TempDir::new("system");
+        let user_dir = temp.path().join("user_autostart");
+        let sys_dir = temp.path().join("sys_autostart");
+        std::fs::create_dir_all(&sys_dir).unwrap();
+        std::fs::write(sys_dir.join("helper.desktop"), "[Desktop Entry]\nName=Helper\nExec=helper\n").unwrap();
+
+        set_enabled_in(&user_dir, "helper.desktop", true, false).unwrap();
+        let items = list_from(&user_dir, &[sys_dir.clone()]);
+        assert!(!items[0].enabled);
+
+        set_enabled_in(&user_dir, "helper.desktop", true, true).unwrap();
+        assert!(!user_dir.join("helper.desktop").exists(), "the mask must go so the system entry applies whole");
+        let items = list_from(&user_dir, &[sys_dir]);
+        assert!(items[0].enabled);
+    }
+
+    #[test]
+    fn skips_entries_for_other_desktops_and_missing_programs() {
+        let temp = TempDir::new("desktops");
+        let sys_dir = temp.path().join("sys_autostart");
+        std::fs::create_dir_all(&sys_dir).unwrap();
+        std::fs::write(sys_dir.join("gnome-only.desktop"), "[Desktop Entry]\nName=G\nExec=g\nOnlyShowIn=GNOME;\n").unwrap();
+        std::fs::write(sys_dir.join("missing.desktop"), "[Desktop Entry]\nName=M\nExec=m\nTryExec=/nonexistent/program\n").unwrap();
+        std::fs::write(sys_dir.join("fine.desktop"), "[Desktop Entry]\nName=Fine\nExec=f\n").unwrap();
+
+        let names: Vec<String> = list_from(&temp.path().join("none"), &[sys_dir]).into_iter().map(|i| i.name).collect();
+        assert_eq!(names, ["Fine"]);
+    }
+
+    #[test]
+    fn matches_desktops() {
+        let hypr = vec!["Hyprland".to_string()];
+        let gnome = vec!["GNOME".to_string()];
+        assert!(shown_in(None, None, &hypr));
+        assert!(!shown_in(Some(&gnome), None, &hypr));
+        assert!(shown_in(Some(&["hyprland".to_string()]), None, &hypr));
+        assert!(!shown_in(None, Some(&hypr), &hypr));
+    }
+
+    #[test]
+    fn strips_field_codes() {
+        assert_eq!(strip_field_codes("app --flag %U"), "app --flag");
+        assert_eq!(strip_field_codes("app %f %i 100%%"), "app 100%");
     }
 }

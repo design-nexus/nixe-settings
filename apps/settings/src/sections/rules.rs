@@ -32,53 +32,62 @@ fn launcher_icon(icon: &str, fallback: &str) -> gtk::Image {
     img
 }
 
+fn xdg_row(g: &widgets::Group, item: &autostart::Item) {
+    let controls = widgets::hbox(6);
+    let sw = gtk::Switch::new();
+    sw.set_active(item.enabled);
+    sw.set_valign(gtk::Align::Center);
+    {
+        let id = item.id.clone();
+        let is_system = item.is_system;
+        let reverting = std::cell::Cell::new(false);
+        sw.connect_active_notify(move |s| {
+            if reverting.replace(false) {
+                return;
+            }
+            let active = s.is_active();
+            if let Err(e) = autostart::set_enabled(&id, is_system, active) {
+                window::toast(&e);
+                reverting.set(true);
+                s.set_active(!active);
+            }
+        });
+    }
+    controls.append(&sw);
+
+    if !item.is_system {
+        let id = item.id.clone();
+        let remove = widgets::confirm_button("Remove", "Remove?", move |_| {
+            if let Err(e) = autostart::remove(&id, false) {
+                window::toast(&e);
+            } else {
+                window::rebuild("rules");
+            }
+        });
+        controls.append(&remove);
+    }
+
+    let desc = if !item.comment.is_empty() {
+        gtk::glib::markup_escape_text(&item.comment).to_string()
+    } else if !item.exec.is_empty() {
+        format!("<tt>{}</tt>", gtk::glib::markup_escape_text(&item.exec))
+    } else {
+        String::new()
+    };
+
+    let r = widgets::row(&item.name, &desc, Some(controls.upcast_ref()));
+    r.prepend(&launcher_icon(&item.icon, "application-x-executable-symbolic"));
+    g.add(&r);
+    widgets::keywords("autostart startup login session boot launch");
+}
+
 fn startup(page: &Page) {
     let g = page.group("Startup apps");
     g.note("Programs that start when you sign in, unless they're already running.");
 
-    let xdg_items = autostart::list();
-
-    for item in xdg_items {
-        let controls = widgets::hbox(6);
-        let sw = gtk::Switch::new();
-        sw.set_active(item.enabled);
-        sw.set_valign(gtk::Align::Center);
-        {
-            let id = item.id.clone();
-            let is_system = item.is_system;
-            sw.connect_active_notify(move |s| {
-                let active = s.is_active();
-                if let Err(e) = autostart::set_enabled(&id, is_system, active) {
-                    window::toast(&e);
-                }
-            });
-        }
-        controls.append(&sw);
-
-        if !item.is_system {
-            let id = item.id.clone();
-            let remove = widgets::confirm_button("Remove", "Remove?", move |_| {
-                if let Err(e) = autostart::remove(&id, false) {
-                    window::toast(&e);
-                } else {
-                    window::rebuild("rules");
-                }
-            });
-            controls.append(&remove);
-        }
-
-        let desc = if !item.comment.is_empty() {
-            gtk::glib::markup_escape_text(&item.comment).to_string()
-        } else if !item.exec.is_empty() {
-            format!("<tt>{}</tt>", gtk::glib::markup_escape_text(&item.exec))
-        } else {
-            String::new()
-        };
-
-        let r = widgets::row(&item.name, &desc, Some(controls.upcast_ref()));
-        r.prepend(&launcher_icon(&item.icon, "application-x-executable-symbolic"));
-        g.add(&r);
-        widgets::keywords("autostart startup login session boot launch");
+    let (system_items, own_items): (Vec<_>, Vec<_>) = autostart::list().into_iter().partition(|i| i.is_system);
+    for item in &own_items {
+        xdg_row(&g, item);
     }
 
     // The night light schedule manages its own entry.
@@ -133,8 +142,9 @@ fn startup(page: &Page) {
             Some((id, name))
         })
         .collect();
-    installed_apps.sort_by_key(|a| a.1.to_lowercase());
+    installed_apps.sort_by(|a, b| a.0.cmp(&b.0));
     installed_apps.dedup_by(|a, b| a.0 == b.0);
+    installed_apps.sort_by_key(|a| a.1.to_lowercase());
 
     if !installed_apps.is_empty() {
         let mut options = vec![(String::new(), "Pick an installed app to start at login…".to_string())];
@@ -173,6 +183,14 @@ fn startup(page: &Page) {
     });
     widgets::keywords("autostart startup login session add launch");
     g.add(&r);
+
+    if !system_items.is_empty() {
+        let sg = page.group("Started by the system");
+        sg.note("Installed with your apps and system. You can turn them off here, but not remove them.");
+        for item in &system_items {
+            xdg_row(&sg, item);
+        }
+    }
 }
 
 // ----- Rules -----

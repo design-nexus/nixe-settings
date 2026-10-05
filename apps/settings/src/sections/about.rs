@@ -189,8 +189,9 @@ fn changes_group(page: &Page) {
     if !st.monitors.is_empty() {
         others.push(("displays", format!("{} display{} set up here", st.monitors.len(), if st.monitors.len() == 1 { "" } else { "s" })));
     }
-    if !st.window_rules.is_empty() || !st.layer_rules.is_empty() || !st.autostart.is_empty() {
-        others.push(("rules", format!("{} startup programs, {} rules", st.autostart.len(), st.window_rules.len() + st.layer_rules.len())));
+    let n_startup = st.autostart.len() + crate::backend::autostart::list().into_iter().filter(|i| i.enabled).count();
+    if !st.window_rules.is_empty() || !st.layer_rules.is_empty() || n_startup > 0 {
+        others.push(("rules", format!("{n_startup} startup program{}, {} rules", if n_startup == 1 { "" } else { "s" }, st.window_rules.len() + st.layer_rules.len())));
     }
     if !st.devices.is_empty() {
         others.push(("mouse", format!("Settings for {} device{}", st.devices.len(), if st.devices.len() == 1 { "" } else { "s" })));

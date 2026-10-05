@@ -41,6 +41,11 @@ pub fn app_dir() -> PathBuf {
     config_home().join("settings")
 }
 
+/// `~/.config/autostart` — user autostart desktop entries.
+pub fn autostart_dir() -> PathBuf {
+    config_home().join("autostart")
+}
+
 pub fn prefs_file() -> PathBuf {
     app_dir().join("settings.toml")
 }

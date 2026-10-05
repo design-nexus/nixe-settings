@@ -1,11 +1,13 @@
 //! Programs started with the session, and rules for how windows and shell layers behave.
 
+use crate::backend::autostart;
 use crate::backend::rules::{self, Value};
 use crate::backend::state::Rule;
 use crate::dialog::{Field, ask};
 use crate::backend::{hypr, store};
 use crate::widgets::{self, Page};
 use crate::window;
+use gtk::gio;
 use gtk::prelude::*;
 
 pub fn build(page: &Page) {
@@ -16,9 +18,69 @@ pub fn build(page: &Page) {
 
 // ----- Startup apps -----
 
+fn launcher_icon(icon: &str, fallback: &str) -> gtk::Image {
+    let img = if icon.starts_with('/') && std::path::Path::new(icon).exists() {
+        gtk::Image::from_file(icon)
+    } else if !icon.is_empty() && gtk::gdk::Display::default().is_some_and(|d| gtk::IconTheme::for_display(&d).has_icon(icon)) {
+        gtk::Image::from_icon_name(icon)
+    } else {
+        gtk::Image::from_icon_name(fallback)
+    };
+    img.set_pixel_size(24);
+    img.set_valign(gtk::Align::Center);
+    img.add_css_class("launcher-icon");
+    img
+}
+
 fn startup(page: &Page) {
     let g = page.group("Startup apps");
     g.note("Programs that start when you sign in, unless they're already running.");
+
+    let xdg_items = autostart::list();
+
+    for item in xdg_items {
+        let controls = widgets::hbox(6);
+        let sw = gtk::Switch::new();
+        sw.set_active(item.enabled);
+        sw.set_valign(gtk::Align::Center);
+        {
+            let id = item.id.clone();
+            let is_system = item.is_system;
+            sw.connect_active_notify(move |s| {
+                let active = s.is_active();
+                if let Err(e) = autostart::set_enabled(&id, is_system, active) {
+                    window::toast(&e);
+                }
+            });
+        }
+        controls.append(&sw);
+
+        if !item.is_system {
+            let id = item.id.clone();
+            let remove = widgets::confirm_button("Remove", "Remove?", move |_| {
+                if let Err(e) = autostart::remove(&id, false) {
+                    window::toast(&e);
+                } else {
+                    window::rebuild("rules");
+                }
+            });
+            controls.append(&remove);
+        }
+
+        let desc = if !item.comment.is_empty() {
+            gtk::glib::markup_escape_text(&item.comment).to_string()
+        } else if !item.exec.is_empty() {
+            format!("<tt>{}</tt>", gtk::glib::markup_escape_text(&item.exec))
+        } else {
+            String::new()
+        };
+
+        let r = widgets::row(&item.name, &desc, Some(controls.upcast_ref()));
+        r.prepend(&launcher_icon(&item.icon, "application-x-executable-symbolic"));
+        g.add(&r);
+        widgets::keywords("autostart startup login session boot launch");
+    }
+
     // The night light schedule manages its own entry.
     let entries: Vec<(String, String)> = store::read(|s| s.autostart.iter().filter(|(k, _)| k.as_str() != "hyprsunset").map(|(k, v)| (k.clone(), v.clone())).collect());
     for (process, command) in entries {
@@ -56,10 +118,45 @@ fn startup(page: &Page) {
         let controls = widgets::hbox(6);
         controls.append(&edit);
         controls.append(&remove);
-        g.add(&widgets::row(&process, &gtk::glib::markup_escape_text(&command), Some(controls.upcast_ref())));
+        let r = widgets::row(&process, &gtk::glib::markup_escape_text(&command), Some(controls.upcast_ref()));
+        r.prepend(&launcher_icon("", "utilities-terminal-symbolic"));
+        g.add(&r);
         widgets::keywords("autostart startup login session boot launch");
     }
-    let (r, _) = widgets::entry_row("Add a program", "A command, e.g. nm-applet or discord --start-minimized. Press Enter.", "", "command", |text| {
+
+    let mut installed_apps: Vec<(String, String)> = gio::AppInfo::all()
+        .into_iter()
+        .filter(|a| a.should_show())
+        .filter_map(|a| {
+            let id = a.id()?.to_string();
+            let name = a.name().to_string();
+            Some((id, name))
+        })
+        .collect();
+    installed_apps.sort_by_key(|a| a.1.to_lowercase());
+    installed_apps.dedup_by(|a, b| a.0 == b.0);
+
+    if !installed_apps.is_empty() {
+        let mut options = vec![(String::new(), "Pick an installed app to start at login…".to_string())];
+        options.extend(installed_apps);
+        let (picker_row, _) = widgets::choice_row("Add an installed app", "Starts when you sign in.", options, "", |id| {
+            if id.is_empty() {
+                return;
+            }
+            if let Some(app) = gio::AppInfo::all().into_iter().find(|a| a.id().is_some_and(|i| i == id.as_str())) {
+                match autostart::add_app(&app) {
+                    Ok(name) => {
+                        window::toast(&format!("{name} added to startup"));
+                        window::rebuild("rules");
+                    }
+                    Err(e) => window::toast(&e),
+                }
+            }
+        });
+        g.add(&picker_row);
+    }
+
+    let (r, _) = widgets::entry_row("Add a command", "A custom command, e.g. nm-applet or discord --start-minimized. Press Enter.", "", "command", |text| {
         let text = text.trim().to_string();
         if text.is_empty() {
             return;

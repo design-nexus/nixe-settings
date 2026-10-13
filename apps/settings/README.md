@@ -137,7 +137,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh |
     balance, with framing presets for OBSBOT cameras.
 
   Anyone can write one: see
-  [settings-extensions](https://github.com/design-nexus/settings-extensions).
+  [extensions](../../extensions).
 - **Updates**: Settings checks GitHub once a day when it opens. A new version is
   offered on About (one click, then restart); extensions show "Update
   available" and can update together, or automatically if you switch that on.

@@ -128,6 +128,19 @@
         "nvidia-smi"
       ],
       "icon": "video-display-symbolic"
+    },
+    {
+      "id": "controllers",
+      "name": "Game controllers",
+      "description": "Battery, a live button, stick and trigger tester, a rumble test, and the lightbar and player lights of PlayStation controllers.",
+      "devices": "Xbox, PlayStation (DualSense, DualShock 4), Switch Pro, 8BitDo and other controllers the kernel drives, over USB or Bluetooth",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/controllers",
+      "also": [
+        "extensions/common"
+      ],
+      "needs": [],
+      "icon": "input-gaming-symbolic"
     }
   ]
 }

@@ -1,0 +1,6 @@
+id = "controllers"
+name = "Game controllers"
+version = "1.0.0"
+description = "Battery, a live button and stick tester, a rumble test, and the lightbar and player lights of game controllers."
+exec = "bin/settings-controllers"
+install = "install.sh"

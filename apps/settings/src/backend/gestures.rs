@@ -263,6 +263,11 @@ fn set_lines(fingers: u8, set: &FingerSet, loop_count: Option<u32>, out: &mut Ve
     follow_invert
 }
 
+/// Gestures keep workspaces 1..=N alive; this is N (0: none).
+pub fn persistent_upto(g: &Gestures) -> u32 {
+    if g.enabled { g.loop_count.clamp(2, 10) } else { 0 }
+}
+
 /// Lua lines for every configured gesture, plus the gesture options.
 pub fn lua(g: &Gestures) -> Vec<String> {
     let mut out = Vec::new();

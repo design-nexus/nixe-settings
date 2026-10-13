@@ -1,5 +1,5 @@
 use crate::backend::shell;
-use crate::widgets::{self, Page, opts};
+use crate::widgets::{self, Page};
 use crate::{cmd, paths, window};
 use gtk::prelude::*;
 
@@ -31,13 +31,14 @@ fn set_shell_text_size(size: i64) -> anyhow::Result<()> {
 pub fn build(page: &Page) {
     let g = page.group("Bar");
     let position = shell::get(&["bar", "position"]).and_then(|v| v.as_str().map(String::from)).unwrap_or("top".into());
-    let (r, _) = widgets::choice_row(
-        "Position",
-        "",
-        opts(&[("top", "Top"), ("bottom", "Bottom"), ("left", "Left"), ("right", "Right")]),
-        &position,
-        |p| run(&["omarchy-bar", "position", &p]),
-    );
+    use crate::sketch::Sketch;
+    let cards = [("top", "Top"), ("bottom", "Bottom"), ("left", "Left"), ("right", "Right")]
+        .iter()
+        .map(|(id, name)| (id.to_string(), name.to_string(), Sketch::Bar(id)))
+        .collect();
+    let (r, _, _) = widgets::visual_choice("Position", "Which edge of the screen the bar sits on.", cards, &position, |p| {
+        run(&["omarchy-bar", "position", &p])
+    });
     g.add(&r);
     let transparent = shell::get(&["bar", "transparent"]).and_then(|v| v.as_bool()).unwrap_or(false);
     let (r, _) = widgets::switch_row("Transparent background", "Let the wallpaper show through the bar.", transparent, |on| {

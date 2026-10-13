@@ -94,6 +94,15 @@ pub fn generate(state: &State, self_cmd: &str) -> String {
         }
     }
 
+    let ws_lines = workspace_lines(state);
+    if !ws_lines.is_empty() {
+        out.push_str("\n-- Workspaces\n");
+        for line in ws_lines {
+            out.push_str(&line);
+            out.push('\n');
+        }
+    }
+
     let gesture_lines = gestures::lua(&state.gestures);
     if !gesture_lines.is_empty() {
         out.push_str("\n-- Trackpad gestures\n");
@@ -140,6 +149,52 @@ pub fn generate(state: &State, self_cmd: &str) -> String {
     if !binds.is_empty() {
         out.push_str("\n-- Keybindings\n");
         out.push_str(&binds);
+    }
+    out
+}
+
+/// A monitor name as Hyprland reports it (`eDP-1`, `DP-3`, `HDMI-A-1`).
+pub fn valid_monitor(s: &str) -> bool {
+    !s.is_empty() && s.len() <= 64 && s.chars().all(|c| c.is_ascii_alphanumeric() || "-_.:".contains(c))
+}
+
+/// One `hl.workspace_rule` per workspace Settings changes, and Omarchy's
+/// `o.workspace_mode` for a workspace with its own layout. A workspace that
+/// gestures also keep alive stays persistent in its own rule too, so it's
+/// right whether Hyprland merges rules for the same workspace or replaces them.
+fn workspace_lines(state: &State) -> Vec<String> {
+    let gesture_upto = gestures::persistent_upto(&state.gestures);
+    let mut out = Vec::new();
+    for id in 1..=10u32 {
+        let rule = state.workspaces.iter().find(|r| r.workspace == id).filter(|r| !r.is_empty());
+        let persistent = id <= state.persistent_workspaces;
+        if rule.is_none() && !persistent {
+            continue;
+        }
+        let mut parts = vec![format!("workspace = {}", quote(&id.to_string()))];
+        if persistent || (rule.is_some() && id <= gesture_upto) {
+            parts.push("persistent = true".into());
+        }
+        if let Some(r) = rule {
+            if let Some(m) = r.monitor.as_deref().filter(|m| valid_monitor(m)) {
+                parts.push(format!("monitor = {}", quote(m)));
+            }
+            if let Some(n) = r.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+                parts.push(format!("default_name = {}", quote(n)));
+            }
+            if let Some((gin, gout)) = r.gaps {
+                parts.push(format!("gaps_in = {}, gaps_out = {}", gin.clamp(0, 100), gout.clamp(0, 200)));
+            }
+            for (on, key) in [(r.no_border, "no_border"), (r.no_rounding, "no_rounding"), (r.no_shadow, "no_shadow")] {
+                if on {
+                    parts.push(format!("{key} = true"));
+                }
+            }
+        }
+        out.push(format!("hl.workspace_rule({{ {} }})", parts.join(", ")));
+        if let Some(mode) = rule.and_then(|r| r.mode.as_deref()).filter(|m| ["dwindle", "master", "scrolling", "floating"].contains(m)) {
+            out.push(format!("o.workspace_mode({{ workspace = {}, mode = {} }})", quote(&id.to_string()), quote(mode)));
+        }
     }
     out
 }
@@ -285,5 +340,44 @@ mod tests {
         assert!(is_required("require(\"hypr.settings\") -- x"));
         assert!(!is_required("-- require(\"hypr.settings\")"));
         assert!(!is_required("require(\"hypr.omasettings\")"));
+    }
+
+    #[test]
+    fn writes_workspace_rules() {
+        use super::super::state::WorkspaceRule;
+        let mut s = State { persistent_workspaces: 2, ..Default::default() };
+        s.gestures.enabled = false;
+        s.workspaces.push(WorkspaceRule {
+            workspace: 3,
+            monitor: Some("DP-1".into()),
+            name: Some("Web \"x\"".into()),
+            mode: Some("scrolling".into()),
+            gaps: Some((0, 0)),
+            no_border: true,
+            ..Default::default()
+        });
+        // A bad monitor name and an unknown mode are left out.
+        s.workspaces.push(WorkspaceRule { workspace: 4, monitor: Some("DP-1\") --".into()), mode: Some("weird".into()), ..Default::default() });
+        let lines = workspace_lines(&s);
+        assert_eq!(lines[0], "hl.workspace_rule({ workspace = \"1\", persistent = true })");
+        assert_eq!(lines[1], "hl.workspace_rule({ workspace = \"2\", persistent = true })");
+        assert!(lines[2].starts_with("hl.workspace_rule({ workspace = \"3\", monitor = \"DP-1\", default_name = "));
+        assert!(lines[2].contains("gaps_in = 0, gaps_out = 0") && lines[2].contains("no_border = true"));
+        assert!(!lines[2].contains("persistent"));
+        assert_eq!(lines[3], "o.workspace_mode({ workspace = \"3\", mode = \"scrolling\" })");
+        assert_eq!(lines[4], "hl.workspace_rule({ workspace = \"4\" })");
+        assert_eq!(lines.len(), 5);
+    }
+
+    #[test]
+    fn keeps_gesture_workspaces_persistent_in_own_rules() {
+        use super::super::state::WorkspaceRule;
+        let mut s = State::default();
+        s.gestures.enabled = true;
+        s.gestures.loop_count = 5;
+        s.workspaces.push(WorkspaceRule { workspace: 2, name: Some("Mail".into()), ..Default::default() });
+        let lines = workspace_lines(&s);
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("persistent = true"));
     }
 }

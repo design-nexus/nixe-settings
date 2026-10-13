@@ -44,7 +44,13 @@ fn cache_file() -> std::path::PathBuf {
 }
 
 pub fn cached() -> Status {
-    std::fs::read_to_string(cache_file()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    let s: Status = std::fs::read_to_string(cache_file()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
+    // A check made against another repository (before the move to Nixe) says
+    // nothing about this one's releases.
+    if !s.url.is_empty() && !s.url.contains(REPO) {
+        return Status { extensions: s.extensions, ..Status::default() };
+    }
+    s
 }
 
 fn save(s: &Status) {

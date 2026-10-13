@@ -8,10 +8,16 @@ use super::hypr;
 use super::state::State;
 use crate::{cmd, paths};
 use gtk::glib;
+use gtk::prelude::*;
 use serde_json::Value;
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+type Listener = Rc<dyn Fn(&str, Option<&Value>)>;
 
 thread_local! {
+    /// Told about option changes under a prefix (live previews).
+    static LISTENERS: RefCell<Vec<(glib::WeakRef<gtk::Widget>, String, Listener)>> = const { RefCell::new(Vec::new()) };
     static STATE: RefCell<State> = RefCell::new(State::load(&paths::state_file()));
     static PENDING: Cell<Option<glib::SourceId>> = const { Cell::new(None) };
     static RELOAD_AFTER: Cell<bool> = const { Cell::new(false) };
@@ -76,11 +82,31 @@ pub fn is_managed(key: &str) -> bool {
     read(|s| s.options.contains_key(key))
 }
 
+/// While `owner` lives, call `f` with each option under `prefix` as it
+/// changes: the new value, or `None` when it was reset (re-read it after a
+/// reload).
+pub fn subscribe(owner: &impl IsA<gtk::Widget>, prefix: &str, f: impl Fn(&str, Option<&Value>) + 'static) {
+    let weak = owner.upcast_ref::<gtk::Widget>().downgrade();
+    LISTENERS.with(|l| l.borrow_mut().push((weak, prefix.to_string(), Rc::new(f))));
+}
+
+fn notify(key: &str, value: Option<&Value>) {
+    let listeners: Vec<Listener> = LISTENERS.with(|l| {
+        let mut l = l.borrow_mut();
+        l.retain(|(w, _, _)| w.upgrade().is_some());
+        l.iter().filter(|(_, p, _)| key.starts_with(p.as_str())).map(|(_, _, f)| f.clone()).collect()
+    });
+    for f in listeners {
+        f(key, value);
+    }
+}
+
 /// Set a Hyprland option: apply it live, remember it, write soon.
 pub fn set_option(key: &str, value: Value) {
     if let Err(e) = hypr::apply_option(key, &value) {
         eprintln!("nixe-settings: live apply of {key} failed: {e:#}");
     }
+    notify(key, Some(&value));
     update(false, |s| {
         s.options.insert(key.to_string(), value);
     });
@@ -93,6 +119,7 @@ pub fn reset_option(key: &str) {
         s.options.remove(key);
     });
     flush();
+    notify(key, None);
 }
 
 pub fn set_device(device: &str, key: &str, value: Value) {

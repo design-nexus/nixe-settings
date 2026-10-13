@@ -5,6 +5,7 @@ pub use nixe_ui::widgets::*;
 
 use crate::backend::{hypr, store};
 use crate::cmd;
+use crate::sketch::{self, Sketch};
 use gtk::prelude::*;
 use gtk::{glib, pango};
 use serde_json::{Value, json};
@@ -1141,4 +1142,153 @@ pub fn tag_row(row: &gtk::Box, text: &str) {
         line.append(t);
         line.append(&tag(text));
     }
+}
+
+// ---------- Pictures ----------
+
+/// Picks a card by its id without telling the page.
+pub type Pick = Rc<dyn Fn(&str)>;
+
+/// Choices shown as picture cards: a drawing of each with its name under it.
+/// Returns the row and a way to pick a card without calling `on_change`.
+pub fn visual_choice(
+    title: &str,
+    desc: &str,
+    options: Vec<(String, String, Sketch)>,
+    current: &str,
+    on_change: impl Fn(String) + 'static,
+) -> (gtk::Box, gtk::Box, Pick) {
+    let outer = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    outer.add_css_class("settings-option");
+    outer.add_css_class("card-row");
+    outer.add_css_class("tall");
+    let head = gtk::Box::new(gtk::Orientation::Horizontal, 14);
+    let text = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    text.set_hexpand(true);
+    let t = gtk::Label::new(Some(title));
+    t.add_css_class("settings-option-title");
+    t.set_xalign(0.0);
+    text.append(&t);
+    if !desc.is_empty() {
+        let d = gtk::Label::new(None);
+        d.set_markup(desc);
+        d.add_css_class("settings-option-description");
+        d.set_xalign(0.0);
+        d.set_wrap(true);
+        text.append(&d);
+    }
+    head.append(&text);
+    outer.append(&head);
+
+    let flow = gtk::FlowBox::new();
+    flow.set_selection_mode(gtk::SelectionMode::None);
+    flow.set_homogeneous(true);
+    flow.set_min_children_per_line(2);
+    flow.set_max_children_per_line(4);
+    flow.set_column_spacing(10);
+    flow.set_row_spacing(10);
+    flow.add_css_class("picture-cards");
+    let guard = Rc::new(Cell::new(false));
+    let on_change = Rc::new(on_change);
+    let mut buttons: Vec<(String, gtk::ToggleButton)> = Vec::new();
+    let mut first: Option<gtk::ToggleButton> = None;
+    for (id, name, sk) in options {
+        let b = gtk::ToggleButton::new();
+        b.add_css_class("picture-card");
+        let content = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        let a = sketch::area(sk, 132, 80, Rc::new(Cell::new(true)));
+        a.set_halign(gtk::Align::Center);
+        content.append(&a);
+        let l = gtk::Label::new(Some(&name));
+        l.add_css_class("picture-card-label");
+        l.set_wrap(true);
+        l.set_justify(gtk::Justification::Center);
+        l.set_max_width_chars(18);
+        content.append(&l);
+        b.set_child(Some(&content));
+        b.set_tooltip_text(Some(&name));
+        match &first {
+            Some(g) => b.set_group(Some(g)),
+            None => first = Some(b.clone()),
+        }
+        b.set_active(id == current);
+        let (guard, f, id2) = (guard.clone(), on_change.clone(), id.clone());
+        b.connect_toggled(move |b| {
+            if b.is_active() && !guard.get() {
+                f(id2.clone());
+            }
+        });
+        flow.append(&b);
+        buttons.push((id, b));
+    }
+    outer.append(&flow);
+    register(&outer, title, desc, "");
+    let set: Pick = Rc::new(move |id: &str| {
+        guard.set(true);
+        for (i, b) in &buttons {
+            if i == id {
+                b.set_active(true);
+            }
+        }
+        guard.set(false);
+    });
+    (outer, head, set)
+}
+
+/// A Hyprland option as picture cards, with the usual reset button.
+pub fn hypr_visual_choice(key: &'static str, title: &str, desc: &str, options: Vec<(String, String, Sketch)>, numeric: bool) -> gtk::Box {
+    remember_option(key, title);
+    let as_id = |v: &Value| match v {
+        Value::String(s) => s.clone(),
+        Value::Bool(b) => (if *b { "1" } else { "0" }).to_string(),
+        other => other.to_string(),
+    };
+    let current = store::option(key).map(|v| as_id(&v)).or_else(|| hypr::get_option(key).map(|v| as_id(&v))).unwrap_or_default();
+    let reset_slot: Rc<RefCell<Option<gtk::Button>>> = Rc::new(RefCell::new(None));
+    let rs = reset_slot.clone();
+    let (outer, head, set) = visual_choice(title, desc, options, &current, move |id| {
+        let value = if numeric { id.parse::<i64>().map(|n| json!(n)).unwrap_or(json!(id)) } else { json!(id) };
+        store::set_option(key, value);
+        if let Some(b) = rs.borrow().as_ref() {
+            show_reset(b, true);
+        }
+    });
+    let reset = reset_button(key, move || {
+        let set = set.clone();
+        after_reload(move || set(&hypr::get_option(key).map(|v| as_id(&v)).unwrap_or_default()));
+    });
+    head.append(&reset);
+    *reset_slot.borrow_mut() = Some(reset);
+    outer
+}
+
+/// A small drawing at the start of a row. If the row has a switch, the
+/// drawing shows its state.
+pub fn sketched(row: &gtk::Box, s: Sketch) {
+    fn find_switch(w: &gtk::Widget) -> Option<gtk::Switch> {
+        if let Some(s) = w.downcast_ref::<gtk::Switch>() {
+            return Some(s.clone());
+        }
+        let mut child = w.first_child();
+        while let Some(c) = child {
+            if let Some(s) = find_switch(&c) {
+                return Some(s);
+            }
+            child = c.next_sibling();
+        }
+        None
+    }
+    let on = Rc::new(Cell::new(true));
+    let a = sketch::area(s, 64, 40, on.clone());
+    a.set_valign(gtk::Align::Center);
+    a.add_css_class("row-sketch");
+    if let Some(sw) = find_switch(row.upcast_ref()) {
+        on.set(sw.is_active());
+        let a2 = a.clone();
+        sw.connect_active_notify(move |s| {
+            on.set(s.is_active());
+            a2.queue_draw();
+        });
+    }
+    row.prepend(&a);
 }

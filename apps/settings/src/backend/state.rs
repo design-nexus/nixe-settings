@@ -34,6 +34,39 @@ pub struct Monitor {
     pub disabled: bool,
 }
 
+/// What Settings sets for one workspace (1–10). Unset fields leave Hyprland's
+/// and Omarchy's own behaviour alone.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(default)]
+pub struct WorkspaceRule {
+    pub workspace: u32,
+    /// The monitor it lives on.
+    pub monitor: Option<String>,
+    /// Its own name, shown instead of the number.
+    pub name: Option<String>,
+    /// Its own layout: dwindle, master, scrolling or floating (Omarchy's
+    /// `o.workspace_mode`).
+    pub mode: Option<String>,
+    /// Its own gaps, inner and outer.
+    pub gaps: Option<(i64, i64)>,
+    pub no_border: bool,
+    pub no_rounding: bool,
+    pub no_shadow: bool,
+}
+
+impl WorkspaceRule {
+    /// Whether it changes anything.
+    pub fn is_empty(&self) -> bool {
+        self.monitor.is_none()
+            && self.name.is_none()
+            && self.mode.is_none()
+            && self.gaps.is_none()
+            && !self.no_border
+            && !self.no_rounding
+            && !self.no_shadow
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(default)]
 pub struct State {
@@ -55,6 +88,9 @@ pub struct State {
     pub autostart: BTreeMap<String, String>,
     pub window_rules: Vec<Rule>,
     pub layer_rules: Vec<Rule>,
+    /// Workspaces 1..=N always exist, even when empty (0: Hyprland's default).
+    pub persistent_workspaces: u32,
+    pub workspaces: Vec<WorkspaceRule>,
 }
 
 /// The suite's programs by the names they had before it was called Nixe.

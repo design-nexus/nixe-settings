@@ -37,6 +37,7 @@ pub mod services;
 pub mod software;
 pub mod theme;
 pub mod trackpad;
+pub mod workspace_rules;
 pub mod workspaces;
 
 /// How a page is filled in.

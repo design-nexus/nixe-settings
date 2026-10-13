@@ -895,3 +895,54 @@ window.settings-window button.dialog-nav.active image {
 .settings-dialog-main .settings-page.narrow {
   padding: 4px 20px 28px;
 }
+
+/* ---------- Pictures: cards for a visual choice, previews, row drawings ---------- */
+
+.picture-cards {
+  margin-top: 2px;
+}
+
+window.settings-window button.picture-card {
+  padding: 8px 8px 10px;
+  border: 1px solid @hairline;
+  border-radius: 10px;
+  background: mix(@theme_surface, @theme_text, 0.03);
+  box-shadow: none;
+}
+
+window.settings-window button.picture-card:hover {
+  background: @row_hover;
+}
+
+window.settings-window button.picture-card:checked {
+  border-color: @theme_accent;
+  background: @nav_active;
+  box-shadow: 0 0 0 1px @theme_accent;
+}
+
+.picture-card-label {
+  font-size: 0.88em;
+  color: @theme_dim_text;
+}
+
+button.picture-card:checked .picture-card-label {
+  color: @theme_text;
+  font-weight: 600;
+}
+
+.preview-card {
+  padding: 10px;
+  border-radius: 12px;
+  background: mix(@theme_surface, @theme_bg, 0.5);
+  border: 1px solid @hairline;
+}
+
+.preview-caption {
+  font-size: 0.86em;
+  color: @theme_dim_text;
+  margin-left: 2px;
+}
+
+.row-sketch {
+  margin-right: 2px;
+}

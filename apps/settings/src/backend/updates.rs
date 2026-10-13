@@ -10,7 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-pub const REPO: &str = "design-nexus/omarchy-settings";
+pub const REPO: &str = "design-nexus/nixe";
+/// Releases of this app in the suite's repository are tagged `settings-v<version>`.
+const TAG_PREFIX: &str = "settings-v";
 const RECHECK: u64 = 20 * 60 * 60;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -38,7 +40,7 @@ fn now() -> u64 {
 }
 
 fn cache_file() -> std::path::PathBuf {
-    paths::cache_home().join("settings/updates.json")
+    paths::cache_dir().join("updates.json")
 }
 
 pub fn cached() -> Status {
@@ -60,17 +62,30 @@ pub fn newer(candidate: &str, current: &str) -> bool {
     }
 }
 
-/// The latest release: (version, page).
+/// The latest release of Settings: (version, page).
 pub fn latest_release() -> Result<(String, String)> {
-    let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
+    let url = format!("https://api.github.com/repos/{REPO}/releases?per_page=100");
     let out = Command::new("curl").args(["-fsSL", "--max-time", "15", "-H", "Accept: application/vnd.github+json", &url]).output()?;
     if !out.status.success() {
         bail!("couldn't reach GitHub");
     }
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).context("GitHub sent something unexpected")?;
-    let tag = v.get("tag_name").and_then(|t| t.as_str()).context("no release found")?;
-    let page = v.get("html_url").and_then(|t| t.as_str()).unwrap_or_default();
-    Ok((tag.trim_start_matches('v').to_string(), page.to_string()))
+    newest_of(&v).context("no release found")
+}
+
+/// The newest non-draft, non-prerelease Settings release in a release list.
+fn newest_of(list: &serde_json::Value) -> Option<(String, String)> {
+    let mut best: Option<(String, String)> = None;
+    for r in list.as_array()? {
+        if r["draft"].as_bool() == Some(true) || r["prerelease"].as_bool() == Some(true) {
+            continue;
+        }
+        let Some(version) = r["tag_name"].as_str().and_then(|t| t.strip_prefix(TAG_PREFIX)) else { continue };
+        if best.as_ref().is_none_or(|(b, _)| newer(version, b)) {
+            best = Some((version.to_string(), r["html_url"].as_str().unwrap_or_default().to_string()));
+        }
+    }
+    best
 }
 
 /// Check now (`force`), or only if the last check is old. Extensions that are turned
@@ -119,10 +134,10 @@ pub fn update_extensions() -> Result<Vec<String>> {
     Ok(done)
 }
 
-/// Whether this copy is the one the installer manages (`~/.local/bin/settings`),
+/// Whether this copy is the one the installer manages (`~/.local/bin/nixe-settings`),
 /// rather than a development build.
 pub fn self_updatable() -> bool {
-    let installed = paths::home().join(".local/bin/settings");
+    let installed = paths::home().join(".local/bin/nixe-settings");
     match (std::env::current_exe().and_then(|p| p.canonicalize()), installed.canonicalize()) {
         (Ok(a), Ok(b)) => a == b,
         _ => false,
@@ -134,7 +149,7 @@ pub fn update_settings() -> Result<()> {
     if !self_updatable() {
         bail!("This copy of Settings is a development build; update it from its source");
     }
-    let script = format!("curl -fsSL https://raw.githubusercontent.com/{REPO}/main/install.sh | bash");
+    let script = format!("curl -fsSL https://raw.githubusercontent.com/{REPO}/main/install.sh | bash -s -- settings");
     let mut c = Command::new("bash");
     c.args(["-c", &script]);
     ext::run_command(c, "the Settings installer", Duration::from_secs(900))?;
@@ -179,6 +194,18 @@ pub fn cli(args: &[String]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn picks_the_newest_settings_release() {
+        let list = serde_json::json!([
+            { "tag_name": "music-v2.0.0", "html_url": "m" },
+            { "tag_name": "settings-v0.8.0", "html_url": "a", "prerelease": true },
+            { "tag_name": "settings-v0.7.10", "html_url": "b" },
+            { "tag_name": "settings-v0.7.9", "html_url": "c" },
+        ]);
+        assert_eq!(newest_of(&list), Some(("0.7.10".into(), "b".into())));
+        assert_eq!(newest_of(&serde_json::json!([{ "tag_name": "pdf-v1.0.0" }])), None);
+    }
 
     #[test]
     fn compares_versions() {

@@ -1,6 +1,6 @@
 //! Users and groups. Reading needs no privileges; changes go through
-//! `settings-helper`, which runs as root via pkexec and only does a fixed set of
-//! account operations (see `src/bin/settings-helper.rs`).
+//! `nixe-settings-helper`, which runs as root via pkexec and only does a fixed set of
+//! account operations (see `src/bin/nixe-settings-helper.rs`).
 
 use super::passwd::{self, Group, User};
 use crate::cmd;
@@ -10,9 +10,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-pub const HELPER: &str = "/usr/local/lib/settings/settings-helper";
-const POLICY: &str = "/usr/share/polkit-1/actions/io.github.design_nexus.settings.policy";
-const POLICY_XML: &str = include_str!("../../data/io.github.design_nexus.settings.policy");
+pub const HELPER: &str = "/usr/local/lib/nixe-settings/nixe-settings-helper";
+const POLICY: &str = "/usr/share/polkit-1/actions/io.github.design_nexus.nixe.settings.policy";
+const POLICY_XML: &str = include_str!("../../data/io.github.design_nexus.nixe.settings.policy");
 
 pub fn helper_installed() -> bool {
     Path::new(HELPER).is_file() && Path::new(POLICY).is_file() && cmd::present("pkexec")
@@ -30,7 +30,7 @@ pub fn helper_state() -> HelperState {
     if !helper_installed() {
         return HelperState::Missing;
     }
-    let ours = std::env::current_exe().ok().map(|p| p.with_file_name("settings-helper")).and_then(|p| std::fs::read(p).ok());
+    let ours = std::env::current_exe().ok().map(|p| p.with_file_name("nixe-settings-helper")).and_then(|p| std::fs::read(p).ok());
     match (ours, std::fs::read(HELPER)) {
         (Some(a), Ok(b)) if a != b => HelperState::Outdated,
         _ => HelperState::Ready,
@@ -63,16 +63,16 @@ pub fn helper(args: &[&str], stdin: Option<&str>) -> Result<String> {
 }
 
 /// Copy the helper next to this binary into a root-owned place and register the
-/// polkit action. Run as root (`sudo settings --install-helper`); a user-writable
+/// polkit action. Run as root (`sudo nixe-settings --install-helper`); a user-writable
 /// helper would let any program of yours become root.
 pub fn install_helper() -> Result<()> {
     if !nix_is_root() {
-        bail!("run this as root: sudo settings --install-helper");
+        bail!("run this as root: sudo nixe-settings --install-helper");
     }
     let exe = std::env::current_exe()?.canonicalize()?;
-    let source = exe.with_file_name("settings-helper");
+    let source = exe.with_file_name("nixe-settings-helper");
     if !source.is_file() {
-        bail!("{} not found next to the settings binary", source.display());
+        bail!("{} not found next to the nixe-settings binary", source.display());
     }
     let dir = Path::new(HELPER).parent().context("no helper directory")?;
     std::fs::create_dir_all(dir)?;

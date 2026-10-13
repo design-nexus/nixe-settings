@@ -44,7 +44,7 @@ fn now() -> u64 {
 }
 
 fn cache_file() -> std::path::PathBuf {
-    paths::cache_home().join("settings/system-updates.json")
+    paths::cache_dir().join("system-updates.json")
 }
 
 pub fn cached() -> Status {

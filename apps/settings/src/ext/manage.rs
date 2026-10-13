@@ -358,7 +358,7 @@ mod tests {
         let url = format!("file://{r}");
         assert!(install_from(&url, "demo", Some("other")).is_err());
         let e = install_from(&url, "demo", Some("demo")).unwrap();
-        assert_eq!(e.root, scratch.join("data/settings/extensions/demo"));
+        assert_eq!(e.root, crate::paths::ext_dir().join("demo"));
         assert!(e.dir.join("built").exists(), "install script ran");
         assert!(install_from(&url, "demo", None).unwrap_err().to_string().contains("already installed"));
         assert!(!update(&e).unwrap());

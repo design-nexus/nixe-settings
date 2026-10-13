@@ -20,7 +20,7 @@ mod window;
 use gtk::prelude::*;
 use gtk::{gio, glib};
 
-const APP_ID: &str = "io.github.design_nexus.Settings";
+const APP_ID: &str = "io.github.design_nexus.nixe.Settings";
 
 const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N] [--eq on|off|toggle|status] [--apply]\n\
 \n\
@@ -37,7 +37,8 @@ const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N]
   --apply        rewrite ~/.config/hypr/settings.lua from saved state and exit\n";
 
 fn main() -> glib::ExitCode {
-    nixe_core::app::init(nixe_core::app::App { slug: "settings", name: "Settings" });
+    nixe_core::app::init(nixe_core::app::App { slug: "nixe-settings", name: "Settings" });
+    nixe_core::migrate::from(&["settings"]);
     let args: Vec<String> = std::env::args().collect();
 
     // Headless commands never touch GTK.

@@ -1,4 +1,4 @@
-//! Nexus-style building blocks: pages, groups and option rows, plus rows bound
+//! Nixe-style building blocks: pages, groups and option rows, plus rows bound
 //! directly to Hyprland options.
 
 pub use nixe_ui::widgets::*;

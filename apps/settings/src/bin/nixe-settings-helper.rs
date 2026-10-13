@@ -2,20 +2,20 @@
 //! fixed set of changes and nothing else: every argument is checked here, because the
 //! caller is a normal user's program.
 //!
-//!   settings-helper add-user NAME SHELL ADMIN(0|1)     password on stdin
-//!   settings-helper delete-user NAME KEEP_HOME(0|1)
-//!   settings-helper lock-user NAME | unlock-user NAME
-//!   settings-helper set-password NAME                  password on stdin
-//!   settings-helper set-shell NAME SHELL
-//!   settings-helper add-group NAME | delete-group NAME | rename-group OLD NEW
-//!   settings-helper rename-user OLD NEW MOVE_HOME(0|1) | set-fullname NAME TEXT
-//!   settings-helper add-member USER GROUP | remove-member USER GROUP
-//!   settings-helper firewall enable|disable|rules | allow PORT PROTO | delete N
-//!   settings-helper set-timezone ZONE | set-ntp 0|1 | set-time 'YYYY-MM-DD HH:MM:SS'
-//!   settings-helper enable-locale 'LOCALE CHARSET' | set-locale LOCALE | set-hostname NAME
-//!   settings-helper logind KEY VALUE | sleep-delay SECONDS
-//!   settings-helper service start|stop|restart|enable|disable|enable-now|disable-now UNIT
-//!   settings-helper printer-remove NAME | printer-add NAME URI | printer-set-uri NAME URI
+//!   nixe-settings-helper add-user NAME SHELL ADMIN(0|1)     password on stdin
+//!   nixe-settings-helper delete-user NAME KEEP_HOME(0|1)
+//!   nixe-settings-helper lock-user NAME | unlock-user NAME
+//!   nixe-settings-helper set-password NAME                  password on stdin
+//!   nixe-settings-helper set-shell NAME SHELL
+//!   nixe-settings-helper add-group NAME | delete-group NAME | rename-group OLD NEW
+//!   nixe-settings-helper rename-user OLD NEW MOVE_HOME(0|1) | set-fullname NAME TEXT
+//!   nixe-settings-helper add-member USER GROUP | remove-member USER GROUP
+//!   nixe-settings-helper firewall enable|disable|rules | allow PORT PROTO | delete N
+//!   nixe-settings-helper set-timezone ZONE | set-ntp 0|1 | set-time 'YYYY-MM-DD HH:MM:SS'
+//!   nixe-settings-helper enable-locale 'LOCALE CHARSET' | set-locale LOCALE | set-hostname NAME
+//!   nixe-settings-helper logind KEY VALUE | sleep-delay SECONDS
+//!   nixe-settings-helper service start|stop|restart|enable|disable|enable-now|disable-now UNIT
+//!   nixe-settings-helper printer-remove NAME | printer-add NAME URI | printer-set-uri NAME URI
 
 #[path = "../backend/passwd.rs"]
 mod passwd;

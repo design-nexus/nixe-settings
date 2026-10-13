@@ -34,7 +34,7 @@ const ICONS: &[(&str, &str)] = &[("settings-shortcuts-symbolic", include_str!(".
 
 /// Write the built-in icons where GTK's icon lookup finds them.
 fn install_icons(display: &gtk::gdk::Display) {
-    let dir = crate::paths::cache_home().join("settings/icons");
+    let dir = crate::paths::cache_dir().join("icons");
     if std::fs::create_dir_all(&dir).is_err() {
         return;
     }

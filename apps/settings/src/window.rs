@@ -137,7 +137,7 @@ fn build(app: &gtk::Application) {
     window.add_css_class("settings-window");
     // No client-side titlebar: Hyprland manages the window.
     window.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
-    window.set_icon_name(Some("io.github.design_nexus.Settings"));
+    window.set_icon_name(Some("io.github.design_nexus.nixe.Settings"));
 
     let sections = sections::all();
 
@@ -484,7 +484,7 @@ pub fn after_update_check(s: crate::backend::updates::Status) {
 /// Start the installed Settings again on `section`, and quit this one.
 pub fn restart(section: &str) {
     use std::os::unix::process::CommandExt;
-    let exe = crate::paths::home().join(".local/bin/settings");
+    let exe = crate::paths::home().join(".local/bin/nixe-settings");
     let script = format!("sleep 1; exec '{}' --section '{}'", exe.display(), section.replace('\'', ""));
     let started = std::process::Command::new("sh")
         .args(["-c", &script])

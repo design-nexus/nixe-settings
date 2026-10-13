@@ -5,14 +5,14 @@ pub use nixe_core::paths::*;
 
 use std::path::PathBuf;
 
-/// `~/.local/share/settings/extensions` — one folder per installed extension.
+/// `~/.local/share/nixe-settings/extensions` — one folder per installed extension.
 pub fn ext_dir() -> PathBuf {
-    data_home().join("settings/extensions")
+    data_dir().join("extensions")
 }
 
 /// What extensions said they offer last time, so the sidebar fills in without waiting.
 pub fn ext_cache_dir() -> PathBuf {
-    cache_home().join("settings/extensions")
+    cache_dir().join("extensions")
 }
 
 /// `~/.config/autostart` — user autostart desktop entries.

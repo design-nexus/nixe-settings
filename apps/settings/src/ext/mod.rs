@@ -97,7 +97,7 @@ impl Extension {
             .args(args)
             .current_dir(&self.dir)
             .env("SETTINGS_EXTENSION_DIR", &self.dir)
-            .env("SETTINGS_EXTENSION_STATE", paths::state_home().join("settings/extensions").join(self.id()))
+            .env("SETTINGS_EXTENSION_STATE", paths::state_dir().join("extensions").join(self.id()))
             .env("SETTINGS_TEMP_UNIT", if crate::units::fahrenheit() { "F" } else { "C" })
             .env("SETTINGS_KINDS", protocol::KINDS);
         run_command(c, &self.manifest.name, timeout)

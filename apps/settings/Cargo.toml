@@ -1,12 +1,12 @@
 [package]
-name = "settings"
+name = "nixe-settings"
 version = "0.7.1"
 description = "A control panel for Omarchy"
 license = "MIT"
-repository = "https://github.com/design-nexus/omarchy-settings"
+repository = "https://github.com/design-nexus/nixe"
 authors = ["Ken Smith"]
 edition = "2024"
-default-run = "settings"
+default-run = "nixe-settings"
 
 [dependencies]
 nixe-core = { path = "../../crates/nixe-core" }

@@ -1,17 +1,10 @@
 //! This app's own preferences (`~/.config/settings/settings.toml`).
 
+pub use nixe_theme::ThemeMode;
+
 use crate::{cmd, paths};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "kebab-case")]
-pub enum ThemeMode {
-    /// Follow the active Omarchy theme live.
-    Omarchy,
-    /// Use a bundled or custom theme.
-    Theme,
-}
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]

@@ -7,6 +7,7 @@ pub mod backup;
 pub mod bt;
 pub mod chroma;
 pub mod gestures;
+pub mod helper_version;
 pub mod hypr;
 pub mod kbdidle;
 pub mod lua;

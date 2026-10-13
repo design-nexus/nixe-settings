@@ -2,6 +2,7 @@
 //! `nixe-settings-helper`, which runs as root via pkexec and only does a fixed set of
 //! account operations (see `src/bin/nixe-settings-helper.rs`).
 
+use super::helper_version::HELPER_VERSION;
 use super::passwd::{self, Group, User};
 use crate::cmd;
 use anyhow::{Context, Result, bail};
@@ -21,7 +22,7 @@ pub fn helper_installed() -> bool {
 #[derive(PartialEq)]
 pub enum HelperState {
     Missing,
-    /// Installed, but the copy next to this binary is newer.
+    /// Installed, but older than the one this version of Settings carries.
     Outdated,
     Ready,
 }
@@ -34,11 +35,19 @@ pub fn helper_state() -> HelperState {
     if std::fs::read_to_string(POLICY).ok().as_deref() != Some(POLICY_XML) {
         return HelperState::Outdated;
     }
-    let ours = std::env::current_exe().ok().map(|p| p.with_file_name("nixe-settings-helper")).and_then(|p| std::fs::read(p).ok());
-    match (ours, std::fs::read(HELPER)) {
-        (Some(a), Ok(b)) if a != b => HelperState::Outdated,
-        _ => HelperState::Ready,
+    if installed_version().is_none_or(|v| v < HELPER_VERSION) {
+        return HelperState::Outdated;
     }
+    HelperState::Ready
+}
+
+/// The installed helper's version; None for one from before versions (it can't say).
+fn installed_version() -> Option<u32> {
+    let out = Command::new(HELPER).arg("--version").stdin(Stdio::null()).stderr(Stdio::null()).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&out.stdout).trim().parse().ok()
 }
 
 /// Run the helper through pkexec. Blocking: call it from `cmd::background`.

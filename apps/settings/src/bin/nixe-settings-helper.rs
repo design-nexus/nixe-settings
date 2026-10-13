@@ -22,9 +22,12 @@
 //!   nixe-settings-helper mount-remove ID | mount-now DIR | unmount DIR | mkdir-mount DIR
 //!   nixe-settings-helper password-free on|off   no password for disks, mounts and cleanup
 //!   nixe-settings-helper clean-pkg-cache | remove-orphans | vacuum-journal SIZE
+//!   nixe-settings-helper --version              needs no root; Settings compares it
 
 #[path = "../backend/passwd.rs"]
 mod passwd;
+#[path = "../backend/helper_version.rs"]
+mod helper_version;
 #[path = "../backend/mounts.rs"]
 #[allow(dead_code)]
 mod mounts;
@@ -124,6 +127,7 @@ fn set_password(name: &str, pw: &str) -> Result<String> {
 
 fn run(args: &[&str]) -> Result<String> {
     match args {
+        ["--version"] => Ok(format!("{}\n", helper_version::HELPER_VERSION)),
         ["add-user", name, sh, admin] => {
             if !passwd::valid_name(name) {
                 return Err(format!("“{name}” isn't a valid user name. Use lower-case letters, digits, - and _."));

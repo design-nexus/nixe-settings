@@ -2,7 +2,7 @@
 
 mod backend;
 mod charts;
-mod clamp;
+use nixe_ui::clamp;
 mod cmd;
 mod dialog;
 mod ext;

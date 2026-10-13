@@ -636,7 +636,7 @@ pub async fn format(block: &str, m: &Make) -> Result<()> {
 
 /// A new, empty partition table on a whole drive ("gpt" or "dos").
 pub async fn new_table(block: &str, kind: &str) -> Result<()> {
-    let o = opts(&[("erase", "".to_variant()), ("tear-down", true.to_variant())]);
+    let o = opts(&[("tear-down", true.to_variant())]);
     call(block, "Block", "Format", (kind, o).to_variant(), "()").await.map(|_| ())
 }
 
@@ -656,6 +656,11 @@ pub async fn delete(part: &str) -> Result<()> {
 pub async fn resize(p: &Part, size: u64) -> Result<()> {
     let fs_path = p.content().path.clone();
     let has_fs = p.content().filesystem;
+    // resize2fs only resizes an unmounted ext filesystem that's just been
+    // checked in full.
+    if has_fs && p.content().fs.starts_with("ext") && p.content().mounts.is_empty() {
+        call(&fs_path, "Filesystem", "Repair", (Opts::new(),).to_variant(), "(b)").await?;
+    }
     if size > p.size {
         call(&p.path, "Partition", "Resize", (size, Opts::new()).to_variant(), "()").await?;
         if p.unlocked.is_some() {
@@ -732,7 +737,8 @@ pub async fn add_fstab(fs_block: &str, dir: &str, fs: &str, options: &str) -> Re
     item.insert("freq".into(), 0i32.to_variant());
     item.insert("passno".into(), (if fs == "ext4" { 2i32 } else { 0i32 }).to_variant());
     let entry = ("fstab", item).to_variant();
-    call(fs_block, "Block", "AddConfigurationItem", (entry, Opts::new()).to_variant(), "()").await.map(|_| ())
+    let args = Variant::tuple_from_iter([entry, Opts::new().to_variant()]);
+    call(fs_block, "Block", "AddConfigurationItem", args, "()").await.map(|_| ())
 }
 
 /// Remove the fstab entries UDisks lists for `fs_block`.
@@ -745,7 +751,8 @@ pub async fn remove_fstab(fs_block: &str) -> Result<()> {
         .map(|c| c.iter().filter(|item| item.child_value(0).str() == Some("fstab")).collect())
         .unwrap_or_default();
     for item in items {
-        call(fs_block, "Block", "RemoveConfigurationItem", (item, Opts::new()).to_variant(), "()").await?;
+        let args = Variant::tuple_from_iter([item, Opts::new().to_variant()]);
+        call(fs_block, "Block", "RemoveConfigurationItem", args, "()").await?;
     }
     Ok(())
 }
@@ -902,5 +909,125 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Runs every change on a throwaway disk image, never a real drive:
+    /// `NIXE_LOOP_TEST=/path/to/image cargo test -p nixe-settings loop_device_operations -- --ignored --nocapture`
+    /// with the image attached by `udisksctl loop-setup -f`.
+    #[test]
+    #[ignore]
+    fn loop_device_operations() {
+        let Ok(image) = std::env::var("NIXE_LOOP_TEST") else { return };
+        let ctx = glib::MainContext::default();
+        let drive = || load().unwrap().into_iter().find(|d| d.backing_file == image).expect("the image is attached");
+        let d = drive();
+        assert!(!d.system() && d.bus == "loop", "only ever a loop device: {d:?}");
+        let step = |what: &str| println!("== {what}");
+        // A desktop automounter may mount what's just been made.
+        let unmounted = |i: usize| {
+            let p = drive().parts[i].content().clone();
+            if !p.mounts.is_empty() {
+                ctx.block_on(unmount(&p.path)).unwrap();
+            }
+        };
+
+        step("new GPT table");
+        ctx.block_on(new_table(&d.block, "gpt")).unwrap();
+        let d = drive();
+        assert_eq!(d.table, "gpt");
+        assert!(d.parts.is_empty());
+
+        step("new ext4 partition, 600 MiB, named DATA");
+        let m = Make { fs: "ext4".into(), label: "DATA".into(), ..Default::default() };
+        ctx.block_on(create(&d.block, 1 << 20, 600 << 20, "Data", &m)).unwrap();
+        let d = drive();
+        assert_eq!(d.parts.len(), 1);
+        let p = d.parts[0].clone();
+        assert_eq!((p.fs.as_str(), p.label.as_str(), p.name.as_str()), ("ext4", "DATA", "Data"));
+
+        step("rename to Test");
+        ctx.block_on(set_label(&p.path, "Test")).unwrap();
+        assert_eq!(drive().parts[0].label, "Test");
+
+        step("check");
+        unmounted(0);
+        assert!(ctx.block_on(check(&p.path, false)).unwrap());
+
+        step("mount, measure, unmount");
+        unmounted(0);
+        let at = ctx.block_on(mount(&p.path)).unwrap();
+        let (used_now, size) = used(&at).unwrap();
+        println!("   mounted at {at}: {used_now} of {size}");
+        ctx.block_on(unmount(&p.path)).unwrap();
+
+        step("grow to 900 MiB");
+        let p = drive().parts[0].clone();
+        ctx.block_on(resize(&p, 900 << 20)).unwrap();
+        assert_eq!(drive().parts[0].size, 900 << 20);
+
+        step("shrink to 500 MiB");
+        unmounted(0);
+        let p = drive().parts[0].clone();
+        ctx.block_on(resize(&p, 500 << 20)).unwrap();
+        assert_eq!(drive().parts[0].size, 500 << 20);
+        unmounted(0);
+        assert!(ctx.block_on(check(&p.path, false)).unwrap(), "still consistent after shrinking");
+
+        step("exFAT partition in the free space after it");
+        let d = drive();
+        let free = d
+            .segments()
+            .into_iter()
+            .find_map(|s| if let Segment::Free { offset, size } = s { Some((offset, size)) } else { None })
+            .unwrap();
+        let m = Make { fs: "exfat".into(), label: "SHARE".into(), ..Default::default() };
+        ctx.block_on(create(&d.block, free.0, 400 << 20, "Share", &m)).unwrap();
+        let d = drive();
+        assert_eq!(d.parts.len(), 2);
+        assert_eq!(d.parts[1].fs, "exfat");
+
+        step("format the first as encrypted btrfs");
+        unmounted(0);
+        let p = d.parts[0].clone();
+        let m =
+            Make { fs: "btrfs".into(), label: "Secret".into(), passphrase: Some("correct horse 1".into()), ..Default::default() };
+        ctx.block_on(format(&p.path, &m)).unwrap();
+        let p = drive().parts[0].clone();
+        assert!(p.encrypted, "{p:?}");
+        println!("   {} ({})", p.kind(), if p.unlocked.is_some() { "unlocked" } else { "locked" });
+
+        step("lock, unlock, change passphrase, lock");
+        unmounted(0);
+        let p = drive().parts[0].clone();
+        if p.unlocked.is_some() {
+            ctx.block_on(lock(&p.path)).unwrap();
+        }
+        ctx.block_on(unlock(&p.path, "correct horse 1")).unwrap();
+        assert_eq!(drive().parts[0].content().fs, "btrfs");
+        unmounted(0);
+        ctx.block_on(lock(&p.path)).unwrap();
+        ctx.block_on(change_passphrase(&p.path, "correct horse 1", "battery staple 2")).unwrap();
+        assert!(ctx.block_on(unlock(&p.path, "correct horse 1")).is_err(), "the old passphrase stops working");
+        ctx.block_on(unlock(&p.path, "battery staple 2")).unwrap();
+        unmounted(0);
+        ctx.block_on(lock(&p.path)).unwrap();
+
+        step("startup mount entry for the exFAT partition, then remove it");
+        let share = drive().parts[1].clone();
+        ctx.block_on(add_fstab(&share.path, "/mnt/nixe-loop-test", "exfat", "nofail,noauto,x-gvfs-show")).unwrap();
+        let fstab = std::fs::read_to_string("/etc/fstab").unwrap();
+        assert!(fstab.contains("/mnt/nixe-loop-test"), "in /etc/fstab");
+        assert!(drive().parts[1].fstab);
+        ctx.block_on(remove_fstab(&share.path)).unwrap();
+        assert!(!std::fs::read_to_string("/etc/fstab").unwrap().contains("/mnt/nixe-loop-test"), "gone from /etc/fstab");
+
+        step("delete both partitions");
+        unmounted(0);
+        unmounted(1);
+        for p in drive().parts {
+            ctx.block_on(delete(&p.path)).unwrap();
+        }
+        assert!(drive().parts.is_empty());
+        println!("== all done");
     }
 }

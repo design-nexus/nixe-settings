@@ -174,7 +174,7 @@ fn build(app: &gtk::Application) {
     body.append(&stack);
 
     // ----- Top bar: the sidebar toggle and where you are; the page's config
-    // files, search and close -----
+    // files and search -----
     let top = widgets::hbox(4);
     top.add_css_class("top-bar");
     let collapse_button = widgets::bar_button("sidebar-show-symbolic", "Collapse the sidebar (Ctrl+B)");
@@ -213,12 +213,6 @@ fn build(app: &gtk::Application) {
         });
     }
     top.append(&find);
-    let close = widgets::bar_button("window-close-symbolic", "Close (Ctrl+Q)");
-    {
-        let w = window.clone();
-        close.connect_clicked(move |_| w.close());
-    }
-    top.append(&close);
 
     // ----- Status bar: the shortcuts, and what the page is for -----
     let status_bar = widgets::hbox(16);

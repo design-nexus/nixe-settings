@@ -154,6 +154,21 @@
       ],
       "needs": [],
       "icon": "input-tablet-symbolic"
+    },
+    {
+      "id": "razer",
+      "name": "Razer",
+      "description": "DPI, polling rate, battery, sleep time, lighting effects and brightness for Razer mice, keyboards and headsets.",
+      "devices": "Razer devices OpenRazer supports",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/razer",
+      "also": [
+        "extensions/common"
+      ],
+      "needs": [
+        "openrazer-daemon"
+      ],
+      "icon": "input-mouse-symbolic"
     }
   ]
 }

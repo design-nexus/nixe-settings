@@ -1,0 +1,8 @@
+id = "razer"
+name = "Razer"
+version = "1.0.0"
+description = "DPI, polling rate, battery, sleep time, lighting effects and brightness for Razer mice, keyboards and headsets."
+exec = "bin/settings-razer"
+needs = ["openrazer-daemon"]
+needs_hint = "Needs OpenRazer: <tt>sudo pacman -S openrazer-daemon</tt>, then add yourself to <tt>plugdev</tt>."
+install = "install.sh"

@@ -16,7 +16,9 @@ pub mod bar;
 pub mod boot;
 pub mod barlayout;
 pub mod capture;
+pub mod cleanup;
 pub mod connectivity;
+pub mod disks;
 pub mod displays;
 pub mod extensions;
 pub mod home;
@@ -24,6 +26,7 @@ pub mod idle;
 pub mod keybindings;
 pub mod keyboard;
 pub mod look;
+pub mod mounts;
 pub mod mouse;
 pub mod network;
 pub mod nightlight;
@@ -166,6 +169,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             build: Build::Native(network::build),
             visible: always,
         },
+        Section {
+            id: "mounts",
+            title: "Mounts",
+            icon: "folder-remote-symbolic",
+            group: "Connections",
+            description: "Drives at startup, shares from a NAS or Windows PC, and folders over SSH.",
+            keywords: "mounts fstab nas samba smb cifs windows share nfs sshfs ssh network drive automount startup",
+            files: || vec![std::path::PathBuf::from("/etc/fstab")],
+            build: Build::Native(mounts::build),
+            visible: always,
+        },
         // ----- Hardware -----
         Section {
             id: "displays",
@@ -220,6 +234,18 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "printers printing cups print scanner default test page airprint ipp",
             files: Vec::new,
             build: Build::Native(printers::build),
+            visible: always,
+        },
+        Section {
+            id: "disks",
+            title: "Disks",
+            icon: "drive-harddisk-symbolic",
+            group: "Hardware",
+            description: "Drives and partitions: format, resize, encrypt, check health, and free up space.",
+            keywords: "disks drives partitions format resize shrink grow delete label encrypt luks usb ssd nvme health smart \
+                       temperature wear cleanup space cache logs trash",
+            files: Vec::new,
+            build: Build::Native(disks::build),
             visible: always,
         },
         // ----- Personalization -----

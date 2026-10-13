@@ -165,7 +165,14 @@ pub fn window_style() -> gtk::Box {
                 cr,
                 &p,
                 r,
-                Win { focused, alpha, radius: radius.max(0.01), border: if border > 0.0 { border.max(1.0) } else { 0.01 }, lines: 3, ..Win::default() },
+                Win {
+                    focused,
+                    alpha,
+                    radius: radius.max(0.01),
+                    border: if border > 0.0 { border.max(1.0) } else { 0.01 },
+                    lines: 3,
+                    ..Win::default()
+                },
             );
             if !focused && dim > 0.0 {
                 rounded(cr, r.x, r.y, r.w, r.h, radius);
@@ -177,14 +184,8 @@ pub fn window_style() -> gtk::Box {
     card(&area, "Preview: the focused window is on the left. It changes as you do.")
 }
 
-const TILING_KEYS: &[&str] = &[
-    "general.layout",
-    "general.gaps_in",
-    "general.gaps_out",
-    "master.mfact",
-    "master.new_status",
-    "scrolling.column_width",
-];
+const TILING_KEYS: &[&str] =
+    &["general.layout", "general.gaps_in", "general.gaps_out", "master.mfact", "master.new_status", "scrolling.column_width"];
 
 /// Tiling: the layout, master width, column width, and where a new window goes.
 pub fn tiling() -> gtk::Box {
@@ -199,14 +200,19 @@ pub fn tiling() -> gtk::Box {
         let gout = (get(&vals, "general.gaps_out", 10.0) * SCALE).max(2.0);
         let inner = room.inset(gout);
         let g = gin * 2.0;
-        let layout = vals.borrow().get("general.layout").and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "dwindle".into());
+        let layout =
+            vals.borrow().get("general.layout").and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "dwindle".into());
         let plain = Win { lines: 3, ..Win::default() };
         let focused = Win { focused: true, ..plain };
         let ghost = Win { ghost: true, ..plain };
         match layout.as_str() {
             "master" => {
                 let mfact = get(&vals, "master.mfact", 0.55).clamp(0.1, 0.9);
-                let status = vals.borrow().get("master.new_status").and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "slave".into());
+                let status = vals
+                    .borrow()
+                    .get("master.new_status")
+                    .and_then(|v| v.as_str().map(String::from))
+                    .unwrap_or_else(|| "slave".into());
                 let (m, stack) = inner.hsplit(mfact, g);
                 let (a, rest) = stack.vsplit(1.0 / 3.0, g);
                 let (b, c) = rest.vsplit(0.5, g);
@@ -236,7 +242,18 @@ pub fn tiling() -> gtk::Box {
                 for i in -2i32..=2 {
                     let x = x0 + i as f64 * (col + g);
                     let r = R::new(x, inner.y, col, inner.h);
-                    sketch::win(cr, &p, r, if i == 0 { focused } else if i == 1 { ghost } else { plain });
+                    sketch::win(
+                        cr,
+                        &p,
+                        r,
+                        if i == 0 {
+                            focused
+                        } else if i == 1 {
+                            ghost
+                        } else {
+                            plain
+                        },
+                    );
                 }
                 cr.restore().ok();
                 caption_at(cr, &p, R::new(x0, inner.y, col, inner.h), &format!("{:.0}%", cw * 100.0));

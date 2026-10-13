@@ -57,6 +57,30 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh |
     and pinch in/out does, with **reverse left/right** and **reverse up/down**;
   - **looping workspace swipes**: the smooth, finger-tracking swipe continues
     from 5 back to 1, and from 1 to 5.
+- **Pictures of what a setting does**: Tiling & Workspaces and Window Style
+  open with a live preview of a small desktop that redraws as you change gaps,
+  borders, rounding, opacity, dimming, shadows, the layout or the master width.
+  The layout, where new windows go, how focus follows the mouse and the bar's
+  position are chosen from picture cards, switches show a drawing of what they
+  do, and Lock Screen shows when the screensaver and the lock start on a timeline.
+- **Workspaces**: keep a number of workspaces always there, pin workspaces to a
+  screen, and give one workspace its own layout (including floating), name,
+  gaps or bare windows. The scratchpad is explained with its keys.
+- **Disks**: every drive with a map of its partitions. Mount, rename, resize,
+  format (ext4, btrfs, exFAT, FAT32, NTFS, optionally encrypted with LUKS2),
+  check and repair, unlock, change a passphrase, delete, make new partitions in
+  free space, start a new partition table, and safely remove a USB drive.
+  Partitions in use are locked; the system drive and Windows partitions get a
+  red warning, and anything that erases asks you to type the partition's name.
+  Drive health shows temperature, wear, power-on hours and errors, with a
+  warning on Home if a drive reports trouble. **Clean up** shows how full each
+  filesystem is, the biggest folders in your home, and frees space from the
+  package cache, unneeded packages, old logs, the Trash and thumbnails, each
+  saying how much first. UDisks does the work and asks for your password.
+- **Mounts**: mount a drive at a folder at every startup, add SMB shares (a NAS
+  or a Windows PC; the password is kept in a root-only file), NFS shares and
+  folders on another computer over SSH, each mounted when first opened so a
+  missing network never holds up starting. Each one shows whether it's mounted.
 - **Bar layout**: drag widgets to reorder them or move them between the left,
   center and right sections; add widgets, remove them, and add as many
   **spacers** as you like, each with its own width.

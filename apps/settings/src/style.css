@@ -946,3 +946,78 @@ button.picture-card:checked .picture-card-label {
 .row-sketch {
   margin-right: 2px;
 }
+
+/* ---------- Disks and mounts ---------- */
+
+.drive-card {
+  padding: 16px;
+}
+
+.drive-title {
+  font-weight: 600;
+  font-size: 1.05em;
+}
+
+.drive-icon {
+  color: @theme_accent;
+}
+
+.warn-tag {
+  color: @theme_danger;
+  border-color: alpha(@theme_danger, 0.5);
+}
+
+.ok-tag {
+  color: @theme_accent;
+}
+
+window.settings-window button.health-good {
+  color: mix(@theme_text, #6fcf7f, 0.7);
+}
+
+window.settings-window button.health-bad {
+  color: @theme_danger;
+  font-weight: 600;
+}
+
+.part-panel {
+  margin-top: 2px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid @hairline;
+  background: mix(@theme_surface, @theme_bg, 0.4);
+}
+
+.part-title {
+  font-weight: 600;
+}
+
+levelbar.part-usage block.filled {
+  background: @theme_accent;
+  border-radius: 4px;
+}
+
+levelbar.part-usage block.empty {
+  background: alpha(@theme_dim_text, 0.18);
+  border-radius: 4px;
+}
+
+levelbar.part-usage trough {
+  min-height: 8px;
+}
+
+.part-actions button {
+  padding: 4px 12px;
+}
+
+.mount-icon {
+  color: @theme_accent;
+}
+
+.picture-card-title {
+  font-weight: 600;
+}
+
+.error-text {
+  color: @theme_danger;
+}

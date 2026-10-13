@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod cleanup;
 pub mod appearance;
 pub mod audio;
 pub mod autostart;
@@ -9,6 +10,9 @@ pub mod gestures;
 pub mod hypr;
 pub mod kbdidle;
 pub mod lua;
+// Shared with the root helper, which uses the parts Settings doesn't.
+#[allow(dead_code)]
+pub mod mounts;
 pub mod net;
 pub mod notify;
 pub mod passwd;
@@ -20,4 +24,5 @@ pub mod store;
 pub mod streams;
 pub mod sysinfo;
 pub mod themehook;
+pub mod udisks;
 pub mod updates;

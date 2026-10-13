@@ -16,9 +16,16 @@
 //!   nixe-settings-helper logind KEY VALUE | sleep-delay SECONDS
 //!   nixe-settings-helper service start|stop|restart|enable|disable|enable-now|disable-now UNIT
 //!   nixe-settings-helper printer-remove NAME | printer-add NAME URI | printer-set-uri NAME URI
+//!   nixe-settings-helper mount-add-net ID TYPE SOURCE DIR OPTIONS    SMB user, password, domain on stdin
+//!   nixe-settings-helper mount-test TYPE SOURCE OPTIONS              same stdin; mounts once, then not
+//!   nixe-settings-helper mount-remove ID | mount-now DIR | unmount DIR | mkdir-mount DIR
+//!   nixe-settings-helper clean-pkg-cache | remove-orphans | vacuum-journal SIZE
 
 #[path = "../backend/passwd.rs"]
 mod passwd;
+#[path = "../backend/mounts.rs"]
+#[allow(dead_code)]
+mod mounts;
 
 use passwd::{Group, User};
 use std::io::Write;
@@ -335,6 +342,48 @@ fn run(args: &[&str]) -> Result<String> {
             }
             exec("/usr/bin/lpadmin", &["-p", name, "-E", "-v", uri, "-m", "everywhere"], None)
         }
+        ["mount-add-net", id, fstype, source, dir, options] => mount_add_net(id, fstype, source, dir, options),
+        ["mount-test", fstype, source, options] => mount_test(fstype, source, options),
+        ["mount-remove", id] => mount_remove(id),
+        ["mount-now", dir] => {
+            fstab_dir(dir)?;
+            exec("/usr/bin/mount", &[dir], None)
+        }
+        ["unmount", dir] => {
+            fstab_dir(dir)?;
+            exec("/usr/bin/umount", &[dir], None)
+        }
+        ["mkdir-mount", dir] => {
+            if !mounts::valid_dir(dir, &invoker_home()?) {
+                return Err(format!("A mount folder has to be inside /mnt, /media or your home folder, not “{dir}”"));
+            }
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            Ok(String::new())
+        }
+        ["clean-pkg-cache"] => {
+            if std::path::Path::new("/usr/bin/paccache").exists() {
+                exec("/usr/bin/paccache", &["-rk1"], None)?;
+                exec("/usr/bin/paccache", &["-ruk0"], None)
+            } else {
+                exec("/usr/bin/pacman", &["-Sc", "--noconfirm"], None)
+            }
+        }
+        ["remove-orphans"] => {
+            let list = Command::new("/usr/bin/pacman").args(["-Qdtq"]).output().map_err(|e| e.to_string())?;
+            let names: Vec<String> = String::from_utf8_lossy(&list.stdout).lines().map(str::to_string).filter(|n| passwd_safe_pkg(n)).collect();
+            if names.is_empty() {
+                return Ok(String::new());
+            }
+            let mut a = vec!["-Rns", "--noconfirm", "--"];
+            a.extend(names.iter().map(String::as_str));
+            exec("/usr/bin/pacman", &a, None)
+        }
+        ["vacuum-journal", size] => {
+            if !size.ends_with('M') || size.len() > 6 || !size[..size.len() - 1].chars().all(|c| c.is_ascii_digit()) {
+                return Err("expected a size like 200M".into());
+            }
+            exec("/usr/bin/journalctl", &[&format!("--vacuum-size={size}")], None)
+        }
         _ => Err("unknown or malformed request".into()),
     }
 }
@@ -525,4 +574,139 @@ mod tests {
         assert!(!flag("0").unwrap());
         assert!(flag("yes").is_err());
     }
+}
+
+// ---------- Mounts ----------
+
+/// The signed-in user's home folder, where their mounts may also go.
+fn invoker_home() -> Result<std::path::PathBuf> {
+    let uid = invoker().ok_or("run through pkexec")?;
+    passwd::users().into_iter().find(|u| u.uid == uid).map(|u| std::path::PathBuf::from(u.home)).ok_or_else(|| "unknown user".into())
+}
+
+/// A package name pacman printed.
+fn passwd_safe_pkg(n: &str) -> bool {
+    !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || "@._+-".contains(c)) && !n.starts_with('-')
+}
+
+/// Only folders that have a line in fstab, other than the system's own.
+fn fstab_dir(dir: &str) -> Result<()> {
+    match mounts::fstab().into_iter().find(|m| m.dir == dir) {
+        Some(m) if !m.system => Ok(()),
+        Some(_) => Err(format!("{dir} is one of the system's own mounts")),
+        None => Err(format!("{dir} isn't in /etc/fstab")),
+    }
+}
+
+/// SMB user, password and domain from stdin (three lines; none for a guest).
+fn smb_login() -> Result<Option<String>> {
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut std::io::stdin(), &mut text).map_err(|e| e.to_string())?;
+    if text.trim().is_empty() {
+        return Ok(None);
+    }
+    let mut lines = text.lines();
+    let user = lines.next().unwrap_or_default();
+    let pass = lines.next().unwrap_or_default();
+    let domain = lines.next().unwrap_or_default();
+    mounts::credentials_text(user, pass, domain).map(Some)
+}
+
+fn options_list(options: &str) -> Vec<String> {
+    if options == "-" { Vec::new() } else { options.split(',').map(str::to_string).collect() }
+}
+
+fn write_private(path: &str, text: &str) -> Result<()> {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    if let Some(dir) = std::path::Path::new(path).parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+    }
+    let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path).map_err(|e| e.to_string())?;
+    f.write_all(text.as_bytes()).map_err(|e| e.to_string())
+}
+
+/// fstab replaced in one step, with a copy of the first version kept.
+fn write_fstab(text: &str) -> Result<()> {
+    if !std::path::Path::new("/etc/fstab.nixe-bak").exists() {
+        let _ = std::fs::copy("/etc/fstab", "/etc/fstab.nixe-bak");
+    }
+    let tmp = "/etc/.fstab.nixe-new";
+    std::fs::write(tmp, text).map_err(|e| e.to_string())?;
+    std::fs::rename(tmp, "/etc/fstab").map_err(|e| e.to_string())?;
+    let _ = exec("/usr/bin/systemctl", &["daemon-reload"], None);
+    Ok(())
+}
+
+fn mount_add_net(id: &str, fstype: &str, source: &str, dir: &str, options: &str) -> Result<String> {
+    let home = invoker_home()?;
+    let creds = if fstype == "cifs" { smb_login()? } else { None };
+    let opts = options_list(options);
+    let line = mounts::network_line(id, fstype, source, dir, &opts, creds.is_some(), &home)?;
+    let text = std::fs::read_to_string("/etc/fstab").map_err(|e| e.to_string())?;
+    if mounts::parse_fstab(&text).iter().any(|m| m.id == id || m.dir == dir) {
+        return Err(format!("Something already mounts at {dir}, or a mount is called {id}"));
+    }
+    if let Some(c) = &creds {
+        write_private(&format!("{}/{id}", mounts::CREDENTIALS), c)?;
+    }
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let mut new = text.trim_end().to_string();
+    new.push('\n');
+    new.push_str(&line);
+    new.push('\n');
+    write_fstab(&new)?;
+    // Mounted on first use from now on: start the automount, or mount now.
+    if opts.iter().any(|o| o == "x-systemd.automount") {
+        let _ = exec("/usr/bin/systemctl", &["restart", "remote-fs.target"], None);
+        Ok(String::new())
+    } else {
+        exec("/usr/bin/mount", &[dir], None).map(|_| String::new())
+    }
+}
+
+fn mount_remove(id: &str) -> Result<String> {
+    if !mounts::valid_id(id) {
+        return Err("bad id".into());
+    }
+    let text = std::fs::read_to_string("/etc/fstab").map_err(|e| e.to_string())?;
+    let Some(m) = mounts::parse_fstab(&text).into_iter().find(|m| m.id == id) else {
+        return Err("There's no such mount".into());
+    };
+    let _ = exec("/usr/bin/umount", &["-l", &m.dir], None);
+    write_fstab(&mounts::without(&text, id))?;
+    let _ = std::fs::remove_file(format!("{}/{id}", mounts::CREDENTIALS));
+    // Its folder goes too if it's empty.
+    let _ = std::fs::remove_dir(&m.dir);
+    Ok(String::new())
+}
+
+fn mount_test(fstype: &str, source: &str, options: &str) -> Result<String> {
+    let creds = if fstype == "cifs" { smb_login()? } else { None };
+    let dir = format!("/run/nixe-settings-test-{}", std::process::id());
+    let mut opts: Vec<String> = options_list(options).into_iter().filter(|o| !o.starts_with("x-systemd") && o != "nofail" && o != "_netdev").collect();
+    // Checked as a line would be, with a stand-in folder.
+    mounts::network_line("test", fstype, source, "/mnt/test", &opts, false, std::path::Path::new("/nonexistent"))?;
+    let cred_file = format!("/run/nixe-settings-test-{}.cred", std::process::id());
+    match &creds {
+        Some(c) => {
+            write_private(&cred_file, c)?;
+            opts.push(format!("credentials={cred_file}"));
+        }
+        None if fstype == "cifs" => opts.push("guest".into()),
+        None => {}
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let mut a = vec!["20", "/usr/bin/mount", "-t", fstype, source, dir.as_str()];
+    let joined = opts.join(",");
+    if !joined.is_empty() {
+        a.extend(["-o", joined.as_str()]);
+    }
+    let r = exec("/usr/bin/timeout", &a, None);
+    if r.is_ok() {
+        let _ = exec("/usr/bin/umount", &[&dir], None);
+    }
+    let _ = std::fs::remove_dir(&dir);
+    let _ = std::fs::remove_file(&cred_file);
+    r.map(|_| String::new()).map_err(|e| if e.contains("timeout failed") || e.is_empty() { "It didn't answer within 20 seconds".into() } else { e })
 }

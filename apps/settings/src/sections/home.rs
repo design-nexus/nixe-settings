@@ -441,6 +441,18 @@ fn start_sampling(page: &Page, tiles: Tiles, act: Activity, hero: Rc<Hero>) {
 /// Every disk, and the package count. Also fills the root filesystem's tile.
 fn storage(page: &Page, tile: Tile) {
     let g = page.group("Storage");
+    // A drive reporting trouble comes first.
+    for d in crate::backend::udisks::load().unwrap_or_default().iter().filter(|d| d.health.supported && !d.health.ok()) {
+        let b = widgets::banner(
+            &format!("{} reports a problem with its health. Back up what's on it, then see Disks.", d.title()),
+            true,
+        );
+        g.top(&b);
+    }
+    let (r, _) = widgets::button_row("Disks", "Partitions, formatting, drive health and cleaning up space.", "Open", |_| {
+        crate::window::navigate("disks")
+    });
+    g.add(&r);
     let list = g.list.clone();
     cmd::background(
         || (sysinfo::disks(), sysinfo::packages()),

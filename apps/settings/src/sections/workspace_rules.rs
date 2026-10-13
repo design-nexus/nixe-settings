@@ -72,7 +72,11 @@ fn screen_strip(screens: Vec<Screen>) -> gtk::DrawingArea {
             rules.iter().filter(|r| r.monitor.as_deref() == Some(name)).map(|r| r.workspace).collect()
         };
         let free: Vec<u32> = (1..=10)
-            .filter(|id| !rules.iter().any(|r| r.workspace == *id && r.monitor.as_deref().is_some_and(|m| screens.iter().any(|s| s.name == m))))
+            .filter(|id| {
+                !rules
+                    .iter()
+                    .any(|r| r.workspace == *id && r.monitor.as_deref().is_some_and(|m| screens.iter().any(|s| s.name == m)))
+            })
             .collect();
         // Fit the arrangement into the left of the area, "Any screen" on the right.
         let side = 150.0f64.min(w * 0.3);
@@ -131,8 +135,13 @@ fn chips(cr: &gtk::cairo::Context, p: &sketch::Pal, ids: &[u32], persistent: u32
     }
 }
 
-const MODES: &[(&str, &str)] =
-    &[("", "Same as everywhere"), ("dwindle", "Dwindle"), ("master", "Master & stack"), ("scrolling", "Scrolling"), ("floating", "Floating")];
+const MODES: &[(&str, &str)] = &[
+    ("", "Same as everywhere"),
+    ("dwindle", "Dwindle"),
+    ("master", "Master & stack"),
+    ("scrolling", "Scrolling"),
+    ("floating", "Floating"),
+];
 /// (id, label, inner and outer gaps).
 type Gap = (&'static str, &'static str, Option<(i64, i64)>);
 type Refresh = Rc<dyn Fn()>;
@@ -153,7 +162,12 @@ fn describe(r: &WorkspaceRule) -> String {
         parts.push(MODES.iter().find(|(id, _)| *id == m).map(|(_, l)| l.to_string()).unwrap_or_else(|| m.to_string()));
     }
     if let Some(g) = r.gaps {
-        parts.push(GAPS.iter().find(|(_, _, v)| *v == Some(g)).map(|(_, l, _)| l.to_string()).unwrap_or_else(|| format!("gaps {} / {}", g.0, g.1)));
+        parts.push(
+            GAPS.iter()
+                .find(|(_, _, v)| *v == Some(g))
+                .map(|(_, l, _)| l.to_string())
+                .unwrap_or_else(|| format!("gaps {} / {}", g.0, g.1)),
+        );
     }
     if r.no_border && r.no_rounding && r.no_shadow {
         parts.push("No borders, rounding or shadows".into());
@@ -181,7 +195,10 @@ fn edit(id: Option<u32>, refresh: Refresh) {
     let fields = vec![
         Field::choice(ws_options, &id.unwrap_or(1).to_string()),
         Field::text_with("Name (optional), e.g. Web", r.name.as_deref().unwrap_or("")),
-        Field::choice(MODES.iter().map(|(a, b)| (a.to_string(), format!("Layout: {b}"))).collect(), r.mode.as_deref().unwrap_or("")),
+        Field::choice(
+            MODES.iter().map(|(a, b)| (a.to_string(), format!("Layout: {b}"))).collect(),
+            r.mode.as_deref().unwrap_or(""),
+        ),
         Field::choice(GAPS.iter().map(|(a, b, _)| (a.to_string(), format!("Gaps: {b}"))).collect(), gaps_now),
         Field::choice(DECOR.iter().map(|(a, b)| (a.to_string(), format!("Windows: {b}"))).collect(), decor_now),
     ];
@@ -223,7 +240,10 @@ fn edit(id: Option<u32>, refresh: Refresh) {
 fn keys_for(description: &str) -> Option<String> {
     let serde_json::Value::Array(list) = hypr::json(&["binds"])? else { return None };
     list.iter().find(|b| b.get("description").and_then(|d| d.as_str()) == Some(description)).map(|b| {
-        super::keybindings::keys_string(b.get("modmask").and_then(|m| m.as_u64()).unwrap_or(0), b.get("key").and_then(|k| k.as_str()).unwrap_or(""))
+        super::keybindings::keys_string(
+            b.get("modmask").and_then(|m| m.as_u64()).unwrap_or(0),
+            b.get("key").and_then(|k| k.as_str()).unwrap_or(""),
+        )
     })
 }
 
@@ -253,8 +273,9 @@ pub fn build(page: &Page) {
     widgets::keywords("persistent empty always workspaces count");
     g.add(&r);
     if screens.len() > 1 {
-        let options: Vec<(String, String)> =
-            std::iter::once((String::new(), "Any screen".to_string())).chain(screens.iter().map(|s| (s.name.clone(), s.name.clone()))).collect();
+        let options: Vec<(String, String)> = std::iter::once((String::new(), "Any screen".to_string()))
+            .chain(screens.iter().map(|s| (s.name.clone(), s.name.clone())))
+            .collect();
         for id in 1..=10u32 {
             let now = rules().into_iter().find(|r| r.workspace == id).and_then(|r| r.monitor).unwrap_or_default();
             let s2 = strip.clone();
@@ -275,7 +296,8 @@ pub fn build(page: &Page) {
     // The list redraws itself after a change, so it holds a (weak) handle on itself.
     let refresh: Refresh = {
         let (list, strip) = (list.clone(), strip.clone());
-        let me: Rc<std::cell::RefCell<std::rc::Weak<dyn Fn()>>> = Rc::new(std::cell::RefCell::new(std::rc::Weak::<Box<dyn Fn()>>::new()));
+        let me: Rc<std::cell::RefCell<std::rc::Weak<dyn Fn()>>> =
+            Rc::new(std::cell::RefCell::new(std::rc::Weak::<Box<dyn Fn()>>::new()));
         let me2 = me.clone();
         let f: Refresh = Rc::new(move || {
             while let Some(c) = list.first_child() {
@@ -364,7 +386,11 @@ pub fn build(page: &Page) {
     l.add_css_class("settings-option-description");
     card.append(&l);
     g.add(&card);
-    let r = widgets::hypr_switch("misc.close_special_on_empty", "Hide it when it's empty", "Closing its last window hides the scratchpad.");
+    let r = widgets::hypr_switch(
+        "misc.close_special_on_empty",
+        "Hide it when it's empty",
+        "Closing its last window hides the scratchpad.",
+    );
     widgets::sketched(&r, Sketch::Scratchpad);
     g.add(&r);
 }

@@ -36,7 +36,11 @@ pub fn install() {
 }
 
 /// Icons the icon themes don't have, shipped inside the program.
-const ICONS: &[(&str, &str)] = &[("settings-shortcuts-symbolic", include_str!("../data/icons/settings-shortcuts-symbolic.svg"))];
+const ICONS: &[(&str, &str)] = &[
+    ("settings-shortcuts-symbolic", include_str!("../data/icons/settings-shortcuts-symbolic.svg")),
+    // Adwaita has none; the Laptop extension uses it.
+    ("computer-laptop-symbolic", include_str!("../data/icons/computer-laptop-symbolic.svg")),
+];
 
 /// Write the built-in icons where GTK's icon lookup finds them.
 fn install_icons(display: &gtk::gdk::Display) {

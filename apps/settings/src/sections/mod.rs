@@ -27,6 +27,7 @@ pub mod look;
 pub mod mouse;
 pub mod network;
 pub mod nightlight;
+pub mod nixe;
 pub mod plugins;
 pub mod power;
 pub mod printers;
@@ -432,6 +433,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "extensions add-ons addons devices brands asus aura logitech obsbot webcam headset razer corsair install github",
             files: Vec::new,
             build: Build::Native(extensions::build),
+            visible: always,
+        },
+        Section {
+            id: "nixe",
+            title: "Nixe apps",
+            icon: "applications-other-symbolic",
+            group: "System",
+            description: "The look every Nixe app shares, and installing or updating the apps.",
+            keywords: "nixe apps suite theme density text size install update remove music pdf chat",
+            files: || vec![nixe_theme::suite_file()],
+            build: Build::Native(nixe::build),
             visible: always,
         },
         Section {

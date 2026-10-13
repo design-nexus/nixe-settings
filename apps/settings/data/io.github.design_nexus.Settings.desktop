@@ -1,0 +1,21 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+GenericName=System Settings
+Comment=Appearance, input, gestures, sound, displays and everything else in Omarchy
+Exec=settings
+Icon=io.github.design_nexus.Settings
+Terminal=false
+StartupNotify=true
+StartupWMClass=io.github.design_nexus.Settings
+Categories=Settings;DesktopSettings;HardwareSettings;GTK;
+Keywords=settings;preferences;omarchy;hyprland;theme;audio;equalizer;trackpad;gestures;keyboard;display;
+Actions=sound;trackpad;
+
+[Desktop Action sound]
+Name=Sound & Equalizer
+Exec=settings --section audio
+
+[Desktop Action trackpad]
+Name=Trackpad & Gestures
+Exec=settings --section trackpad

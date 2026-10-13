@@ -10,6 +10,13 @@ pub fn install() {
         install_icons(&display);
     }
     nixe_theme::install(Style {
+        window_class: "settings-window",
+        base_skip: &[
+            ".settings-option",
+            ".settings-dialog.narrow .settings-dialog-main .settings-page",
+            ".settings-dialog-main .settings-page",
+            ".settings-dialog-main .settings-page.narrow",
+        ],
         css: include_str!("style.css"),
         no_glow_css: "\n.theme-card.selected, .toast { box-shadow: 0 0 0 1px alpha(@theme_accent, 0.6); }\n\
              window.settings-window scale > trough > slider, window.settings-window .fader-scale > trough > slider \

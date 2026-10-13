@@ -10,6 +10,7 @@ default-run = "settings"
 
 [dependencies]
 nixe-core = { path = "../../crates/nixe-core" }
+nixe-ui = { path = "../../crates/nixe-ui" }
 nixe-theme = { path = "../../crates/nixe-theme" }
 anyhow = "1.0.104"
 gtk = { version = "0.11", package = "gtk4", features = ["v4_18"] }

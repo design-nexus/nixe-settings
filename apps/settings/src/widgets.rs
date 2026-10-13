@@ -1,13 +1,14 @@
 //! Nexus-style building blocks: pages, groups and option rows, plus rows bound
 //! directly to Hyprland options.
 
+pub use nixe_ui::widgets::*;
+
 use crate::backend::{hypr, store};
-use crate::{cmd, paths};
+use crate::cmd;
 use gtk::prelude::*;
 use gtk::{glib, pango};
 use serde_json::{Value, json};
 use std::cell::{Cell, RefCell};
-use std::path::PathBuf;
 use std::rc::Rc;
 
 // ---------- Search registry ----------
@@ -226,24 +227,6 @@ impl Page {
     }
 }
 
-pub fn banner(text: &str, warning: bool) -> gtk::Box {
-    let b = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-    b.add_css_class("banner");
-    if warning {
-        b.add_css_class("warning");
-    }
-    let icon = gtk::Image::from_icon_name(if warning { "dialog-warning-symbolic" } else { "dialog-information-symbolic" });
-    icon.set_valign(gtk::Align::Start);
-    let l = gtk::Label::new(None);
-    l.set_markup(text);
-    l.set_wrap(true);
-    l.set_xalign(0.0);
-    l.set_hexpand(true);
-    b.append(&icon);
-    b.append(&l);
-    b
-}
-
 #[derive(Clone)]
 pub struct Group {
     pub wrapper: gtk::Box,
@@ -416,49 +399,6 @@ pub fn reveal_for_search(wrapper: Option<&gtk::Widget>) {
 
 // ---------- Config files and bar buttons ----------
 
-/// Opens a page's config file; a menu picks one when there are several.
-pub fn config_button(files: &[PathBuf]) -> gtk::Widget {
-    if let [path] = files {
-        let path = path.clone();
-        let b = bar_button("text-editor-symbolic", &format!("Open {}", paths::pretty(&path)));
-        b.connect_clicked(move |_| cmd::open_in_editor(&path));
-        return b.upcast();
-    }
-    let menu = gtk::MenuButton::new();
-    menu.set_icon_name("text-editor-symbolic");
-    menu.add_css_class("bar-button");
-    menu.set_valign(gtk::Align::Center);
-    menu.set_tooltip_text(Some("Open a config file"));
-    let list = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    let popover = gtk::Popover::new();
-    for path in files {
-        let b = gtk::Button::with_label(&paths::pretty(path));
-        b.add_css_class("flat");
-        if let Some(label) = b.child().and_downcast::<gtk::Label>() {
-            label.set_xalign(0.0);
-        }
-        let p = path.clone();
-        let pop = popover.clone();
-        b.connect_clicked(move |_| {
-            pop.popdown();
-            cmd::open_in_editor(&p);
-        });
-        list.append(&b);
-    }
-    popover.set_child(Some(&list));
-    menu.set_popover(Some(&popover));
-    menu.upcast()
-}
-
-/// A flat icon button for the top bar and dialog headers.
-pub fn bar_button(icon: &str, tooltip: &str) -> gtk::Button {
-    let b = gtk::Button::from_icon_name(icon);
-    b.add_css_class("bar-button");
-    b.set_tooltip_text(Some(tooltip));
-    b.set_valign(gtk::Align::Center);
-    b
-}
-
 // ---------- Rows ----------
 
 /// An option card: title and description on the left, control on the right.
@@ -610,10 +550,6 @@ fn string_factory(short: bool) -> gtk::SignalListItemFactory {
     f
 }
 
-pub fn opts(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
-    pairs.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect()
-}
-
 pub fn choice_row(
     title: &str,
     desc: &str,
@@ -713,23 +649,6 @@ pub fn confirm_button(label: &str, confirm: &str, on_confirm: impl Fn(&gtk::Butt
         on_confirm(b);
     });
     b
-}
-
-pub fn hbox(spacing: i32) -> gtk::Box {
-    gtk::Box::new(gtk::Orientation::Horizontal, spacing)
-}
-
-pub fn vbox(spacing: i32) -> gtk::Box {
-    gtk::Box::new(gtk::Orientation::Vertical, spacing)
-}
-
-pub fn label(text: &str, class: &str) -> gtk::Label {
-    let l = gtk::Label::new(Some(text));
-    if !class.is_empty() {
-        l.add_css_class(class);
-    }
-    l.set_xalign(0.0);
-    l
 }
 
 // ---------- Rows bound to Hyprland options ----------
@@ -1004,42 +923,6 @@ pub fn chip_toggles(labels: &[&str], states: &[bool], on_change: impl Fn(Vec<boo
 }
 
 // ---------- Segmented control, swatches, disclosure, tags ----------
-
-/// Buttons joined into one control; exactly one is selected.
-pub fn segmented(options: &[(String, String)], current: &str, on_change: impl Fn(String) + 'static) -> gtk::Box {
-    let bx = hbox(0);
-    bx.add_css_class("segmented");
-    bx.set_valign(gtk::Align::Center);
-    let mut first: Option<gtk::ToggleButton> = None;
-    let on_change = Rc::new(on_change);
-    for (id, label) in options {
-        let b = gtk::ToggleButton::with_label(label);
-        b.add_css_class("segment");
-        if let Some(f) = &first {
-            b.set_group(Some(f));
-        } else {
-            first = Some(b.clone());
-        }
-        b.set_active(id == current);
-        let id = id.clone();
-        let cb = on_change.clone();
-        b.connect_toggled(move |b| {
-            if b.is_active() {
-                cb(id.clone());
-            }
-        });
-        bx.append(&b);
-    }
-    bx
-}
-
-/// Set a widget's background to a colour (for swatches and previews).
-pub fn paint(widget: &impl IsA<gtk::Widget>, css_colour: &str) {
-    let provider = gtk::CssProvider::new();
-    provider.load_from_string(&format!("* {{ background: {css_colour}; }}"));
-    #[allow(deprecated)]
-    widget.style_context().add_provider(&provider, gtk::STYLE_PROVIDER_PRIORITY_USER);
-}
 
 pub const PRESET_COLOURS: &[(&str, &str)] = &[
     ("#ffffff", "White"),

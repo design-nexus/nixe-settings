@@ -1,0 +1,7 @@
+id = "tablet"
+name = "Drawing tablets"
+version = "1.0.0"
+description = "Which screen the pen draws on, the area of the tablet used, left-handed and mouse-like use, for Wacom, XP-Pen, Huion and other tablets."
+exec = "bin/settings-tablet"
+install = "install.sh"
+files = ["~/.config/hypr/nixe-tablet.lua"]

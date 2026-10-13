@@ -141,6 +141,19 @@
       ],
       "needs": [],
       "icon": "input-gaming-symbolic"
+    },
+    {
+      "id": "tablet",
+      "name": "Drawing tablets",
+      "description": "Which screen the pen draws on, the area of the tablet used, matching the screen's shape, left-handed and mouse-like use.",
+      "devices": "Wacom, XP-Pen, Huion, Gaomon and other tablets Hyprland supports",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/tablet",
+      "also": [
+        "extensions/common"
+      ],
+      "needs": [],
+      "icon": "input-tablet-symbolic"
     }
   ]
 }

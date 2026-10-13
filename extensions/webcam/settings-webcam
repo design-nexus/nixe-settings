@@ -194,6 +194,21 @@ def pages():
 
 # ---------------------------------------------------------------- options
 
+def positions_file():
+    state = os.environ.get("SETTINGS_EXTENSION_STATE") or os.path.join(os.path.expanduser("~"), ".local/state/nixe-webcam")
+    os.makedirs(state, exist_ok=True)
+    return os.path.join(state, "positions.json")
+
+
+def positions():
+    """Saved pan/tilt/zoom positions: {camera name: {"1": {control: value}}}."""
+    try:
+        with open(positions_file()) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
 def load_options():
     try:
         with open(OPTIONS, "rb") as f:
@@ -393,10 +408,18 @@ def describe(page_id):
     if has_ptz:
         framing.append({"kind": "button", "key": "@centre", "title": "Centre the camera",
                         "desc": "Pan and tilt back to the middle.", "label": "Centre"})
-    if "obsbot" in card.lower() and "zoom_absolute" in ctrls:
+    if "zoom_absolute" in ctrls:
         framing.append({"kind": "buttons", "key": "@frame", "title": "Framing",
                         "desc": "Quick zoom levels.",
                         "options": [["wide", "Wide"], ["half", "Half body"], ["close", "Close-up"]]})
+    if has_ptz:
+        saved = positions().get(card, {})
+        framing.append({"kind": "buttons", "key": "@save", "title": "Save this position",
+                        "desc": "Pan, tilt and zoom as they are now, as one of three positions.",
+                        "options": [["1", "As 1"], ["2", "As 2"], ["3", "As 3"]]})
+        if saved:
+            framing.append({"kind": "buttons", "key": "@goto", "title": "Go to a saved position",
+                            "options": [[n, f"Position {n}"] for n in sorted(saved)]})
     if framing:
         groups.append({"title": "Framing", "rows": framing})
     for title, items in controls(dev):
@@ -465,6 +488,20 @@ def set_value(page_id, key, value):
         lo, hi = int(z.get("min", 0)), int(z.get("max", 100))
         share = {"wide": 0.0, "half": 0.35, "close": 0.75}.get(value, 0.0)
         set_ctrl(dev, [("zoom_absolute", round(lo + (hi - lo) * share))])
+        return {"refresh": True}
+    if key in ("@save", "@goto"):
+        card = next((p["title"] for p in pages() if p["id"] == page_id), dev)
+        stored = positions()
+        if key == "@save":
+            stored.setdefault(card, {})[value] = {k: ctrls[k]["fields"].get("value") for k in
+                                                  ("pan_absolute", "tilt_absolute", "zoom_absolute") if k in ctrls}
+            with open(positions_file(), "w") as f:
+                json.dump(stored, f)
+            return {"refresh": True, "toast": f"Saved as position {value}"}
+        spot = stored.get(card, {}).get(value)
+        if not spot:
+            raise SystemExit("Nothing is saved there yet")
+        set_ctrl(dev, [(k, v) for k, v in spot.items() if k in ctrls and v is not None])
         return {"refresh": True}
     if key == "@defaults":
         # Automatic modes first, so the manual values they unlock can be set too.

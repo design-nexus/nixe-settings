@@ -107,6 +107,9 @@ def describe(pid):
     c = caps(d)
     st = load_state(pid)
     status = [{"kind": "info", "title": "Battery", "value": battery_text(d)}] if "CAP_BATTERY_STATUS" in c else []
+    if "CAP_BATTERY_STATUS" in c:
+        status.append({"kind": "switch", "key": "battery-warning", "title": "Warn when the battery is low",
+                       "desc": f"A notification at {LOW}%, checked every five minutes.", "value": warning_on()})
     if "CAP_CHATMIX_STATUS" in c and d.get("chatmix") is not None:
         mix = int(d["chatmix"])
         lean = "Even" if 60 <= mix <= 68 else ("More game" if mix < 64 else "More chat")
@@ -160,7 +163,60 @@ def describe(pid):
     return out
 
 
+# ------------------------------------------------------------------ low battery
+
+TIMER = "nixe-headset-battery"
+UNIT_DIR = os.path.expanduser("~/.config/systemd/user")
+LOW = 15
+
+
+def warning_on():
+    return os.path.exists(os.path.join(UNIT_DIR, TIMER + ".timer"))
+
+
+def set_warning(on):
+    """A user timer that runs `battery-check` every five minutes."""
+    service = os.path.join(UNIT_DIR, TIMER + ".service")
+    timer = os.path.join(UNIT_DIR, TIMER + ".timer")
+    if on:
+        os.makedirs(UNIT_DIR, exist_ok=True)
+        env = f"Environment=SETTINGS_EXTENSION_STATE={STATE_DIR}\n" if STATE_DIR else ""
+        with open(service, "w") as f:
+            f.write(f"[Unit]\nDescription=Headset battery check (Settings)\n\n[Service]\nType=oneshot\n{env}"
+                    f"ExecStart=/usr/bin/python3 {os.path.realpath(__file__)} battery-check\n")
+        with open(timer, "w") as f:
+            f.write("[Unit]\nDescription=Headset battery check (Settings)\n\n[Timer]\nOnBootSec=2min\nOnUnitActiveSec=5min\n\n"
+                    "[Install]\nWantedBy=timers.target\n")
+        subprocess.run(["systemctl", "--user", "daemon-reload"])
+        subprocess.run(["systemctl", "--user", "enable", "--now", TIMER + ".timer"], capture_output=True)
+    else:
+        subprocess.run(["systemctl", "--user", "disable", "--now", TIMER + ".timer"], capture_output=True)
+        for f in (service, timer):
+            if os.path.exists(f):
+                os.remove(f)
+        subprocess.run(["systemctl", "--user", "daemon-reload"])
+
+
+def battery_check():
+    """Notify once when a headset's battery drops to LOW%; again after it's charged."""
+    for d in devices():
+        b = d.get("battery") or {}
+        level = b.get("level", -1)
+        flag = os.path.join(STATE_DIR, f"warned-{page_id(d)}")
+        if b.get("status") == "BATTERY_AVAILABLE" and 0 <= level <= LOW:
+            if not os.path.exists(flag):
+                subprocess.run(["notify-send", "-u", "critical", "-i", "audio-headset-symbolic",
+                                f"{name_of(d)}: {level}% battery", "Charge it soon."])
+                os.makedirs(STATE_DIR, exist_ok=True)
+                open(flag, "w").close()
+        elif level > LOW + 10 and os.path.exists(flag):
+            os.remove(flag)
+
+
 def set_value(pid, key, value):
+    if key == "battery-warning":
+        set_warning(value == "true")
+        return None
     index, _ = find(pid)
     on = value == "true"
     num = lambda: round(float(value))  # noqa: E731
@@ -188,7 +244,7 @@ def set_value(pid, key, value):
 
 
 def main(argv):
-    usage = "usage: settings-headset pages | describe PAGE | set PAGE KEY VALUE"
+    usage = "usage: settings-headset pages | describe PAGE | set PAGE KEY VALUE | battery-check"
     if not argv:
         raise SystemExit(usage)
     if argv[0] == "pages":
@@ -201,6 +257,8 @@ def main(argv):
             print(json.dumps(reply))
     elif argv[0] == "theme-changed":
         pass
+    elif argv[0] == "battery-check":
+        battery_check()
     else:
         raise SystemExit(usage)
 

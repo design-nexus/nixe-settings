@@ -1,6 +1,6 @@
 id = "headset"
 name = "Headsets"
-version = "1.0.0"
+version = "1.1.0"
 description = "Battery, sidetone, lights, equalizer presets and auto power-off for gaming headsets."
 exec = "./settings-headset"
 needs = ["headsetcontrol", "python3"]

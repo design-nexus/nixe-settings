@@ -1112,7 +1112,7 @@ type ToastAction<'a> = Option<(&'a str, Box<dyn Fn()>)>;
 
 fn show_toast(message: &str, action: ToastAction) {
     let Some(ui) = ui() else {
-        eprintln!("settings: {message}");
+        eprintln!("nixe-settings: {message}");
         return;
     };
     let overlay = ui.borrow().overlay.clone();

@@ -193,7 +193,7 @@ pub fn installed() -> Vec<Extension> {
         .filter_map(|p| match load(&p) {
             Ok(e) => Some(e),
             Err(err) => {
-                eprintln!("settings: extension skipped: {err:#}");
+                eprintln!("nixe-settings: extension skipped: {err:#}");
                 None
             }
         })
@@ -271,7 +271,7 @@ pub fn all_pages(fresh: bool) -> Vec<PageRef> {
             (false, Some(p)) => p,
             _ => {
                 let p = ext.query_pages().unwrap_or_else(|e| {
-                    eprintln!("settings: {}: {e:#}", ext.manifest.name);
+                    eprintln!("nixe-settings: {}: {e:#}", ext.manifest.name);
                     vec![]
                 });
                 remember_pages(ext.id(), &p);

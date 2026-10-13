@@ -22,7 +22,7 @@ use gtk::{gio, glib};
 
 const APP_ID: &str = "io.github.design_nexus.nixe.Settings";
 
-const USAGE: &str = "Usage: settings [--section ID] [--volume raise|lower|+N|-N] [--eq on|off|toggle|status] [--apply]\n\
+const USAGE: &str = "Usage: nixe-settings [--section ID] [--volume raise|lower|+N|-N] [--eq on|off|toggle|status] [--apply]\n\
 \n\
   --section ID   open (or switch the open window) to a page, e.g. audio, trackpad\n\
   --volume STEP  change the output volume, allowing past 100% up to the maximum set in Sound\n\
@@ -48,7 +48,7 @@ fn main() -> glib::ExitCode {
         return match backend::audio::step_volume(step, max) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -66,7 +66,7 @@ fn main() -> glib::ExitCode {
         return match backend::kbdidle::apply(&backend::kbdidle::Config { timeout_secs }) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -75,7 +75,7 @@ fn main() -> glib::ExitCode {
         return match backend::accounts::install_helper() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -84,7 +84,7 @@ fn main() -> glib::ExitCode {
         return match backend::updates::cli(&args[i + 1..]) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -93,7 +93,7 @@ fn main() -> glib::ExitCode {
         return match ext::manage::cli(&args[i + 1..]) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -103,7 +103,7 @@ fn main() -> glib::ExitCode {
         return match backend::themehook::sync() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -112,7 +112,7 @@ fn main() -> glib::ExitCode {
         return match backend::kbdidle::run_daemon() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -139,7 +139,7 @@ fn main() -> glib::ExitCode {
         return match result {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -149,7 +149,7 @@ fn main() -> glib::ExitCode {
         return match backend::hypr::write(&state) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("settings: {e:#}");
+                eprintln!("nixe-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };

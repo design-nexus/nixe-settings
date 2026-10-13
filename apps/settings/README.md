@@ -6,7 +6,7 @@ window for everything you'd otherwise change by editing Lua files.
 ![Settings: Sound, with the 9-band equalizer and preamp](docs/audio.png)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh | bash -s -- settings
 ```
 
 ## Features
@@ -117,7 +117,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 - **Updates**: Settings checks GitHub once a day when it opens. A new version is
   offered on About (one click, then restart); extensions show "Update
   available" and can update together, or automatically if you switch that on.
-  `settings --update` does the same from a terminal (`--check` only reports).
+  `nixe-settings --update` does the same from a terminal (`--check` only reports).
 - **Keyboard backlight timeout** (any laptop with a keyboard backlight): turn it
   off after a set time without typing or touching the trackpad, and back on with
   the next key press.
@@ -138,20 +138,20 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/
 isn't a prebuilt one for your machine):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh | bash -s -- settings
 ```
 
 To also add a gear button to the Omarchy bar (left-click opens Settings,
 right-click opens Sound):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/install.sh | bash -s -- --gear
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh | bash -s -- settings --gear
 ```
 
 **From source:**
 
 ```sh
-git clone https://github.com/design-nexus/omarchy-settings.git
+git clone https://github.com/design-nexus/nixe.git
 cd omarchy-settings
 ./install.sh          # add --gear for the bar button
 ```
@@ -170,16 +170,16 @@ all part of a standard Omarchy install.
 
 ## Usage
 
-Open **Settings** from the app launcher, or run `settings`.
+Open **Settings** from the app launcher, or run `nixe-settings`.
 
 | Command | What it does |
 | --- | --- |
-| `settings` | Open the window |
-| `settings --section audio` | Open (or jump) to a page: `theme`, `look`, `trackpad`, `audio`, `displays`, `keybindings`, … |
-| `settings --eq on\|off\|toggle\|status` | Turn the preamp and equalizer on or off, e.g. from a keybinding |
-| `settings --volume raise\|lower\|+N\|-N` | Change volume, going past 100% up to the maximum set in Sound |
-| `settings --kbd-timeout 30\|off` | Turn the keyboard backlight off after 30 idle seconds (or stop doing that) |
-| `settings --apply` | Regenerate the Hyprland file from saved settings |
+| `nixe-settings` | Open the window |
+| `nixe-settings --section audio` | Open (or jump) to a page: `theme`, `look`, `trackpad`, `audio`, `displays`, `keybindings`, … |
+| `nixe-settings --eq on\|off\|toggle\|status` | Turn the preamp and equalizer on or off, e.g. from a keybinding |
+| `nixe-settings --volume raise\|lower\|+N\|-N` | Change volume, going past 100% up to the maximum set in Sound |
+| `nixe-settings --kbd-timeout 30\|off` | Turn the keyboard backlight off after 30 idle seconds (or stop doing that) |
+| `nixe-settings --apply` | Regenerate the Hyprland file from saved settings |
 
 ## How it changes your config
 
@@ -208,7 +208,7 @@ Settings never parses or rewrites your own config files:
 - **Extensions** live in `~/.local/share/settings/extensions/<id>` (a git
   checkout each). Settings runs each one's helper program and draws the page;
   each can be turned off without removing it (its pages are hidden), and
-  `settings --ext list|install|update|enable|disable|remove` does the same from
+  `nixe-settings --ext list|install|update|enable|disable|remove` does the same from
   a terminal.
 - **Omarchy features** (themes, fonts, the bar, idle, night light, default apps,
   plugins) are changed through Omarchy's own commands and config.
@@ -243,12 +243,12 @@ light = false
 ## Uninstall
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/omarchy-settings/main/uninstall.sh | bash
+nixe uninstall settings
 ```
 
 This removes the app, the keyboard backlight timeout service, and the theme-set
 hook. These all run the app, so they can't stay behind without it. Your
-settings are kept, so reinstalling brings the timeout back.
+nixe-settings are kept, so reinstalling brings the timeout back.
 
 Add `-s -- --purge` to also remove everything Settings configured: its
 Hyprland file and the line that loads it, the equalizer service, and its saved

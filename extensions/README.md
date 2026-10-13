@@ -12,12 +12,24 @@ the rest of Settings. Pages only appear when matching hardware is found.
 
 | Extension | Works with | Needs |
 | --- | --- | --- |
-| `asus` | ASUS ROG, TUF and Zephyrus laptops: performance profiles, fan curves, charge limit, firmware settings, Aura lighting, Slash, AniMe Matrix | `asusctl` |
-| `logitech` | Logitech mice and keyboards: battery, pointer speed, scrolling, buttons, backlight, Easy-Switch, lighting | — |
-| `headset` | SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets: battery, sidetone, lights, EQ presets, auto power-off | `headsetcontrol` |
-| `webcam` | USB webcams (OBSBOT, Logitech, Elgato…): live preview, microphone level, mic options (never idle, default, unmuted), zoom, pan/tilt, focus, exposure, white balance; keep OBSBOT Tiny 3 cameras awake (vendor commands from [obsbot-tiny3-linux](https://github.com/joshualambert/obsbot-tiny3-linux)) | `v4l2-ctl`, `ffmpeg` |
-| `corsair` | Corsair Galleon 100 SD: device details, access for Corsair Web Hub, a read-only probe report (native lighting next) | — |
-| `streamdeck` | The Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness, dials, via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck) | `python3`, `git` |
+| `asus` | ASUS ROG, TUF and Zephyrus laptops: performance profiles, fan curves, charge limit, GPU mode, firmware settings, Aura lighting, Slash, AniMe Matrix | `asusctl` |
+| `laptop` | Laptops of other brands (ThinkPad, Dell, Framework, HP, LG, Lenovo…): battery health and charge limits, power profile, keyboard light, microphone and camera switches | — |
+| `logitech` | Logitech mice and keyboards: battery, pointer speed, scrolling, SmartShift, thumb wheel, buttons, backlight, Easy-Switch, lighting | — |
+| `razer` | Razer mice, keyboards and headsets: DPI, polling rate, battery, sleep time, lighting | OpenRazer |
+| `corsair` | Corsair keyboards, mice, headsets, memory and fan hubs: lighting (through OpenRGB), device details, access for Corsair Web Hub | OpenRGB for lighting |
+| `rgb` | Every RGB device OpenRGB sees, any brand: one colour everywhere, the theme colour, profiles, each device's effects | OpenRGB |
+| `headset` | SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets: battery and a low-battery warning, chat mix, sidetone, lights, EQ presets, auto power-off | `headsetcontrol` |
+| `controllers` | Xbox, PlayStation, Switch Pro, 8BitDo and other controllers: battery, a live button and stick tester, rumble test, lightbar and player lights | — |
+| `tablet` | Wacom, XP-Pen, Huion and other drawing tablets: the screen the pen draws on, the area used, left-handed, mouse-like use | — |
+| `monitors` | External monitors over DDC/CI: brightness, contrast, volume, input, colour preset, power | `ddcutil` |
+| `nvidia` | NVIDIA graphics: temperature, use, memory, clocks, power, the programs using it, power limit, persistence mode | `nvidia-smi` |
+| `webcam` | USB webcams (OBSBOT, Logitech, Elgato…): live preview, microphone level, mic options (never idle, default, unmuted), zoom, framing and saved pan/tilt positions, focus, exposure, white balance; keep OBSBOT Tiny 3 cameras awake (vendor commands from [obsbot-tiny3-linux](https://github.com/joshualambert/obsbot-tiny3-linux)) | `v4l2-ctl`, `ffmpeg` |
+| `streamdeck` | Elgato Stream Decks (run by nixe-deck) and the Galleon 100 SD's built-in deck (via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck)): keys, profiles, pages, brightness, dials | `python3` |
+| `assistant` | The Nixe voice assistant: running or not, persona, voice, wake word, conversation, permissions, helpers, keys | Nixe Assistant |
+
+Rust extensions share `common/` (pages, commands, device access, OpenRGB) and its
+`install-rust.sh`, which fetches a release build (`ext-<id>-v<version>` in nixe) or
+builds from source.
 
 `index.json` is the catalog Settings reads. Each entry names this repository and the extension's folder (`extensions/<id>`); Settings checks out only that folder, plus any listed in `also` (shared code).
 

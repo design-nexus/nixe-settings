@@ -147,31 +147,28 @@ pub fn startup_dialog(part: Option<udisks::Part>) {
                 let (uid, gid) = my_ids();
                 opts.extend([format!("uid={uid}"), format!("gid={gid}"), "umask=022".into()]);
             }
-            let (block, fs, options) = (p.path.clone(), fstab_type(&p.fs).to_string(), opts.join(","));
-            glib::spawn_future_local(async move {
-                // The folder first (it may be under /mnt, which is root's).
-                let d2 = dir.clone();
-                let made = gtk::gio::spawn_blocking(move || {
-                    if std::path::Path::new(&d2).is_dir() {
-                        return Ok(String::new());
+            if p.uuid.is_empty() {
+                return Some("This partition has no filesystem id to mount it by.".into());
+            }
+            if !accounts::helper_installed() {
+                return Some("Settings' system helper isn't installed. Reinstall Settings to add it.".into());
+            }
+            // One helper call makes the folder, writes the line and mounts it,
+            // so it asks for a password once at most.
+            let id = unique_id(&mounts::slug(
+                std::path::Path::new(&dir).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default().as_str(),
+            ));
+            let (uuid, fs, options) = (p.uuid.clone(), fstab_type(&p.fs).to_string(), opts.join(","));
+            cmd::background(
+                move || accounts::helper(&["mount-add-drive", &id, &uuid, &dir, &fs, &options], None).map(|_| dir),
+                |r| {
+                    match r {
+                        Ok(dir) => window::toast(&format!("It mounts at {dir} from now on.")),
+                        Err(e) => window::toast(&format!("{e:#}")),
                     }
-                    accounts::helper(&["mkdir-mount", &d2], None).map_err(|e| format!("{e:#}"))
-                })
-                .await
-                .unwrap_or_else(|_| Err("Couldn't make the folder".into()));
-                if let Err(e) = made {
-                    window::toast(&e);
-                    return;
-                }
-                match udisks::add_fstab(&block, &dir, &fs, &options).await {
-                    Ok(()) => {
-                        let _ = udisks::mount(&block).await;
-                        window::toast(&format!("It mounts at {dir} from now on."));
-                    }
-                    Err(e) => window::toast(&format!("{e}")),
-                }
-                refresh();
-            });
+                    refresh();
+                },
+            );
             None
         },
     );
@@ -368,19 +365,24 @@ fn nfs_dialog() {
     });
 }
 
+/// `id`, or `id-2`, `id-3`… if a mount already has it.
+fn unique_id(id: &str) -> String {
+    let taken: Vec<String> = mounts::fstab().into_iter().map(|m| m.id).collect();
+    let mut out = id.to_string();
+    let mut n = 2;
+    while taken.contains(&out) {
+        out = format!("{id}-{n}");
+        n += 1;
+    }
+    out
+}
+
 fn add_network(id: String, fstype: &'static str, source: String, dir: String, opts: Vec<String>, login: String) {
     if !accounts::helper_installed() {
         window::toast("Settings' system helper isn't installed. Reinstall Settings to add it.");
         return;
     }
-    // A name already used gets a number.
-    let taken: Vec<String> = mounts::fstab().into_iter().map(|m| m.id).collect();
-    let mut id2 = id.clone();
-    let mut n = 2;
-    while taken.contains(&id2) {
-        id2 = format!("{id}-{n}");
-        n += 1;
-    }
+    let id2 = unique_id(&id);
     cmd::background(
         move || {
             let opts = if opts.is_empty() { "-".to_string() } else { opts.join(",") };
@@ -530,28 +532,16 @@ fn status(dir: &str, now: &[(String, String)]) -> (&'static str, bool) {
     }
 }
 
-/// How a mount is removed: through UDisks (a drive), the helper (a share
-/// Settings added) or the user's services (an SSH folder). None: it's the
-/// user's own fstab line.
+/// How a mount is removed: through the helper (a line Settings added to
+/// fstab) or the user's services (an SSH folder). None: it's the user's own
+/// fstab line.
 enum Remove {
-    Drive(String),
     Helper(String),
     Ssh(String),
 }
 
 fn remove(how: &Remove) {
     match how {
-        Remove::Drive(block) => {
-            let block = block.clone();
-            glib::spawn_future_local(async move {
-                let _ = udisks::unmount(&block).await;
-                match udisks::remove_fstab(&block).await {
-                    Ok(()) => window::toast("It won't mount at startup any more."),
-                    Err(e) => window::toast(&format!("{e}")),
-                }
-                refresh();
-            });
-        }
         Remove::Helper(id) => {
             let id = id.clone();
             cmd::background(
@@ -642,6 +632,7 @@ pub fn build(page: &Page) {
     // Shares go into fstab through the root helper.
     super::accounts::require_helper(page, "mounts", "adding a network share");
     let g = page.group("Add a mount");
+    g.note("Adding one asks for your password once, then remembers it for a few minutes (Users can turn this off).");
     let flow = gtk::FlowBox::new();
     flow.set_selection_mode(gtk::SelectionMode::None);
     flow.set_homogeneous(true);
@@ -675,8 +666,6 @@ pub fn build(page: &Page) {
     widgets::keywords("mount fstab nas samba smb cifs windows share nfs sshfs ssh network drive automount startup");
 
     let now = mounts::mounted();
-    let parts: Vec<udisks::Part> =
-        udisks::load().unwrap_or_default().iter().flat_map(|d| d.parts.iter().map(|p| p.content().clone())).collect();
     let all: Vec<Mount> = mounts::fstab().into_iter().filter(|m| !m.system).collect();
     let ssh = mounts::ssh_folders(&paths::home());
 
@@ -684,15 +673,9 @@ pub fn build(page: &Page) {
     if all.is_empty() && ssh.is_empty() {
         g.add(&widgets::row("None yet", "Mounts you add show here, with whether they're mounted now.", None));
     }
+    // Settings removes only the lines it added; the rest are yours.
     for m in &all {
-        let how = if m.ours() {
-            Some(Remove::Helper(m.id.clone()))
-        } else {
-            parts
-                .iter()
-                .find(|p| !p.uuid.is_empty() && m.source == format!("UUID={}", p.uuid))
-                .map(|p| Remove::Drive(p.path.clone()))
-        };
+        let how = m.ours().then(|| Remove::Helper(m.id.clone()));
         g.add(&mount_row(m, &now, how));
     }
     for (id, target, dir) in ssh {

@@ -18,7 +18,9 @@
 //!   nixe-settings-helper printer-remove NAME | printer-add NAME URI | printer-set-uri NAME URI
 //!   nixe-settings-helper mount-add-net ID TYPE SOURCE DIR OPTIONS    SMB user, password, domain on stdin
 //!   nixe-settings-helper mount-test TYPE SOURCE OPTIONS              same stdin; mounts once, then not
+//!   nixe-settings-helper mount-add-drive ID UUID DIR TYPE OPTIONS
 //!   nixe-settings-helper mount-remove ID | mount-now DIR | unmount DIR | mkdir-mount DIR
+//!   nixe-settings-helper password-free on|off   no password for disks, mounts and cleanup
 //!   nixe-settings-helper clean-pkg-cache | remove-orphans | vacuum-journal SIZE
 
 #[path = "../backend/passwd.rs"]
@@ -343,6 +345,9 @@ fn run(args: &[&str]) -> Result<String> {
             exec("/usr/bin/lpadmin", &["-p", name, "-E", "-v", uri, "-m", "everywhere"], None)
         }
         ["mount-add-net", id, fstype, source, dir, options] => mount_add_net(id, fstype, source, dir, options),
+        ["mount-add-drive", id, uuid, dir, fstype, options] => mount_add_drive(id, uuid, dir, fstype, options),
+        ["password-free", "on"] => password_free(true),
+        ["password-free", "off"] => password_free(false),
         ["mount-test", fstype, source, options] => mount_test(fstype, source, options),
         ["mount-remove", id] => mount_remove(id),
         ["mount-now", dir] => {
@@ -663,6 +668,58 @@ fn mount_add_net(id: &str, fstype: &str, source: &str, dir: &str, options: &str)
     } else {
         exec("/usr/bin/mount", &[dir], None).map(|_| String::new())
     }
+}
+
+fn mount_add_drive(id: &str, uuid: &str, dir: &str, fstype: &str, options: &str) -> Result<String> {
+    let home = invoker_home()?;
+    let opts = options_list(options);
+    let line = mounts::drive_line(id, uuid, dir, fstype, &opts, &home)?;
+    let text = std::fs::read_to_string("/etc/fstab").map_err(|e| e.to_string())?;
+    let entries = mounts::parse_fstab(&text);
+    if entries.iter().any(|m| m.id == id || m.dir == dir) {
+        return Err(format!("Something already mounts at {dir}, or a mount is called {id}"));
+    }
+    if entries.iter().any(|m| m.source == format!("UUID={uuid}")) {
+        return Err("That partition already mounts at startup".into());
+    }
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let mut new = text.trim_end().to_string();
+    new.push('\n');
+    new.push_str(&line);
+    new.push('\n');
+    write_fstab(&new)?;
+    if opts.iter().any(|o| o == "x-systemd.automount") {
+        // Its automount unit exists after the daemon-reload; start it now.
+        let unit = exec("/usr/bin/systemd-escape", &["-p", "--suffix=automount", dir], None)?;
+        let _ = exec("/usr/bin/systemctl", &["start", unit.trim()], None);
+        Ok(String::new())
+    } else {
+        exec("/usr/bin/mount", &[dir], None).map(|_| String::new())
+    }
+}
+
+/// Turn the password-free rule for disks, mounts and cleanup on or off, for
+/// the user who asked.
+fn password_free(on: bool) -> Result<String> {
+    if !on {
+        match std::fs::remove_file(mounts::RULE_FILE) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.to_string()),
+        }
+        return Ok(String::new());
+    }
+    let uid = invoker().ok_or("run through pkexec")?;
+    let user = passwd::users().into_iter().find(|u| u.uid == uid).ok_or("unknown user")?;
+    if !passwd::valid_name(&user.name) {
+        return Err("unusual user name".into());
+    }
+    let helper = std::env::current_exe().map_err(|e| e.to_string())?;
+    let rule = mounts::password_free_rule(&user.name, &helper.to_string_lossy());
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(mounts::RULE_FILE, rule).map_err(|e| e.to_string())?;
+    std::fs::set_permissions(mounts::RULE_FILE, std::fs::Permissions::from_mode(0o644)).map_err(|e| e.to_string())?;
+    Ok(String::new())
 }
 
 fn mount_remove(id: &str) -> Result<String> {

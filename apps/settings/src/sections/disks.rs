@@ -1149,7 +1149,10 @@ pub fn build(page: &Page) {
     });
     PROGRESS.with(|p| *p.borrow_mut() = None);
     let g = page.plain_group("Drives");
-    g.note("Pick a part of a drive's map to see what's on it and what you can do. Changes ask for your password.");
+    g.note(
+        "Pick a part of a drive's map to see what's on it and what you can do. Changes ask for your password once, \
+         then remember it for a few minutes (Users can turn this off).",
+    );
     widgets::keywords(
         "disk drive partition format resize shrink grow delete label rename mount unmount encrypt luks usb ssd nvme",
     );

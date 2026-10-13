@@ -159,6 +159,56 @@ pub fn helper_notice(section: &'static str, what: &str) -> (bool, Option<gtk::Bo
     (state == acc::HelperState::Outdated, Some(b))
 }
 
+/// Whether disks, mounts and cleanup ask for a password. Off: once, then
+/// remembered for a few minutes. On: never, for you at this computer.
+fn password_free_group(page: &Page, can_edit: bool) {
+    let g = page.group("Passwords for system changes");
+    g.note(
+        "Changing disks, mounts and the package cache asks for your password once, then remembers it for a few minutes. \
+         Users, passwords and the firewall always ask.",
+    );
+    let syncing = Rc::new(std::cell::Cell::new(false));
+    let s2 = syncing.clone();
+    let (r, sw) = widgets::switch_row(
+        "Don't ask for disks, mounts and cleanup",
+        "No password while you're signed in at this computer. Any program you run could then format a drive or change mounts \
+         without asking, so leave it off if you're unsure.",
+        crate::prefs::get().password_free,
+        move |_| {},
+    );
+    sw.set_sensitive(can_edit);
+    let sw2 = sw.clone();
+    sw.connect_active_notify(move |s| {
+        if s2.get() {
+            return;
+        }
+        let on = s.is_active();
+        s.set_sensitive(false);
+        let (sw, syncing) = (sw2.clone(), s2.clone());
+        cmd::background(
+            move || acc::helper(&["password-free", if on { "on" } else { "off" }], None).map_err(|e| e.to_string()),
+            move |r| {
+                sw.set_sensitive(true);
+                match r {
+                    Ok(_) => {
+                        crate::prefs::update(|p| p.password_free = on);
+                        window::toast(if on { "Disks, mounts and cleanup won't ask for your password." } else { "They'll ask for your password again." });
+                    }
+                    Err(e) => {
+                        // Put the switch back as it was.
+                        syncing.set(true);
+                        sw.set_active(!on);
+                        syncing.set(false);
+                        window::toast(&e);
+                    }
+                }
+            },
+        );
+    });
+    widgets::keywords("password polkit sudo ask prompt authentication disks mounts");
+    g.add(&r);
+}
+
 fn capitalise(s: &str) -> String {
     let mut c = s.chars();
     c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
@@ -309,6 +359,8 @@ pub fn build(page: &Page) {
             g.add(&r);
         }
     }
+
+    password_free_group(page, can_edit);
 
     // ----- Users -----
     let g = page.group("Other users");

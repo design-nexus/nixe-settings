@@ -30,6 +30,10 @@ pub fn helper_state() -> HelperState {
     if !helper_installed() {
         return HelperState::Missing;
     }
+    // Its permission policy changes too (how long a password is remembered).
+    if std::fs::read_to_string(POLICY).ok().as_deref() != Some(POLICY_XML) {
+        return HelperState::Outdated;
+    }
     let ours = std::env::current_exe().ok().map(|p| p.with_file_name("nixe-settings-helper")).and_then(|p| std::fs::read(p).ok());
     match (ours, std::fs::read(HELPER)) {
         (Some(a), Ok(b)) if a != b => HelperState::Outdated,

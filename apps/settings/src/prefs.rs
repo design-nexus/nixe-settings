@@ -37,6 +37,9 @@ pub struct Prefs {
     pub announced_version: String,
     /// Collapsible groups the user opened or closed, by `section/title`.
     pub open_groups: std::collections::BTreeMap<String, bool>,
+    /// Disks, mounts and cleanup don't ask for a password (a polkit rule the
+    /// helper wrote). Kept here because the rule's folder is root's to read.
+    pub password_free: bool,
 }
 
 impl Default for Prefs {
@@ -55,6 +58,7 @@ impl Default for Prefs {
             auto_update_extensions: false,
             announced_version: String::new(),
             open_groups: Default::default(),
+            password_free: false,
         }
     }
 }

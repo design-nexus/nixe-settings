@@ -198,6 +198,71 @@ pub fn valid_option(o: &str) -> bool {
     }
 }
 
+/// Filesystems a drive at startup may have (as fstab names them).
+pub const DRIVE_TYPES: &[&str] = &["ext4", "ext3", "ext2", "btrfs", "xfs", "f2fs", "vfat", "exfat", "ntfs3"];
+
+/// A filesystem UUID as blkid prints it.
+pub fn valid_uuid(s: &str) -> bool {
+    (4..=64).contains(&s.len()) && s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+}
+
+/// The fstab line for a drive mounted at startup.
+pub fn drive_line(id: &str, uuid: &str, dir: &str, fstype: &str, options: &[String], home: &Path) -> Result<String, String> {
+    if !valid_id(id) {
+        return Err("bad id".into());
+    }
+    if !valid_uuid(uuid) {
+        return Err(format!("“{uuid}” isn't a filesystem id"));
+    }
+    if !DRIVE_TYPES.contains(&fstype) {
+        return Err(format!("“{fstype}” isn't a filesystem Settings mounts"));
+    }
+    if !valid_dir(dir, home) {
+        return Err(format!("A mount folder has to be inside /mnt, /media or your home folder, not “{dir}”"));
+    }
+    if let Some(bad) = options.iter().find(|o| !valid_option(o) && o.as_str() != "x-udisks-auth") {
+        return Err(format!("“{bad}” isn't an option Settings sets"));
+    }
+    let opts = if options.is_empty() { "defaults".to_string() } else { options.join(",") };
+    let pass = if fstype.starts_with("ext") { 2 } else { 0 };
+    Ok(format!("UUID={uuid} {} {fstype} {opts} 0 {pass} {MARK}{id}", escape(dir)))
+}
+
+/// Helper commands the password-free rule covers: disks, mounts and cleanup.
+/// Users, passwords, the firewall and the rest still ask.
+pub const PASSWORD_FREE: &[&str] = &[
+    "mount-add-net",
+    "mount-add-drive",
+    "mount-test",
+    "mount-remove",
+    "mount-now",
+    "unmount",
+    "mkdir-mount",
+    "clean-pkg-cache",
+    "remove-orphans",
+    "vacuum-journal",
+];
+
+pub const RULE_FILE: &str = "/etc/polkit-1/rules.d/49-nixe-settings.rules";
+
+/// The polkit rule that lets `user` make disk, mount and cleanup changes
+/// without a password while signed in at the computer. Settings' helper is
+/// allowed only for the commands in [`PASSWORD_FREE`].
+pub fn password_free_rule(user: &str, helper: &str) -> String {
+    let commands = PASSWORD_FREE.iter().map(|c| format!("\"{c}\"")).collect::<Vec<_>>().join(", ");
+    format!(
+        "// Written by Settings (Users → Passwords for system changes). Turn the switch off, or delete this file, to undo.\n\
+         polkit.addRule(function(action, subject) {{\n\
+         \x20   if (subject.user != \"{user}\" || !subject.local || !subject.active) return;\n\
+         \x20   if (action.id.indexOf(\"org.freedesktop.udisks2.\") == 0) return polkit.Result.YES;\n\
+         \x20   if (action.id == \"io.github.design_nexus.nixe.settings.admin\") {{\n\
+         \x20       var line = (action.lookup(\"command_line\") || \"\").split(\" \");\n\
+         \x20       if (line[0] == \"{helper}\" && [{commands}].indexOf(line[1]) >= 0) return polkit.Result.YES;\n\
+         \x20   }}\n\
+         }});\n"
+    )
+}
+
 /// A network share's source: `//server/share` (SMB) or `server:/path` (NFS).
 pub fn network_source(fstype: &str, server: &str, share: &str) -> Option<String> {
     if !valid_host(server) || !valid_path_text(share) {
@@ -433,6 +498,31 @@ mod tests {
             vec![("server".into(), "ken@box.lan:/srv/files".into(), "/home/ken/Remote/Server box".into())]
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn builds_drive_lines() {
+        let home = Path::new(HOME);
+        let opts: Vec<String> =
+            ["nofail", "x-gvfs-show", "x-udisks-auth", "uid=1000", "umask=022"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(
+            drive_line("photos", "B2C4-1F00", "/mnt/photos", "exfat", &opts, home).unwrap(),
+            "UUID=B2C4-1F00 /mnt/photos exfat nofail,x-gvfs-show,x-udisks-auth,uid=1000,umask=022 0 0 # nixe-settings:photos"
+        );
+        assert!(drive_line("x", "abc;rm", "/mnt/x", "ext4", &[], home).is_err());
+        assert!(drive_line("x", "abcd", "/mnt/x", "ext4 --x", &[], home).is_err());
+        assert!(drive_line("x", "abcd", "/etc", "ext4", &[], home).is_err());
+        assert!(drive_line("x", "abcd", "/mnt/x", "ext4", &["exec".into()], home).is_err());
+        assert!(drive_line("x", "abcd", "/mnt/x", "ext4", &[], home).unwrap().ends_with(" 0 2 # nixe-settings:x"));
+    }
+
+    #[test]
+    fn password_free_rule_covers_only_disks_and_mounts() {
+        let r = password_free_rule("ken", "/usr/local/lib/nixe-settings/nixe-settings-helper");
+        assert!(r.contains("subject.user != \"ken\""));
+        assert!(r.contains("\"mount-add-net\", \"mount-add-drive\""));
+        assert!(!r.contains("add-user") && !r.contains("set-password") && !r.contains("firewall"));
+        assert!(r.contains("subject.local") && r.contains("subject.active"));
     }
 
     #[test]

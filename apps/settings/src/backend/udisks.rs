@@ -726,48 +726,6 @@ pub async fn nvme_details(drive: &str) -> Result<HashMap<String, Variant>> {
     Ok(r.child_value(0).get::<HashMap<String, Variant>>().unwrap_or_default())
 }
 
-/// A startup mount: an fstab entry for `fs_block` at `dir` with `options`.
-pub async fn add_fstab(fs_block: &str, dir: &str, fs: &str, options: &str) -> Result<()> {
-    let uuid_name = format!("UUID={}", block_uuid(fs_block).unwrap_or_default());
-    let mut item: HashMap<String, Variant> = HashMap::new();
-    item.insert("fsname".into(), Variant::array_from_fixed_array(&nul(&uuid_name)));
-    item.insert("dir".into(), Variant::array_from_fixed_array(&nul(dir)));
-    item.insert("type".into(), Variant::array_from_fixed_array(&nul(fs)));
-    item.insert("opts".into(), Variant::array_from_fixed_array(&nul(options)));
-    item.insert("freq".into(), 0i32.to_variant());
-    item.insert("passno".into(), (if fs == "ext4" { 2i32 } else { 0i32 }).to_variant());
-    let entry = ("fstab", item).to_variant();
-    let args = Variant::tuple_from_iter([entry, Opts::new().to_variant()]);
-    call(fs_block, "Block", "AddConfigurationItem", args, "()").await.map(|_| ())
-}
-
-/// Remove the fstab entries UDisks lists for `fs_block`.
-pub async fn remove_fstab(fs_block: &str) -> Result<()> {
-    let objs = managed()?;
-    let items: Vec<Variant> = objs
-        .get(fs_block)
-        .and_then(|i| i.get("Block"))
-        .and_then(|b| b.get("Configuration"))
-        .map(|c| c.iter().filter(|item| item.child_value(0).str() == Some("fstab")).collect())
-        .unwrap_or_default();
-    for item in items {
-        let args = Variant::tuple_from_iter([item, Opts::new().to_variant()]);
-        call(fs_block, "Block", "RemoveConfigurationItem", args, "()").await?;
-    }
-    Ok(())
-}
-
-fn block_uuid(fs_block: &str) -> Option<String> {
-    let objs = managed().ok()?;
-    Some(s(objs.get(fs_block)?.get("Block")?, "IdUUID")).filter(|u| !u.is_empty())
-}
-
-fn nul(s: &str) -> Vec<u8> {
-    let mut v = s.as_bytes().to_vec();
-    v.push(0);
-    v
-}
-
 /// Running UDisks jobs on `object`: (what, fraction done if known).
 pub fn jobs_for(object: &str) -> Vec<(String, Option<f64>)> {
     let Ok(objs) = managed() else { return Vec::new() };
@@ -1011,15 +969,6 @@ mod tests {
         ctx.block_on(unlock(&p.path, "battery staple 2")).unwrap();
         unmounted(0);
         ctx.block_on(lock(&p.path)).unwrap();
-
-        step("startup mount entry for the exFAT partition, then remove it");
-        let share = drive().parts[1].clone();
-        ctx.block_on(add_fstab(&share.path, "/mnt/nixe-loop-test", "exfat", "nofail,noauto,x-gvfs-show")).unwrap();
-        let fstab = std::fs::read_to_string("/etc/fstab").unwrap();
-        assert!(fstab.contains("/mnt/nixe-loop-test"), "in /etc/fstab");
-        assert!(drive().parts[1].fstab);
-        ctx.block_on(remove_fstab(&share.path)).unwrap();
-        assert!(!std::fs::read_to_string("/etc/fstab").unwrap().contains("/mnt/nixe-loop-test"), "gone from /etc/fstab");
 
         step("delete both partitions");
         unmounted(0);

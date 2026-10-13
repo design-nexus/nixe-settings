@@ -158,18 +158,34 @@ pub fn run_command(mut c: Command, what: &str, timeout: Duration) -> Result<Stri
 
 /// Find `extension.toml` in a folder or one level down (a sparse checkout of a bigger repo).
 pub fn find_manifest(root: &Path) -> Option<PathBuf> {
-    let top = root.join(MANIFEST);
-    if top.is_file() {
-        return Some(top);
+    find_within(root, 3)
+}
+
+/// The manifest at `dir`, or in a folder under it up to `depth` levels down
+/// (an extension in a shared repository: `extensions/<id>`). Build output and
+/// hidden folders are skipped.
+fn find_within(dir: &Path, depth: u32) -> Option<PathBuf> {
+    let here = dir.join(MANIFEST);
+    if here.is_file() {
+        return Some(here);
     }
-    let mut dirs: Vec<PathBuf> = std::fs::read_dir(root)
+    if depth == 0 {
+        return None;
+    }
+    let mut dirs: Vec<PathBuf> = std::fs::read_dir(dir)
         .ok()?
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.is_dir() && !p.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.')))
+        .filter(|p| {
+            p.is_dir()
+                && !p.file_name().is_some_and(|n| {
+                    let n = n.to_string_lossy();
+                    n.starts_with('.') || ["target", "bin", "vendor", "node_modules"].contains(&n.as_ref())
+                })
+        })
         .collect();
     dirs.sort();
-    dirs.into_iter().map(|d| d.join(MANIFEST)).find(|m| m.is_file())
+    dirs.into_iter().find_map(|d| find_within(&d, depth - 1))
 }
 
 pub fn load(root: &Path) -> Result<Extension> {

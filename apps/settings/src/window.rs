@@ -137,6 +137,7 @@ fn build(app: &gtk::Application) {
     window.add_css_class("settings-window");
     // No client-side titlebar: Hyprland manages the window.
     window.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
+    nixe_ui::keys::install(&window, nixe_ui::keys::Common { shortcuts: Some(show_shortcuts), ..Default::default() });
     window.set_icon_name(Some("io.github.design_nexus.nixe.Settings"));
 
     let sections = sections::all();
@@ -586,7 +587,7 @@ pub const SHORTCUTS: &[(&[&str], &str)] = &[
     (&["Alt", "←"], "Back to the page before"),
     (&["Alt", "→"], "Forward again"),
     (&["Ctrl", "B"], "Collapse or expand the sidebar"),
-    (&["F1"], "Show these shortcuts"),
+    (&["F1"], "Show these shortcuts (or ?)"),
     (&["Ctrl", "Q"], "Close (Ctrl+W too)"),
 ];
 

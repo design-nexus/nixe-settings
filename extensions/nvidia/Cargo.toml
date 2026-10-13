@@ -1,0 +1,15 @@
+[package]
+name = "settings-nvidia"
+version = "1.0.0"
+description = "NVIDIA graphics for Settings"
+license = "MIT"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+nixe-ext = { path = "../common" }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+
+[profile.release]
+lto = "thin"
+strip = true

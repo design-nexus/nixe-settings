@@ -1,0 +1,8 @@
+id = "nvidia"
+name = "NVIDIA"
+version = "1.0.0"
+description = "Temperature, use, memory, clocks and power for NVIDIA graphics, the programs using it, the power limit and persistence mode."
+exec = "bin/settings-nvidia"
+needs = ["nvidia-smi"]
+needs_hint = "Needs the NVIDIA driver's <tt>nvidia-smi</tt> (in <tt>nvidia-utils</tt>)."
+install = "install.sh"

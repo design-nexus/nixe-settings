@@ -22,7 +22,11 @@ pub fn present(program: &str) -> bool {
 pub fn run(program: &str, args: &[&str]) -> Result<String> {
     let out = Command::new(program).args(args).output().with_context(|| format!("couldn't start {program}"))?;
     if !out.status.success() {
-        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        // Some programs (nvidia-smi) say what went wrong on stdout.
+        let mut err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        if err.is_empty() {
+            err = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        }
         bail!("{}", if err.is_empty() { format!("{program} failed") } else { err });
     }
     Ok(String::from_utf8_lossy(&out.stdout).to_string())

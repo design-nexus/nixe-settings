@@ -113,6 +113,21 @@
       ],
       "needs": [],
       "icon": "computer-laptop-symbolic"
+    },
+    {
+      "id": "nvidia",
+      "name": "NVIDIA",
+      "description": "Temperature, use, memory, clocks and power of NVIDIA graphics, the programs using it, the power limit and persistence mode.",
+      "devices": "NVIDIA GeForce, RTX and Quadro cards with the NVIDIA driver",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/nvidia",
+      "also": [
+        "extensions/common"
+      ],
+      "needs": [
+        "nvidia-smi"
+      ],
+      "icon": "video-display-symbolic"
     }
   ]
 }

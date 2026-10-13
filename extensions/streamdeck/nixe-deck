@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""nixe-deck: runs Elgato Stream Decks for Settings' Stream Deck page.
+
+Profiles are TOML files in ~/.config/nixe-deck/profiles/, the same shape the
+page edits for the Galleon:
+
+    start_page = "main"
+    [[page]]
+    name = "main"
+    keys = [ { label = "Files", exec = "nautilus" }, { label = "Mute", keys = "SUPER+M" }, … ]
+
+A key does one thing: `key` (a key), `keys` (a shortcut), `exec` (a command),
+`media` (play-pause, next, previous, stop), `page` or `profile`. The Stream
+Deck + dials change the volume; pressing one mutes. ~/.config/nixe-deck/config.toml
+holds `brightness` (0–100) and `start_profile`.
+
+Needs python-elgato-streamdeck and python-pillow; shortcuts are typed with
+wtype, media keys with playerctl.
+"""
+
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+import tomllib
+
+HOME = os.path.expanduser("~")
+CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "nixe-deck")
+CONFIG = os.path.join(CONF, "config.toml")
+PROFILES = os.path.join(CONF, "profiles")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local/state"), "nixe-deck")
+
+
+def read_toml(path):
+    try:
+        with open(path, "rb") as f:
+            return tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return {}
+
+
+def wtype_args(shortcut):
+    """'CTRL+SHIFT+T' -> wtype arguments: modifiers held, the key pressed."""
+    mods = {"CTRL": "ctrl", "CONTROL": "ctrl", "SHIFT": "shift", "ALT": "alt", "SUPER": "logo", "META": "logo", "WIN": "logo"}
+    parts = [p for p in shortcut.replace(" ", "").split("+") if p]
+    if not parts:
+        return []
+    *held, key = parts
+    args = []
+    for m in held:
+        args += ["-M", mods.get(m.upper(), m.lower())]
+    k = key if len(key) == 1 else key.capitalize()
+    named = {"ENTER": "Return", "ESC": "Escape", "ESCAPE": "Escape", "SPACE": "space", "TAB": "Tab",
+             "BACKSPACE": "BackSpace", "DELETE": "Delete", "UP": "Up", "DOWN": "Down", "LEFT": "Left", "RIGHT": "Right"}
+    k = named.get(key.upper(), k.lower() if len(k) == 1 else k)
+    args += ["-k", k]
+    for m in reversed(held):
+        args += ["-m", mods.get(m.upper(), m.lower())]
+    return args
+
+
+def run_quiet(argv):
+    try:
+        subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        pass
+
+
+class Deck:
+    def __init__(self, deck):
+        self.deck = deck
+        self.lock = threading.Lock()
+        cfg = read_toml(CONFIG)
+        self.profile = cfg.get("start_profile") or self.first_profile()
+        self.page = self.start_page()
+
+    def first_profile(self):
+        try:
+            names = sorted(f[:-5] for f in os.listdir(PROFILES) if f.endswith(".toml"))
+        except OSError:
+            names = []
+        return names[0] if names else ""
+
+    def doc(self):
+        return read_toml(os.path.join(PROFILES, self.profile + ".toml")) if self.profile else {}
+
+    def start_page(self):
+        doc = self.doc()
+        names = [p.get("name", "") for p in doc.get("page", [])]
+        start = doc.get("start_page", "")
+        return start if start in names else (names[0] if names else "")
+
+    def keys(self):
+        for p in self.doc().get("page", []):
+            if p.get("name") == self.page:
+                return list(p.get("keys", []))
+        return []
+
+    def image(self, spec):
+        from PIL import Image, ImageDraw, ImageFont
+        from StreamDeck.ImageHelpers import PILHelper
+
+        img = PILHelper.create_key_image(self.deck)
+        draw = ImageDraw.Draw(img)
+        label = spec.get("label") or spec.get("exec", "") or spec.get("keys", "") or spec.get("page", "")
+        icon = spec.get("icon")
+        if icon and os.path.exists(os.path.expanduser(icon)):
+            try:
+                pic = Image.open(os.path.expanduser(icon)).convert("RGBA")
+                pic.thumbnail((img.width - 16, img.height - (22 if label else 8)))
+                img.paste(pic, ((img.width - pic.width) // 2, 4), pic)
+            except OSError:
+                pass
+        if label:
+            try:
+                font = ImageFont.truetype("DejaVuSans.ttf", 13)
+            except OSError:
+                font = ImageFont.load_default()
+            text = label[:14]
+            w = draw.textlength(text, font=font)
+            y = img.height - 18 if icon else img.height // 2 - 8
+            draw.text(((img.width - w) / 2, y), text, font=font, fill="white")
+        return PILHelper.to_native_key_format(self.deck, img)
+
+    def render(self):
+        if not self.deck.is_visual():
+            return
+        keys = self.keys()
+        with self.lock:
+            for i in range(self.deck.key_count()):
+                spec = keys[i] if i < len(keys) else {}
+                self.deck.set_key_image(i, self.image(spec) if spec else None)
+
+    def press(self, deck, index, down):
+        if not down:
+            return
+        keys = self.keys()
+        if index >= len(keys):
+            return
+        spec = keys[index]
+        if "exec" in spec:
+            run_quiet(["sh", "-c", spec["exec"]])
+        elif "keys" in spec or "key" in spec:
+            run_quiet(["wtype"] + wtype_args(spec.get("keys") or spec.get("key")))
+        elif "media" in spec:
+            action = {"play-pause": "play-pause", "next": "next", "previous": "previous", "stop": "stop"}.get(spec["media"])
+            if action:
+                run_quiet(["playerctl", action])
+        elif "page" in spec:
+            self.page = spec["page"]
+            self.render()
+        elif "profile" in spec:
+            self.profile = spec["profile"]
+            self.page = self.start_page()
+            self.render()
+
+    def dial(self, deck, dial, event, value):
+        from StreamDeck.Devices.StreamDeck import DialEventType
+
+        if event == DialEventType.TURN:
+            step = f"{abs(value) * 2}%{'+' if value > 0 else '-'}"
+            run_quiet(["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", step])
+        elif event == DialEventType.PUSH and value:
+            run_quiet(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
+
+    def start(self):
+        self.deck.open()
+        self.deck.reset()
+        cfg = read_toml(CONFIG)
+        self.deck.set_brightness(int(cfg.get("brightness", 70)))
+        self.deck.set_key_callback(self.press)
+        if getattr(self.deck, "dial_count", lambda: 0)():
+            self.deck.set_dial_callback(self.dial)
+        self.render()
+
+
+def watch(decks):
+    """Redraw when the profiles change (Settings saved an edit)."""
+    def stamp():
+        newest = 0
+        for root in (CONF, PROFILES):
+            try:
+                for f in os.listdir(root):
+                    newest = max(newest, os.path.getmtime(os.path.join(root, f)))
+            except OSError:
+                pass
+        return newest
+
+    last = stamp()
+    while True:
+        time.sleep(1)
+        now = stamp()
+        if now != last:
+            last = now
+            for d in decks:
+                cfg = read_toml(CONFIG)
+                try:
+                    d.deck.set_brightness(int(cfg.get("brightness", 70)))
+                    d.render()
+                except Exception:
+                    pass
+
+
+def main():
+    try:
+        from StreamDeck.DeviceManager import DeviceManager
+    except ImportError:
+        sys.exit("nixe-deck needs python-elgato-streamdeck")
+    decks = [Deck(d) for d in DeviceManager().enumerate()]
+    if not decks:
+        sys.exit("No Elgato Stream Deck found")
+    for d in decks:
+        d.start()
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, "running"), "w") as f:
+        f.write("\n".join(d.deck.deck_type() for d in decks))
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    try:
+        watch(decks)
+    finally:
+        for d in decks:
+            try:
+                d.deck.reset()
+                d.deck.close()
+            except Exception:
+                pass
+
+
+if __name__ == "__main__":
+    main()

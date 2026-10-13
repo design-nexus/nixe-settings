@@ -63,8 +63,8 @@
     {
       "id": "streamdeck",
       "name": "Stream Deck",
-      "description": "The Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness and dials, run by galleon-deck.",
-      "devices": "Corsair Galleon 100 SD's built-in Stream Deck",
+      "description": "Stream Decks: keys, profiles, pages, brightness and dials, for Elgato Stream Decks (run by nixe-deck) and the Corsair Galleon 100 SD's built-in deck (run by galleon-deck).",
+      "devices": "Elgato Stream Deck, MK.2, Mini, XL, +, Neo and Pedal; the Corsair Galleon 100 SD's built-in deck",
       "repo": "https://github.com/design-nexus/nixe.git",
       "path": "extensions/streamdeck",
       "needs": [

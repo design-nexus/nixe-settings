@@ -25,6 +25,8 @@ except ImportError:  # Python 3.10
     import tomli as tomllib  # type: ignore
 
 HERE = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, HERE)
+import elgato  # noqa: E402  Elgato Stream Decks, run by nixe-deck
 VENDOR = os.path.join(HERE, "vendor", "galleon-deck")
 HOME = os.path.expanduser("~")
 CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "galleon-deck")
@@ -316,6 +318,10 @@ def valid_key_names(value):
 # ------------------------------------------------------------------ pages
 
 def pages():
+    return galleon_pages() + elgato.pages()
+
+
+def galleon_pages():
     if not (deck_present() or os.path.exists(CONFIG)):
         return []
     return [{
@@ -456,6 +462,8 @@ def key_rows(profile, page):
 
 
 def describe(page_id):
+    if page_id == "elgato":
+        return elgato.describe(STATE)
     if page_id != "deck":
         raise SystemExit(f"no page called {page_id}")
     banners = []
@@ -502,6 +510,8 @@ def omarchy_wallpaper():
 
 
 def set_value(page_id, key, value):
+    if page_id == "elgato":
+        return elgato.set_value(STATE, key, value, start_terminal)
     if key == "install-packages":
         if not shutil.which("pacman"):
             raise SystemExit("Install these yourself: " + " ".join(PACKAGES))

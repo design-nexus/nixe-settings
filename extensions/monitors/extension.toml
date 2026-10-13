@@ -1,0 +1,8 @@
+id = "monitors"
+name = "Monitors"
+version = "1.0.0"
+description = "Brightness, contrast, speaker volume, input, colour preset and power for external monitors, over DDC/CI."
+exec = "bin/settings-monitors"
+needs = ["ddcutil"]
+needs_hint = "Needs <tt>ddcutil</tt>: <tt>sudo pacman -S ddcutil</tt>."
+install = "install.sh"

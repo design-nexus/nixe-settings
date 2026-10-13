@@ -85,6 +85,21 @@
       ],
       "needs": [],
       "icon": "weather-clear-symbolic"
+    },
+    {
+      "id": "monitors",
+      "name": "Monitors",
+      "description": "Brightness, contrast, speaker volume, input switching, colour preset and power for external monitors, on the monitor itself.",
+      "devices": "External monitors with DDC/CI (most desktop monitors over DisplayPort, HDMI or USB-C)",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/monitors",
+      "also": [
+        "extensions/common"
+      ],
+      "needs": [
+        "ddcutil"
+      ],
+      "icon": "video-display-symbolic"
     }
   ]
 }

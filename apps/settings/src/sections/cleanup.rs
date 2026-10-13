@@ -130,6 +130,9 @@ pub fn build(page: &Page) {
 
     let g = page.group("Clean up");
     g.note("Each one says how much it frees before you click.");
+    if let (_, Some(notice)) = super::accounts::helper_notice("disks", "cleaning the package cache and logs") {
+        g.top(&notice);
+    }
     cleanup_row(
         &g,
         "Package cache",

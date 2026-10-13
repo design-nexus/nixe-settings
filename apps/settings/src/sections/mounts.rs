@@ -639,6 +639,8 @@ fn add_card(title: &str, desc: &str, icon: &str, f: impl Fn() + 'static) -> gtk:
 }
 
 pub fn build(page: &Page) {
+    // Shares go into fstab through the root helper.
+    super::accounts::require_helper(page, "mounts", "adding a network share");
     let g = page.group("Add a mount");
     let flow = gtk::FlowBox::new();
     flow.set_selection_mode(gtk::SelectionMode::None);

@@ -94,7 +94,12 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     theme::install();
     build(app);
     let p = prefs::get();
-    let start = section.map(String::from).unwrap_or(if p.open_on == "last" { p.last_section } else { "home".into() });
+    // "Open on" is shared by every Nixe app now: carry Settings' own choice over once.
+    if p.open_on == "last" {
+        nixe_theme::update_suite(|s| s.start = "last".into());
+        prefs::update(|p| p.open_on = "suite".into());
+    }
+    let start = section.map(String::from).unwrap_or_else(|| nixe_theme::start_page("home", &p.last_section));
     navigate(&start);
     // Developer aid: SETTINGS_SNAPSHOT=/path.png renders the window to a PNG
     // (invisibly) and quits, so layouts can be checked without a visible window.

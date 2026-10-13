@@ -83,6 +83,8 @@ pub fn build(page: &Page) {
     );
     g.add(&r);
     widgets::keywords("nixe theme density compact text size font scale suite");
+    g.add(&nixe_ui::widgets::start_row());
+    widgets::keywords("open on start page last page home remember");
 
     let g = page.group("Apps");
     g.note("Installing builds the app from source, which takes a few minutes the first time.");

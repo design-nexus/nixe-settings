@@ -27,7 +27,8 @@ pub struct Prefs {
     /// How temperatures are shown (they are always stored in Celsius).
     pub temp_unit: TempUnit,
     pub last_section: String,
-    /// The page Settings opens on: `home`, or `last` for the last page shown.
+    /// Where Settings opened before the suite-wide "Open on" (`home`, `last`);
+    /// `suite` once carried over to `~/.config/nixe/theme.toml`.
     pub open_on: String,
     /// Installed extensions that are turned off: kept, but their pages are hidden.
     pub disabled_extensions: Vec<String>,

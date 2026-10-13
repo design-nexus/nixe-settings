@@ -1,0 +1,10 @@
+[package]
+name = "nixe-ext"
+version = "0.1.0"
+description = "What every Settings extension shares: pages, commands, device access, OpenRGB"
+license = "MIT"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+serde_json = { version = "1.0.151", features = ["preserve_order"] }

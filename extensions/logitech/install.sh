@@ -7,7 +7,7 @@ mkdir -p bin
 
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' extension.toml)
 asset="settings-logitech-$(uname -m)"
-url="https://github.com/design-nexus/settings-extensions/releases/download/logitech-v$version/$asset"
+url="https://github.com/design-nexus/nixe/releases/download/ext-logitech-v$version/$asset"
 if curl -fsSL --max-time 60 -o bin/.settings-logitech.tmp "$url" 2>/dev/null; then
   chmod +x bin/.settings-logitech.tmp
   mv bin/.settings-logitech.tmp bin/settings-logitech

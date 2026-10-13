@@ -10,7 +10,10 @@ use std::process::Command;
 use std::time::Duration;
 
 /// The catalog on GitHub. `SETTINGS_EXT_INDEX` (a URL or a file) replaces it, for testing.
-pub const INDEX_URL: &str = "https://raw.githubusercontent.com/design-nexus/settings-extensions/main/index.json";
+pub const INDEX_URL: &str = "https://raw.githubusercontent.com/design-nexus/nixe/main/extensions/index.json";
+
+/// Where extensions came from before they moved into the nixe repository.
+const OLD_REPO: &str = "settings-extensions";
 
 /// The catalog this version shipped with, used until (or if) GitHub can't be reached.
 const BUILT_IN: &str = include_str!("../../data/extensions.json");
@@ -35,6 +38,9 @@ pub struct Entry {
     pub path: String,
     #[serde(default)]
     pub needs: Vec<String>,
+    /// More folders of the repo it needs (shared code), checked out with it.
+    #[serde(default)]
+    pub also: Vec<String>,
     #[serde(default = "default_icon")]
     pub icon: String,
 }
@@ -109,7 +115,7 @@ fn run_install(ext: &Extension) -> Result<()> {
 
 /// Clone `repo` (just `path` inside it, when given), check it's an extension and
 /// install it. `expect_id` guards a catalog install against a repo with another id.
-pub fn install_from(repo: &str, path: &str, expect_id: Option<&str>) -> Result<Extension> {
+pub fn install_from(repo: &str, path: &str, also: &[String], expect_id: Option<&str>) -> Result<Extension> {
     if !cmd::present("git") {
         bail!("git is needed to install extensions");
     }
@@ -123,7 +129,9 @@ pub fn install_from(repo: &str, path: &str, expect_id: Option<&str>) -> Result<E
             git(&["clone", "--depth", "1", repo, &tmp_s], None)?;
         } else {
             git(&["clone", "--depth", "1", "--filter=blob:none", "--sparse", repo, &tmp_s], None)?;
-            git(&["sparse-checkout", "set", path], Some(&tmp))?;
+            let mut set = vec!["sparse-checkout", "set", path];
+            set.extend(also.iter().map(String::as_str));
+            git(&set, Some(&tmp))?;
         }
         let staged = load(&tmp)?;
         if let Some(id) = expect_id
@@ -153,7 +161,32 @@ pub fn install_from(repo: &str, path: &str, expect_id: Option<&str>) -> Result<E
 
 pub fn install(id: &str) -> Result<Extension> {
     let e = entry(id, true).with_context(|| format!("there's no extension called \"{id}\" in the catalog"))?;
-    install_from(&e.repo, &e.path, Some(&e.id))
+    install_from(&e.repo, &e.path, &e.also, Some(&e.id))
+}
+
+/// Installed from the repository extensions used to live in.
+fn from_old_repo(ext: &Extension) -> bool {
+    git(&["remote", "get-url", "origin"], Some(&ext.root)).is_ok_and(|u| u.contains(OLD_REPO))
+}
+
+/// Install `ext` again from where the catalog has it now, keeping the old copy
+/// until the new one is in place.
+fn move_to_catalog(ext: &Extension) -> Result<bool> {
+    let id = ext.id().to_string();
+    let e = entry(&id, true).with_context(|| format!("\"{id}\" isn't in the catalog any more"))?;
+    let aside = ext.root.with_file_name(format!(".{id}-moving"));
+    let _ = std::fs::remove_dir_all(&aside);
+    std::fs::rename(&ext.root, &aside)?;
+    match install_from(&e.repo, &e.path, &e.also, Some(&id)) {
+        Ok(_) => {
+            let _ = std::fs::remove_dir_all(&aside);
+            Ok(true)
+        }
+        Err(err) => {
+            let _ = std::fs::rename(&aside, &ext.root);
+            Err(err)
+        }
+    }
 }
 
 /// Whether a newer version of this extension is upstream. Fetches only the newest
@@ -162,6 +195,9 @@ pub fn install(id: &str) -> Result<Extension> {
 pub fn has_update(ext: &Extension) -> Result<bool> {
     if !ext.root.join(".git").exists() {
         return Ok(false);
+    }
+    if from_old_repo(ext) {
+        return Ok(true);
     }
     let branch = git(&["rev-parse", "--abbrev-ref", "HEAD"], Some(&ext.root))?;
     git(&["fetch", "--depth", "1", "origin", branch.trim()], Some(&ext.root))?;
@@ -180,6 +216,9 @@ pub fn has_update(ext: &Extension) -> Result<bool> {
 pub fn update(ext: &Extension) -> Result<bool> {
     if !ext.root.join(".git").exists() {
         bail!("{} wasn't installed from git", ext.manifest.name);
+    }
+    if from_old_repo(ext) {
+        return move_to_catalog(ext);
     }
     let before = git(&["rev-parse", "HEAD"], Some(&ext.root)).unwrap_or_default();
     // Fetch just the newest commit and move to it. A `pull` in this shallow,
@@ -247,7 +286,7 @@ pub fn cli(args: &[String]) -> Result<()> {
         }
         "install" if arg.contains("://") || arg.starts_with("git@") => {
             let path = args.get(2).map(String::as_str).unwrap_or("");
-            let e = install_from(arg, path, None)?;
+            let e = install_from(arg, path, &[], None)?;
             println!("Installed {}", e.manifest.name);
             Ok(())
         }
@@ -356,11 +395,11 @@ mod tests {
             std::env::set_var("XDG_CACHE_HOME", scratch.join("cache"));
         }
         let url = format!("file://{r}");
-        assert!(install_from(&url, "demo", Some("other")).is_err());
-        let e = install_from(&url, "demo", Some("demo")).unwrap();
+        assert!(install_from(&url, "demo", &[], Some("other")).is_err());
+        let e = install_from(&url, "demo", &[], Some("demo")).unwrap();
         assert_eq!(e.root, crate::paths::ext_dir().join("demo"));
         assert!(e.dir.join("built").exists(), "install script ran");
-        assert!(install_from(&url, "demo", None).unwrap_err().to_string().contains("already installed"));
+        assert!(install_from(&url, "demo", &[], None).unwrap_err().to_string().contains("already installed"));
         assert!(!update(&e).unwrap());
         assert!(!has_update(&e).unwrap());
         // A change outside the extension's folder doesn't count.

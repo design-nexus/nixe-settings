@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build settings-asus and publish it as release asus-v<version>, which install.sh downloads.
+# Build settings-asus and publish it as release ext-asus-v<version> in nixe, which install.sh downloads.
 # Bump `version` in both extension.toml and Cargo.toml first.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -12,7 +12,7 @@ fi
 cargo build --release --locked
 asset="settings-asus-$(uname -m)"
 cp target/release/settings-asus "target/$asset"
-gh release create "asus-v$version" "target/$asset" \
-  --repo design-nexus/settings-extensions \
+gh release create "ext-asus-v$version" "target/$asset" \
+  --repo design-nexus/nixe \
   --title "ASUS $version" \
   --notes "The settings-asus helper for $(uname -m) Linux. Settings downloads it when installing or updating the ASUS extension."

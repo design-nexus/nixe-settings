@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build settings-corsair and publish it as release corsair-v<version>, which install.sh downloads.
+# Build settings-corsair and publish it as release ext-corsair-v<version> in nixe, which install.sh downloads.
 # Bump `version` in both extension.toml and Cargo.toml first.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -12,7 +12,7 @@ fi
 cargo build --release --locked
 asset="settings-corsair-$(uname -m)"
 cp target/release/settings-corsair "target/$asset"
-gh release create "corsair-v$version" "target/$asset" \
-  --repo design-nexus/settings-extensions \
+gh release create "ext-corsair-v$version" "target/$asset" \
+  --repo design-nexus/nixe \
   --title "Corsair extension $version" \
   --notes "The settings-corsair helper for $(uname -m) Linux. Settings downloads it when installing or updating the Corsair extension."

@@ -1,13 +1,13 @@
 # Settings Extensions
 
-Device support for [Omarchy Settings](https://github.com/design-nexus/omarchy-settings),
+Device support for [Settings](../apps/settings), the Nixe control panel,
 installed from **Settings → Extensions** or the command line:
 
 ```sh
-settings --ext install asus
+nixe-settings --ext install asus
 ```
 
-Each extension adds its own pages under **Devices**, drawn with the same controls as
+Each extension adds its own pages under **Hardware**, drawn with the same controls as
 the rest of Settings. Pages only appear when matching hardware is found.
 
 | Extension | Works with | Needs |
@@ -19,21 +19,21 @@ the rest of Settings. Pages only appear when matching hardware is found.
 | `corsair` | Corsair Galleon 100 SD: device details, access for Corsair Web Hub, a read-only probe report (native lighting next) | — |
 | `streamdeck` | The Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness, dials, via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck) | `python3`, `git` |
 
-`index.json` is the catalog Settings reads.
+`index.json` is the catalog Settings reads. Each entry names this repository and the extension's folder (`extensions/<id>`); Settings checks out only that folder, plus any listed in `also` (shared code).
 
 ## Command line
 
 ```
-settings --ext list                  catalog, and what's installed
-settings --ext install ID            from the catalog
-settings --ext install URL [FOLDER]  any git repository (FOLDER: the extension's folder in it)
-settings --ext update [ID]
-settings --ext disable ID            turn off without removing (pages hidden)
-settings --ext enable ID
-settings --ext remove ID
+nixe-settings --ext list                  catalog, and what's installed
+nixe-settings --ext install ID            from the catalog
+nixe-settings --ext install URL [FOLDER]  any git repository (FOLDER: the extension's folder in it)
+nixe-settings --ext update [ID]
+nixe-settings --ext disable ID            turn off without removing (pages hidden)
+nixe-settings --ext enable ID
+nixe-settings --ext remove ID
 ```
 
-Extensions live in `~/.local/share/settings/extensions/<id>`. Each one can be
+Extensions live in `~/.local/share/nixe-settings/extensions/<id>`. Each one can be
 turned off on the Extensions page, which hides its pages without removing it.
 
 ## Writing an extension

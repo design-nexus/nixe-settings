@@ -272,7 +272,7 @@ pub fn build(page: &Page) {
             }
             let sub = path.text().trim().to_string();
             let repo = repo.clone();
-            busy(b, "Installing…", move || manage::install_from(&url, &sub, None), move |e| {
+            busy(b, "Installing…", move || manage::install_from(&url, &sub, &[], None), move |e| {
                 repo.set_text("");
                 window::toast(&format!("Installed {}", e.manifest.name));
                 after_change();

@@ -5,8 +5,8 @@
       "name": "ASUS",
       "description": "Performance profiles, fan curves, battery charge limit, firmware settings, Aura keyboard lighting, the Slash lightbar and AniMe Matrix.",
       "devices": "ASUS ROG, TUF, Zephyrus and other laptops supported by asusctl",
-      "repo": "https://github.com/design-nexus/settings-extensions.git",
-      "path": "asus",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/asus",
       "needs": [
         "asusctl"
       ],
@@ -17,8 +17,8 @@
       "name": "Logitech",
       "description": "Battery, pointer speed, scrolling, buttons, backlight, Easy-Switch and lighting for Logitech mice and keyboards.",
       "devices": "Logitech HID++ mice, keyboards and Unifying, Bolt and Lightspeed receivers",
-      "repo": "https://github.com/design-nexus/settings-extensions.git",
-      "path": "logitech",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/logitech",
       "needs": [],
       "icon": "input-mouse-symbolic"
     },
@@ -27,8 +27,8 @@
       "name": "Headsets",
       "description": "Battery, sidetone, lights, equalizer presets and auto power-off for gaming headsets.",
       "devices": "SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets supported by HeadsetControl",
-      "repo": "https://github.com/design-nexus/settings-extensions.git",
-      "path": "headset",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/headset",
       "needs": [
         "headsetcontrol"
       ],
@@ -39,8 +39,8 @@
       "name": "Webcams",
       "description": "A live preview, microphone level and mic options (never idle, default, unmuted) for USB webcams, plus zoom, pan and tilt, focus, exposure and white balance. OBSBOT Tiny 3 cameras can be kept awake.",
       "devices": "OBSBOT, Logitech, Elgato and other UVC webcams",
-      "repo": "https://github.com/design-nexus/settings-extensions.git",
-      "path": "webcam",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/webcam",
       "needs": [
         "v4l2-ctl",
         "ffmpeg"
@@ -52,8 +52,8 @@
       "name": "Corsair",
       "description": "Corsair keyboards, starting with the Galleon 100 SD: device details, access for Corsair Web Hub, and a probe report for native lighting.",
       "devices": "Corsair Galleon 100 SD (other Corsair keyboards show as not supported yet)",
-      "repo": "https://github.com/design-nexus/settings-extensions.git",
-      "path": "corsair",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/corsair",
       "needs": [],
       "icon": "input-keyboard-symbolic"
     },
@@ -62,8 +62,8 @@
       "name": "Stream Deck",
       "description": "The Galleon 100 SD's built-in Stream Deck: keys, profiles, pages, brightness and dials, run by galleon-deck.",
       "devices": "Corsair Galleon 100 SD's built-in Stream Deck",
-      "repo": "https://github.com/design-nexus/settings-extensions.git",
-      "path": "streamdeck",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/streamdeck",
       "needs": [
         "python3",
         "git"

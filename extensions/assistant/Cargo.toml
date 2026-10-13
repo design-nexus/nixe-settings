@@ -1,0 +1,16 @@
+[package]
+name = "settings-assistant"
+version = "1.0.0"
+description = "The assistant for Settings"
+license = "MIT"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+nixe-ext = { path = "../common" }
+toml_edit = "0.23"
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+
+[profile.release]
+lto = "thin"
+strip = true

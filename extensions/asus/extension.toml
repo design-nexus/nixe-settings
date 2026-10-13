@@ -1,0 +1,11 @@
+id = "asus"
+name = "ASUS"
+version = "1.0.0"
+description = "Performance profiles, fan curves, battery charge limit, firmware settings, Aura keyboard lighting, the Slash lightbar and AniMe Matrix."
+exec = "bin/settings-asus"
+needs = ["asusctl"]
+needs_hint = "Needs <tt>asusctl</tt>: <tt>yay -S asusctl</tt>, then <tt>sudo systemctl enable --now asusd</tt>."
+install = "install.sh"
+# Omarchy resets the keyboard to the theme colour; put back the chosen effect.
+hooks = ["theme-changed"]
+files = ["~/.config/settings/aura.toml"]

@@ -1,0 +1,4 @@
+# Installed by Logi: lets the logged-in user talk HID++ to Logitech receivers
+# and devices, over USB and Bluetooth.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="046d", TAG+="uaccess"
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", KERNELS=="0005:046D:*", TAG+="uaccess"

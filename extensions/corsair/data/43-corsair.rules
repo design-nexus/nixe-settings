@@ -1,0 +1,4 @@
+# Installed by the Settings Corsair extension: lets the logged-in user talk to
+# Corsair keyboards (and Corsair Web Hub in the browser) over USB HID.
+# Sorts before 73-seat-late.rules, which is what applies the uaccess ACL.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1b1c", TAG+="uaccess"

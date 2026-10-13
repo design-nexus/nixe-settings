@@ -1,0 +1,7 @@
+id = "logitech"
+name = "Logitech"
+version = "1.0.0"
+description = "Battery, pointer speed, scrolling, buttons, backlight, Easy-Switch and lighting for Logitech mice and keyboards."
+exec = "bin/settings-logitech"
+install = "install.sh"
+files = ["~/.config/logi/devices.toml"]

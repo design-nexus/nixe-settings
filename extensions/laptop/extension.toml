@@ -1,0 +1,6 @@
+id = "laptop"
+name = "Laptop"
+version = "1.0.0"
+description = "Battery health and charge limits, power profile, keyboard light, and microphone and camera switches, for laptops of any brand."
+exec = "bin/settings-laptop"
+install = "install.sh"

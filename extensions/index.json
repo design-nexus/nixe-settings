@@ -100,6 +100,19 @@
         "ddcutil"
       ],
       "icon": "video-display-symbolic"
+    },
+    {
+      "id": "laptop",
+      "name": "Laptop",
+      "description": "Battery health and charge limits, power profile, keyboard light, and microphone and camera switches.",
+      "devices": "Laptops of any brand that use the kernel's standard battery and power controls: ThinkPad, Dell, Framework, HP, LG, Lenovo, Huawei, Samsung and others (ASUS laptops use the ASUS extension)",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/laptop",
+      "also": [
+        "extensions/common"
+      ],
+      "needs": [],
+      "icon": "computer-laptop-symbolic"
     }
   ]
 }

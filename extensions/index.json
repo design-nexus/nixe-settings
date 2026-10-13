@@ -50,12 +50,15 @@
     {
       "id": "corsair",
       "name": "Corsair",
-      "description": "Corsair keyboards, starting with the Galleon 100 SD: device details, access for Corsair Web Hub, and a probe report for native lighting.",
-      "devices": "Corsair Galleon 100 SD (other Corsair keyboards show as not supported yet)",
+      "description": "Lighting for Corsair keyboards, mice, headsets, memory and fan hubs through OpenRGB: effects, colour, brightness, speed and following the theme colour, plus device details and access for Corsair Web Hub.",
+      "devices": "Corsair keyboards (Galleon 100 SD and others), mice, headsets and stands, memory and fan or LED hubs that OpenRGB supports",
       "repo": "https://github.com/design-nexus/nixe.git",
       "path": "extensions/corsair",
       "needs": [],
-      "icon": "input-keyboard-symbolic"
+      "icon": "input-keyboard-symbolic",
+      "also": [
+        "extensions/common"
+      ]
     },
     {
       "id": "streamdeck",

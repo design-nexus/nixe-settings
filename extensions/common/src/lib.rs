@@ -4,6 +4,7 @@
 //! ([`access`]), small file and command helpers, and an OpenRGB client.
 
 pub mod access;
+pub mod lighting;
 pub mod openrgb;
 pub mod page;
 pub mod sys;

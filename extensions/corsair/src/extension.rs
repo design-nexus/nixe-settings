@@ -3,8 +3,38 @@
 use crate::usb::{self, Access, Device};
 use crate::{access, models};
 use anyhow::{Result, bail};
+use nixe_ext::lighting;
+use nixe_ext::openrgb;
 use serde_json::{Value, json};
 use std::process::Command;
+
+/// Pages for Corsair devices OpenRGB finds that aren't one of the keyboards above.
+const ORGB: &str = "orgb-";
+
+fn corsair_lights() -> Vec<openrgb::Device> {
+    lighting::devices().into_iter().filter(|d| d.vendor.to_lowercase().contains("corsair") || d.name.to_lowercase().contains("corsair")).collect()
+}
+
+/// The OpenRGB device for a USB keyboard: same model name.
+fn lights_for<'a>(d: &Device, lights: &'a [openrgb::Device]) -> Option<&'a openrgb::Device> {
+    let want = title(d).to_lowercase();
+    let first = want.split_whitespace().next().unwrap_or("").to_string();
+    lights.iter().find(|l| l.kind == 5 && l.name.to_lowercase().contains(&want)).or_else(|| {
+        lights.iter().find(|l| l.kind == 5 && !first.is_empty() && l.name.to_lowercase().contains(&first))
+    })
+}
+
+fn lighting_group(light: Option<&openrgb::Device>) -> Value {
+    let mut rows = lighting::setup_rows();
+    if rows.is_empty() {
+        match light {
+            Some(l) => rows = lighting::rows(l),
+            None => rows.push(json!({ "kind": "info", "title": "Lighting", "value": "OpenRGB doesn't list this device" ,
+                "tooltip": "OpenRGB supports most Corsair keyboards, mice, headsets, memory and fan hubs. A model it doesn't know yet still works with Corsair Web Hub." })),
+        }
+    }
+    json!({ "title": "Lighting", "rows": rows })
+}
 
 pub const WEB_HUB: &str = "https://www.corsair.com/web-hub";
 const SETUP: &str = "setup";
@@ -31,18 +61,48 @@ pub fn pages() -> Value {
             "keywords": "corsair keyboard permission access udev web hub",
         }]);
     }
-    Value::Array(
-        boards
-            .iter()
-            .map(|d| {
-                json!({
-                    "id": d.page_id(), "title": title(d), "icon": "input-keyboard-symbolic",
-                    "description": "Corsair keyboard: device details, access, and lighting and key settings.",
-                    "keywords": format!("corsair keyboard galleon lighting rgb web hub {}", d.name.to_lowercase()),
-                })
+    let lights = corsair_lights();
+    let mut out: Vec<Value> = boards
+        .iter()
+        .map(|d| {
+            json!({
+                "id": d.page_id(), "title": title(d), "icon": "input-keyboard-symbolic",
+                "description": "Corsair keyboard: lighting, device details and access for Corsair Web Hub.",
+                "keywords": format!("corsair keyboard galleon lighting rgb web hub {}", d.name.to_lowercase()),
             })
-            .collect(),
-    )
+        })
+        .collect();
+    // Mice, headsets, memory and fan hubs, and keyboards with no USB page.
+    for l in &lights {
+        if boards.iter().any(|d| lights_for(d, &lights).is_some_and(|x| x.id() == l.id())) {
+            continue;
+        }
+        out.push(json!({
+            "id": format!("{ORGB}{}", l.id()), "title": l.name.trim_start_matches("Corsair ").to_string(), "icon": l.icon(),
+            "description": format!("Corsair {}: lighting.", l.kind_name().to_lowercase()),
+            "keywords": format!("corsair lighting rgb {} {}", l.kind_name().to_lowercase(), l.name.to_lowercase()),
+        }));
+    }
+    Value::Array(out)
+}
+
+fn light_page(id: &str) -> Result<Value> {
+    let Some(l) = corsair_lights().into_iter().find(|l| l.id() == id) else { bail!("OpenRGB doesn't see that device any more") };
+    let mut rows = vec![json!({ "kind": "info", "title": "Kind", "value": l.kind_name() })];
+    if !l.version.is_empty() {
+        rows.push(json!({ "kind": "info", "title": "Firmware", "value": l.version }));
+    }
+    if !l.serial.is_empty() {
+        rows.push(json!({ "kind": "info", "title": "Serial", "value": l.serial }));
+    }
+    Ok(json!({
+        "subtitle": format!("<b>{}</b> · {}", gtk_escape(&l.name), l.kind_name()),
+        "groups": [lighting_group(Some(&l)), { "title": "Device", "rows": rows }],
+    }))
+}
+
+fn gtk_escape(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 fn access_group() -> Value {
@@ -84,6 +144,9 @@ pub fn describe(id: &str) -> Result<Value> {
     if id == SETUP {
         return Ok(setup_page());
     }
+    if let Some(l) = id.strip_prefix(ORGB) {
+        return light_page(l);
+    }
     let all = usb::scan();
     let Some(d) = keyboards(&all).into_iter().find(|d| d.page_id() == id).cloned() else {
         bail!("that keyboard isn't plugged in any more");
@@ -92,25 +155,20 @@ pub fn describe(id: &str) -> Result<Value> {
     let mut groups = Vec::new();
     let mut banners = Vec::new();
     if model.is_none() {
-        banners.push(json!({ "text": "This Corsair keyboard isn't supported yet. Device details and access are below.", "warning": false }));
+        banners.push(json!({ "text": "Lighting for this keyboard comes from OpenRGB; key remaps and firmware are in Corsair Web Hub.", "warning": false }));
     }
     if d.simulated {
         banners.push(json!({ "text": "Simulated keyboard (<tt>CORSAIR_MOCK</tt>).", "warning": false }));
     }
 
-    // Lighting and keys: Web Hub until native control lands.
-    groups.push(json!({ "title": "Lighting and keys", "rows": [
-        {
-            "kind": "button", "key": "web-hub", "title": "Corsair Web Hub",
-            "desc": "Lighting, key remaps, the dials and firmware updates, saved on the keyboard itself. Opens in your browser; needs Chrome or Chromium and device access.",
-            "label": "Open", "keywords": "lighting rgb remap macro firmware update web hub",
-        },
-        {
-            "kind": "info", "title": "In Settings",
-            "value": "Coming next: brightness and colour",
-            "tooltip": "Native lighting control is built once the keyboard's protocol has been confirmed with the probe below.",
-        },
-    ]}));
+    // Lighting through OpenRGB; key remaps, dials and firmware in Web Hub.
+    let lights = corsair_lights();
+    groups.push(lighting_group(lights_for(&d, &lights)));
+    groups.push(json!({ "title": "Keys and firmware", "rows": [{
+        "kind": "button", "key": "web-hub", "title": "Corsair Web Hub",
+        "desc": "Key remaps, the dials and firmware updates, saved on the keyboard itself. Opens in your browser; needs Chrome or Chromium and device access.",
+        "label": "Open", "keywords": "remap macro firmware update web hub",
+    }]}));
 
     if let Some(deck) = model.and_then(|m| m.stream_deck) {
         let present = all.iter().any(|x| x.product == deck);
@@ -137,11 +195,6 @@ pub fn describe(id: &str) -> Result<Value> {
     }
     let ifaces: Vec<String> = d.interfaces.iter().map(|i| format!("{}: {}", i.number, i.summary().page_name())).collect();
     rows.push(json!({ "kind": "info", "title": "Interfaces", "value": ifaces.join("\n") }));
-    rows.push(json!({
-        "kind": "button", "key": "probe", "title": "Save a probe report",
-        "desc": "Writes <tt>~/corsair-probe.txt</tt>: USB details and a few read-only questions to the keyboard. Nothing on the keyboard changes.",
-        "label": "Save report", "keywords": "probe diagnostics report debug",
-    }));
     groups.push(json!({ "title": "Device", "rows": rows }));
 
     if usb::access(&d) != Access::Allowed || !access::rule_installed() {
@@ -159,7 +212,20 @@ pub fn save_probe(path: &std::path::Path) -> Result<()> {
     Ok(())
 }
 
-pub fn set(_page: &str, key: &str, _value: &str) -> Result<Option<Value>> {
+pub fn set(page: &str, key: &str, value: &str) -> Result<Option<Value>> {
+    if key.starts_with("light/") || key.starts_with("openrgb/") {
+        let device = match page.strip_prefix(ORGB) {
+            Some(id) => id.to_string(),
+            None => {
+                let all = usb::scan();
+                let lights = corsair_lights();
+                keyboards(&all).into_iter().find(|d| d.page_id() == page).and_then(|d| lights_for(d, &lights)).map(|l| l.id()).unwrap_or_default()
+            }
+        };
+        if let Some(reply) = lighting::set(&device, key, value)? {
+            return Ok(reply);
+        }
+    }
     match key {
         "allow" => {
             access::install_rule()?;
@@ -202,8 +268,8 @@ mod tests {
         mock();
         let d = describe("2b0c-sim0000galleon").unwrap();
         let titles: Vec<&str> = d["groups"].as_array().unwrap().iter().map(|g| g["title"].as_str().unwrap()).collect();
-        assert_eq!(&titles[..3], ["Lighting and keys", "Stream Deck", "Device"]);
-        let device = &d["groups"][2]["rows"];
+        assert_eq!(&titles[..4], ["Lighting", "Keys and firmware", "Stream Deck", "Device"]);
+        let device = &d["groups"][3]["rows"];
         assert_eq!(device[1]["value"], "1b1c:2b0c");
         assert!(device[4]["value"].as_str().unwrap().contains("1: Vendor-defined (0xFF42)"));
         assert!(describe("nope").is_err());

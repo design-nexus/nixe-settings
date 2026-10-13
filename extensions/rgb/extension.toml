@@ -1,0 +1,8 @@
+id = "rgb"
+name = "RGB lighting"
+version = "1.0.0"
+description = "Lighting for every RGB device OpenRGB sees: motherboards, memory, graphics cards, coolers, LED strips and peripherals of any brand."
+exec = "bin/settings-rgb"
+install = "install.sh"
+# Devices following the theme colour change with it.
+hooks = ["theme-changed"]

@@ -72,6 +72,19 @@
         "git"
       ],
       "icon": "view-app-grid-symbolic"
+    },
+    {
+      "id": "rgb",
+      "name": "RGB lighting",
+      "description": "Lighting for every RGB device OpenRGB sees: one colour everywhere, the theme colour, saved profiles, and each device's effects, brightness and speed.",
+      "devices": "Motherboards, memory, graphics cards, coolers, LED strips, keyboards, mice and headsets from any brand OpenRGB supports",
+      "repo": "https://github.com/design-nexus/nixe.git",
+      "path": "extensions/rgb",
+      "also": [
+        "extensions/common"
+      ],
+      "needs": [],
+      "icon": "weather-clear-symbolic"
     }
   ]
 }

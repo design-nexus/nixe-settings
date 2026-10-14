@@ -91,6 +91,14 @@ fn intern(s: &str) -> &'static str {
     INTERNED.with(|m| *m.borrow_mut().entry(s.to_string()).or_insert_with(|| Box::leak(s.to_string().into_boxed_str())))
 }
 
+fn extension_group(category: &str) -> &'static str {
+    match category {
+        "Connections" => "Connections", "Personalization" => "Personalization",
+        "Desktop" => "Desktop", "Input" => "Input", "Accounts" => "Accounts",
+        "System" => "System", _ => "Hardware",
+    }
+}
+
 fn extension_sections(fresh: bool) -> Vec<Section> {
     ext::all_pages(fresh)
         .into_iter()
@@ -98,7 +106,7 @@ fn extension_sections(fresh: bool) -> Vec<Section> {
             id: intern(&r.section_id()),
             title: intern(&r.page.title),
             icon: intern(&r.page.icon),
-            group: "Hardware",
+            group: extension_group(&r.ext.manifest.category),
             description: intern(&r.page.description),
             keywords: intern(&format!("{} {}", r.ext.manifest.name, r.page.keywords)),
             files: Vec::new,
@@ -456,7 +464,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             title: "Extensions",
             icon: "application-x-addon-symbolic",
             group: "System",
-            description: "Device support for more brands, installed from GitHub. Each one adds its own pages under Hardware.",
+            description: "Additional device and app settings, installed from GitHub. Each extension adds pages in the appropriate category.",
             keywords: "extensions add-ons addons devices brands asus aura logitech obsbot webcam headset razer corsair install github",
             files: Vec::new,
             build: Build::Native(extensions::build),
@@ -485,8 +493,9 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             visible: always,
         },
     ];
-    // Extension pages go at the end of Hardware.
-    let at = list.iter().position(|s| s.group == "Personalization").unwrap_or(list.len());
-    list.splice(at..at, extension_sections(fresh));
+    for section in extension_sections(fresh) {
+        let at = list.iter().rposition(|s| s.group == section.group).map(|i| i + 1).unwrap_or(list.len());
+        list.insert(at, section);
+    }
     list
 }

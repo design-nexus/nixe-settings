@@ -26,6 +26,9 @@ pub const MANIFEST: &str = "extension.toml";
 pub struct Manifest {
     pub id: String,
     pub name: String,
+    /// Existing Settings sidebar group; omitted extensions stay under Hardware.
+    #[serde(default)]
+    pub category: String,
     #[serde(default)]
     pub version: String,
     #[serde(default)]
@@ -357,6 +360,11 @@ pub(crate) mod tests {
         write_ext(&root.join("b"), "extension", "#!/bin/sh\n");
         let a = load(&root.join("a")).unwrap();
         let b = load(&root.join("b")).unwrap();
+        assert!(a.manifest.category.is_empty());
+        let manifest = root.join("a").join(MANIFEST);
+        let text = std::fs::read_to_string(&manifest).unwrap();
+        std::fs::write(&manifest, format!("{text}category = \"Desktop\"\n")).unwrap();
+        assert_eq!(load(&root.join("a")).unwrap().manifest.category, "Desktop");
         assert_eq!(a.dir, root.join("a"));
         assert_eq!(b.dir, root.join("b/extension"));
         assert_eq!(b.exec(), root.join("b/extension/bin/fake"));

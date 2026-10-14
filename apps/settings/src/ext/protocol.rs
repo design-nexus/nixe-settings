@@ -50,6 +50,8 @@ pub struct Banner {
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct GroupDesc {
+    pub collapsible: bool,
+    pub open_by_default: bool,
     pub title: String,
     pub note: String,
     pub rows: Vec<Row>,
@@ -68,6 +70,8 @@ pub struct Row {
     pub tooltip: String,
     /// Ask for the whole page again after this row changes.
     pub refresh: bool,
+    /// Disable a control without hiding its current value.
+    pub disabled: bool,
 
     pub value: serde_json::Value,
     /// choice, segmented, buttons: `[id, label]` pairs.

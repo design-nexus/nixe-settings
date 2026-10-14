@@ -953,6 +953,7 @@ fn filter(query: &str) {
             let show = terms.is_empty() || hit || whole_section;
             item.row.set_visible(show);
             if hit {
+                if !terms.is_empty() { widgets::reveal_disclosure_ancestors(&item.row); }
                 *section_hits.entry(item.section.clone()).or_default() += 1;
                 hit_rows.push((item.section.clone(), item.row.clone()));
             }

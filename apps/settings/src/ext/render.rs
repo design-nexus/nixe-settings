@@ -9,6 +9,7 @@ use crate::{cmd, fangraph, units, window};
 use gtk::glib;
 use gtk::prelude::*;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -27,6 +28,9 @@ struct State {
     busy_until: Cell<Instant>,
     polling: Cell<bool>,
     loading: Cell<bool>,
+    next_row: Cell<usize>,
+    row_widgets: RefCell<HashMap<usize, gtk::Widget>>,
+    info_labels: RefCell<HashMap<usize, gtk::Label>>,
 }
 
 type Shared = Rc<State>;
@@ -50,6 +54,9 @@ pub fn build(page: &Page, section: &'static str, r: Rc<PageRef>) {
         busy_until: Cell::new(Instant::now()),
         polling: Cell::new(false),
         loading: Cell::new(false),
+        next_row: Cell::new(0),
+        row_widgets: RefCell::default(),
+        info_labels: RefCell::default(),
     });
     load(&st, false);
 }
@@ -72,6 +79,12 @@ fn load(st: &Shared, quiet: bool) {
                     }
                     match protocol::parse_page(&text) {
                         Ok(desc) => {
+                            if update_status(st.as_ref(), &text, &desc) {
+                                *st.last.borrow_mut() = text;
+                                return;
+                            }
+                            // Structural polls wait while an entry is being edited.
+                            if quiet && st.content.root().and_then(|r|r.focus()).is_some_and(|w|w.is::<gtk::Text>()||w.is::<gtk::Entry>()) {return;}
                             *st.last.borrow_mut() = text;
                             render(&st, &desc);
                         }
@@ -86,7 +99,42 @@ fn load(st: &Shared, quiet: bool) {
     );
 }
 
+/// Compare layout independently of changing read-only status values.
+fn status_shape(text: &str) -> Option<serde_json::Value> {
+    fn strip(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(object) => {
+                if object.get("kind").and_then(|v|v.as_str())==Some("info") {object.remove("value");}
+                object.remove("disabled");
+                for child in object.values_mut() {strip(child);}
+            }
+            serde_json::Value::Array(array) => {for child in array {strip(child);}}
+            _ => {},
+        }
+    }
+    let mut value=serde_json::from_str(text).ok()?;strip(&mut value);Some(value)
+}
+fn update_status(st: &State, text: &str, desc: &PageDesc) -> bool {
+    let Some(old)=status_shape(&st.last.borrow()) else {return false;};
+    if Some(old)!=status_shape(text) {return false;}
+    fn visit(st: &State, rows: &[Row], index: &mut usize) {
+        for row in rows {
+            let id=*index;*index+=1;
+            if let Some(widget)=st.row_widgets.borrow().get(&id) && widget.is_sensitive()==row.disabled {widget.set_sensitive(!row.disabled);}
+            if row.kind==Kind::Info && let Some(label)=st.info_labels.borrow().get(&id) {
+                let value=row.str_value();if label.text().as_str()!=value {label.set_text(&value);}
+            }
+            if matches!(row.kind,Kind::Switch|Kind::Disclosure) {visit(st,&row.rows,index);}
+        }
+    }
+    let mut index=0;for group in &desc.groups {visit(st,&group.rows,&mut index);}
+    true
+}
+
 fn clear(st: &Shared) {
+    st.next_row.set(0);
+    st.row_widgets.borrow_mut().clear();
+    st.info_labels.borrow_mut().clear();
     widgets::forget_rows(&st.content);
     while let Some(c) = st.content.first_child() {
         st.content.remove(&c);
@@ -122,7 +170,7 @@ fn render(st: &Shared, desc: &PageDesc) {
         page.banner(&b.text, b.warning);
     }
     for gd in &desc.groups {
-        let g = page.group(&gd.title);
+        let g = if gd.collapsible { page.collapsible(&gd.title, gd.open_by_default) } else { page.group(&gd.title) };
         if !gd.note.is_empty() {
             g.note(&gd.note);
         }
@@ -213,10 +261,18 @@ fn children(st: &Shared, rows: &[Row]) -> gtk::Box {
 }
 
 fn row_widget(st: &Shared, row: &Row) -> gtk::Widget {
+    let id=st.next_row.get();st.next_row.set(id+1);
+    let widget=row_widget_inner(st,row,id);
+    widget.set_sensitive(!row.disabled);
+    st.row_widgets.borrow_mut().insert(id,widget.clone());
+    widget
+}
+fn row_widget_inner(st: &Shared, row: &Row, id: usize) -> gtk::Widget {
     let send = sender(st, row);
     match row.kind {
         Kind::Info => {
-            let (r, _) = widgets::info_row(&row.title, &row.str_value());
+            let (r, label) = widgets::info_row(&row.title, &row.str_value());
+            st.info_labels.borrow_mut().insert(id,label);
             if !row.desc.is_empty() && row.tooltip.is_empty() {
                 r.set_tooltip_text(Some(&row.desc));
             }
@@ -335,6 +391,12 @@ fn row_widget(st: &Shared, row: &Row) -> gtk::Widget {
                 widgets::keywords(&row.keywords);
             }
             content.append(&children(st, &row.rows));
+            let key=format!("{}/disclosure/{}", st.section, if row.key.is_empty() {&row.title} else {&row.key});
+            if crate::prefs::get().open_groups.get(&key).copied().unwrap_or(false) { widgets::open_disclosure(&wrapper); }
+            if let Some(button)=wrapper.first_child().and_downcast::<gtk::Button>() {
+                let content=content.clone();
+                button.connect_clicked(move |_| {let open=content.is_visible();let key=key.clone();crate::prefs::update(|p|{p.open_groups.insert(key,open);});});
+            }
             wrapper.upcast()
         }
     }
@@ -537,4 +599,16 @@ fn curve(st: &Shared, row: &Row) -> gtk::Box {
     let r = widgets::stacked_row(&row.title, &row.desc, body.upcast_ref());
     decorate(&r, row);
     r
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::status_shape;
+    #[test]
+    fn changing_status_does_not_change_layout() {
+        let a=r#"{"groups":[{"rows":[{"kind":"info","key":"ai-status","value":"Downloading 1%"},{"kind":"choice","key":"theme","disabled":true}]}]}"#;
+        let b=r#"{"groups":[{"rows":[{"kind":"info","key":"ai-status","value":"Downloading 50%"},{"kind":"choice","key":"theme","disabled":false}]}]}"#;
+        assert_eq!(status_shape(a),status_shape(b));
+        assert_ne!(status_shape(a),status_shape(r#"{"groups":[]}"#));
+    }
 }

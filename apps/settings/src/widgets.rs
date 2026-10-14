@@ -1108,9 +1108,22 @@ pub fn disclosure(title: &str, desc: &str) -> (gtk::Box, gtk::Box) {
     (wrapper, content)
 }
 
+/// Search exposes controls inside disclosure rows as well as their enclosing section.
+pub fn reveal_disclosure_ancestors(row: &gtk::Widget) {
+    let mut ancestor=row.parent();
+    while let Some(widget)=ancestor {
+        if widget.has_css_class("disclosure-row") && let Some(wrapper)=widget.downcast_ref::<gtk::Box>() {
+            wrapper.set_visible(true);
+            open_disclosure(wrapper);
+        }
+        ancestor=widget.parent();
+    }
+}
+
 /// Open a disclosure made by [`disclosure`] (its button, then its content).
 pub fn open_disclosure(wrapper: &gtk::Box) {
     if let (Some(button), Some(content)) = (wrapper.first_child(), wrapper.last_child()) {
+        button.set_visible(true);
         button.add_css_class("open");
         content.set_visible(true);
     }

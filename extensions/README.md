@@ -1,14 +1,17 @@
 # Settings Extensions
 
-Device support for [Settings](../apps/settings), the Nixe control panel,
+Device and app support for [Settings](../apps/settings), the Nixe control panel,
 installed from **Settings → Extensions** or the command line:
 
 ```sh
 nixe-settings --ext install asus
 ```
 
-Each extension adds its own pages under **Hardware**, drawn with the same controls as
-the rest of Settings. Pages only appear when matching hardware is found.
+Each extension adds pages drawn with the same controls as the rest of Settings.
+The optional manifest `category` selects an existing sidebar group (Connections,
+Hardware, Personalization, Desktop, Input, Accounts, or System); omitted or unknown
+categories default to Hardware. Glimpse and Assistant belong under Desktop.
+Hardware-specific pages appear when matching hardware is found.
 
 | Extension | Works with | Needs |
 | --- | --- | --- |
@@ -117,3 +120,8 @@ Every row takes `key`, `title`, `desc`, `keywords`, `tag`, `tooltip`, and
 ## License
 
 MIT
+
+Extension groups may set `collapsible = true` and `open_by_default` in their JSON
+page description. Settings uses its native folding sections, remembers their state,
+and reveals matching controls during search. Omitted fields retain ordinary groups.
+Disclosure rows may provide a stable `key` to preserve their open state across polls.

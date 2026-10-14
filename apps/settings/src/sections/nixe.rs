@@ -9,6 +9,7 @@ use nixe_theme::ThemeMode;
 /// Each app: what `nixe` calls it, its name, and the program that shows it's installed.
 const APPS: &[(&str, &str, &str, &str)] = &[
     ("settings", "Settings", "nixe-settings", "A control panel for Omarchy"),
+    ("contacts", "Contacts", "nixe-contacts", "Contacts, favorites and lists"),
     ("tasks", "Tasks", "nixe-tasks", "Processes, usage and startup apps"),
     ("torrents", "Torrents", "nixe-torrents", "A BitTorrent client"),
     ("pdf", "PDF", "nixe-pdf", "Read, fill in and mark up PDFs"),

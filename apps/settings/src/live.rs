@@ -15,6 +15,8 @@ pub fn signature_for(id: &str) -> Option<fn() -> String> {
         "services" => services,
         "displays" => displays,
         "printers" => printers,
+        "assistant-activity" => crate::sections::assistant::activity::signature,
+        "assistant-performance" => crate::sections::assistant::performance::signature,
         _ => return None,
     })
 }

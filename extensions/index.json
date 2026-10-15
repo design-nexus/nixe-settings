@@ -169,19 +169,6 @@
         "openrazer-daemon"
       ],
       "icon": "input-mouse-symbolic"
-    },
-    {
-      "id": "assistant",
-      "name": "Assistant",
-      "description": "The Nixe voice assistant: running or not, persona and name, voice, wake word, conversation, what it may do, its helpers and keys.",
-      "devices": "Nixe Assistant (install with: nixe install assistant)",
-      "repo": "https://github.com/design-nexus/nixe.git",
-      "path": "extensions/assistant",
-      "also": [
-        "extensions/common"
-      ],
-      "needs": [],
-      "icon": "audio-input-microphone-symbolic"
     }
   ]
 }

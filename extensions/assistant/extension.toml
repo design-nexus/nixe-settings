@@ -1,8 +1,0 @@
-id = "assistant"
-name = "Assistant"
-category = "Desktop"
-version = "1.0.0"
-description = "The Nixe voice assistant: running or not, persona and name, voice, wake word, conversation, what it may do, its helpers and keys."
-exec = "bin/settings-assistant"
-install = "install.sh"
-files = ["~/.config/nixe-assistant/config.toml"]

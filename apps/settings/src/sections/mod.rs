@@ -11,6 +11,7 @@ pub mod about;
 pub mod accounts;
 pub mod apps;
 pub mod arrange;
+pub mod assistant;
 pub mod audio;
 pub mod bar;
 pub mod boot;
@@ -114,6 +115,10 @@ fn extension_sections(fresh: bool) -> Vec<Section> {
             visible: always,
         })
         .collect()
+}
+
+fn assistant_config() -> Vec<PathBuf> {
+    vec![paths::config_home().join("nixe-assistant/config.toml")]
 }
 
 fn always() -> bool {
@@ -402,6 +407,73 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             files: accounts::files,
             build: Build::Native(accounts::build),
             visible: always,
+        },
+        // ----- Assistant -----
+        Section {
+            id: "assistant",
+            title: "Assistant",
+            icon: "audio-input-microphone-symbolic",
+            group: "Assistant",
+            description: "Turn Nixe Assistant on or off, and how you talk to it.",
+            keywords: "assistant voice ai echo wake word conversation start stop autonomy",
+            files: assistant_config,
+            build: Build::Native(assistant::general::build),
+            visible: assistant::client::installed,
+        },
+        Section {
+            id: "assistant-voice",
+            title: "Voice",
+            icon: "audio-speakers-symbolic",
+            group: "Assistant",
+            description: "Speech recognition, talking over it, and its voice.",
+            keywords: "assistant stt asr tts voice duplex barge interrupt microphone speaker kokoro",
+            files: assistant_config,
+            build: Build::Native(assistant::voice::build),
+            visible: assistant::client::installed,
+        },
+        Section {
+            id: "assistant-permissions",
+            title: "Permissions",
+            icon: "security-high-symbolic",
+            group: "Assistant",
+            description: "What the assistant may do on its own, after asking, or never.",
+            keywords: "assistant permission allow ask deny files admin tool rule computer",
+            files: assistant_config,
+            build: Build::Native(assistant::permissions::build),
+            visible: assistant::client::installed,
+        },
+        Section {
+            id: "assistant-activity",
+            title: "Activity",
+            icon: "view-list-symbolic",
+            group: "Assistant",
+            description: "What the assistant is asking, doing and has done.",
+            keywords: "assistant activity task approval audit log history",
+            files: assistant_config,
+            build: Build::Native(assistant::activity::build),
+            visible: assistant::client::installed,
+        },
+        Section {
+            id: "assistant-performance",
+            title: "Performance",
+            icon: "power-profile-performance-symbolic",
+            group: "Assistant",
+            description: "How fast it answers and what it holds in memory.",
+            keywords: "assistant performance latency timing vram gpu",
+            files: assistant_config,
+            build: Build::Native(assistant::performance::build),
+            visible: assistant::client::installed,
+        },
+        Section {
+            id: "assistant-models",
+            title: "Models",
+            icon: "drive-harddisk-symbolic",
+            group: "Assistant",
+            description: "Choose, download and search language models.",
+            keywords: "assistant model llm gguf hugging face download gemma qwen",
+            files: assistant_config,
+            build: Build::Native(assistant::models::build),
+            visible: assistant::client::installed,
         },
         // ----- System -----
         Section {

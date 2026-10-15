@@ -10,7 +10,7 @@ nixe-settings --ext install asus
 Each extension adds pages drawn with the same controls as the rest of Settings.
 The optional manifest `category` selects an existing sidebar group (Connections,
 Hardware, Personalization, Desktop, Input, Accounts, or System); omitted or unknown
-categories default to Hardware. Glimpse and Assistant belong under Desktop.
+categories default to Hardware. Glimpse belongs under Desktop.
 Hardware-specific pages appear when matching hardware is found.
 
 | Extension | Works with | Needs |
@@ -28,7 +28,6 @@ Hardware-specific pages appear when matching hardware is found.
 | `nvidia` | NVIDIA graphics: temperature, use, memory, clocks, power, the programs using it, power limit, persistence mode | `nvidia-smi` |
 | `webcam` | USB webcams (OBSBOT, Logitech, Elgato…): live preview, microphone level, mic options (never idle, default, unmuted), zoom, framing and saved pan/tilt positions, focus, exposure, white balance; keep OBSBOT Tiny 3 cameras awake (vendor commands from [obsbot-tiny3-linux](https://github.com/joshualambert/obsbot-tiny3-linux)) | `v4l2-ctl`, `ffmpeg` |
 | `streamdeck` | Elgato Stream Decks (run by nixe-deck) and the Galleon 100 SD's built-in deck (via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck)): keys, profiles, pages, brightness, dials | `python3` |
-| `assistant` | The Nixe voice assistant: running or not, persona, voice, wake word, conversation, permissions, helpers, keys | Nixe Assistant |
 
 Rust extensions share `common/` (pages, commands, device access, OpenRGB) and its
 `install-rust.sh`, which fetches a release build (`ext-<id>-v<version>` in nixe) or

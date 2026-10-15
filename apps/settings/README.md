@@ -23,15 +23,16 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh |
   ![Settings: Home](docs/home.png)
 
 - **Organized and searchable**: pages are grouped into Connections, Hardware,
-  Personalization, Desktop, Input, Accounts and System. Each group of settings
+  Personalization, Desktop, Input, Accounts, Assistant (when Nixe Assistant is
+  installed) and System. Each group of settings
   sits on one card, and less-used groups fold away until you open them.
   <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
   every page, by its own words or everyday ones ("volume", "hotkeys",
   "wifi"), with a count per page in the sidebar; <kbd>↑</kbd>/<kbd>↓</kbd> go
   through the results. <kbd>Alt</kbd>+<kbd>←</kbd>/<kbd>→</kbd> (or the
   mouse's side buttons) go back and forward between pages.
-- **Stays current**: Wi-Fi, Bluetooth, Sound, Power, Displays, Printers and
-  Services update by themselves while open.
+- **Stays current**: Wi-Fi, Bluetooth, Sound, Power, Displays, Printers,
+  Services and the assistant's Activity and Performance update by themselves while open.
 - **Open config** on every page opens the underlying file in your default editor.
 - **Your changes** (About) lists every option changed here, by page, to find
   or reset; **Export** and **Import** move all of Settings' settings to
@@ -120,6 +121,12 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh |
     add printers;
   - the lid, power button and hibernate delay (Power), the built-in screen
     (Displays), and touchpad / touchscreen switches (Trackpad).
+- **Nixe Assistant**, when installed: start and stop it; wake word,
+  conversation and how much it does on its own; speech recognition, talking over
+  it and its voice (with a preview); what it may do (each capability, rules for
+  single tools, apps it never touches); the approvals it's waiting for, its tasks
+  step by step and its recent actions; how fast it answered; and its language
+  models: switch, download recommended ones, or search Hugging Face.
 - **Extensions** for more devices, installed from GitHub in one click
   (Settings → Extensions). Each adds its own pages under Hardware, only when
   matching hardware is found:
@@ -234,6 +241,8 @@ Settings never parses or rewrites your own config files:
   each can be turned off without removing it (its pages are hidden), and
   `nixe-settings --ext list|install|update|enable|disable|remove` does the same from
   a terminal.
+- **Nixe Assistant** settings go through its own `nixe-assistant config set`, which
+  checks each value, keeps the comments in its `config.toml` and reloads it.
 - **Omarchy features** (themes, fonts, the bar, idle, night light, default apps,
   plugins) are changed through Omarchy's own commands and config.
 

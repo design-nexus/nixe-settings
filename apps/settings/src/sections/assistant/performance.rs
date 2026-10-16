@@ -84,6 +84,15 @@ pub fn build(page: &Page) {
         for (label, ms) in stages {
             g.add(&widgets::info_row(label, &format!("{ms} ms")).0);
         }
+        let gaps = &perf["last_turn"]["gaps"];
+        if let Some(count) = gaps["count"].as_u64() {
+            let text = match (count, gaps["max_ms"].as_u64()) {
+                (0, _) => "None".to_string(),
+                (n, Some(max)) => format!("{n}, the longest {max} ms"),
+                (n, None) => n.to_string(),
+            };
+            g.add(&widgets::info_row("Pauses between phrases", &text).0);
+        }
         g.note("Measured from when you stopped speaking.");
     }
 
@@ -115,6 +124,21 @@ pub fn build(page: &Page) {
         let mine = gpu["assistant_mib"].as_u64().map(|m| format!(", the assistant {}", size(m * 1_048_576))).unwrap_or_default();
         g.add(&widgets::info_row("Graphics memory", &format!("{} of {} used{mine}", size(used * 1_048_576), size(total * 1_048_576))).0);
     }
-    g.note("For repeatable numbers run <tt>nixe-assistant bench duplex</tt>, <tt>bench vision</tt> or <tt>bench computer</tt> in a terminal.");
-    widgets::keywords("performance latency speed timing vram gpu memory benchmark");
+
+    let g = page.group("Machine");
+    if yes(&gpu["asleep"]) {
+        g.add(&widgets::info_row("Graphics card", "Asleep").0);
+    } else if let Some(temp) = gpu["temp_c"].as_f64() {
+        let power = gpu["power_w"].as_f64().map(|w| format!(" · {w:.0} W")).unwrap_or_default();
+        let load = gpu["util_pct"].as_f64().map(|u| format!(" · {u:.0}% busy")).unwrap_or_default();
+        g.add(&widgets::info_row("Graphics card", &format!("{temp:.0} °C{power}{load}")).0);
+    }
+    if let Some(temp) = perf["cpu_temp_c"].as_f64() {
+        g.add(&widgets::info_row("Processor", &format!("{temp:.0} °C")).0);
+    }
+    if let Some(battery) = perf["on_battery"].as_bool() {
+        g.add(&widgets::info_row("Power", if battery { "Battery" } else { "Plugged in" }).0);
+    }
+    g.note("For repeatable numbers run <tt>nixe-assistant bench load</tt>, <tt>bench duplex</tt>, <tt>bench vision</tt> or <tt>bench computer</tt> in a terminal.");
+    widgets::keywords("performance latency speed timing vram gpu memory benchmark temperature power battery gaps");
 }

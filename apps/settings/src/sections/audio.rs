@@ -81,7 +81,7 @@ impl Applier {
                     if eq.enabled && audio::running() {
                         cmd::atomic_write(
                             &audio::conf_file(),
-                            &audio::generate_conf(&eq, &eq.target, audio::limiter_available()),
+                            audio::generate_conf(&eq, &eq.target, audio::limiter_available()),
                         )?;
                     }
                     anyhow::Ok(())

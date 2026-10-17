@@ -355,7 +355,7 @@ pub fn disable_foreign() -> anyhow::Result<usize> {
     for (path, count) in foreign_sources() {
         let text = std::fs::read_to_string(&path)?;
         std::fs::write(path.with_extension(format!("lua.settings-bak.{}", super::hypr::timestamp())), &text)?;
-        crate::cmd::atomic_write(&path, &disable_in(&text))?;
+        crate::cmd::atomic_write(&path, disable_in(&text))?;
         n += count;
     }
     Ok(n)

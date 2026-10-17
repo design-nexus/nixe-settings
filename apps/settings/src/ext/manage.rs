@@ -108,7 +108,7 @@ fn run_install(ext: &Extension) -> Result<()> {
     c.arg(script).current_dir(&ext.dir).env("SETTINGS_EXTENSION_DIR", &ext.dir);
     let out = run_command(c, &format!("{} install", ext.manifest.name), INSTALL_TIMEOUT);
     if let Err(e) = &out {
-        let _ = cmd::atomic_write(&paths::ext_cache_dir().join(format!("{}.install.log", ext.id())), &format!("{e:#}\n"));
+        let _ = cmd::atomic_write(&paths::ext_cache_dir().join(format!("{}.install.log", ext.id())), format!("{e:#}\n"));
     }
     out.map(|_| ())
 }

@@ -43,7 +43,7 @@ fn remember(source: &str, profile: &str, in_use: bool) -> anyhow::Result<()> {
         cmd::run(&["omarchy-powerprofiles-set", source, profile])?;
         return Ok(());
     }
-    cmd::atomic_write(&state_file(source), &format!("{profile}\n"))
+    cmd::atomic_write(&state_file(source), format!("{profile}\n"))
 }
 
 /// The Status and Time remaining lines, from `omarchy-battery-status --shell`

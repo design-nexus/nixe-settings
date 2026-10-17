@@ -99,8 +99,7 @@ fn approval_row(id: &str, a: &Value) -> gtk::Box {
         add("Allow for this task", true, true);
     }
     add("Deny", false, false);
-    let r = widgets::stacked_row(&title, &gtk::glib::markup_escape_text(&format!("{tool} · {}", brief(&a["arguments"]))), buttons.upcast_ref());
-    r
+    widgets::stacked_row(&title, &gtk::glib::markup_escape_text(&format!("{tool} · {}", brief(&a["arguments"]))), buttons.upcast_ref())
 }
 
 fn task_row(t: &Value) -> gtk::Box {

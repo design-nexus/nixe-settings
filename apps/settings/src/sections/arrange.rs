@@ -221,7 +221,7 @@ mod tests {
         let laptop = r("eDP-1", 0.0, 0.0, 1600.0, 1000.0);
         // Dropped a little right of the laptop and lower: lands touching its right edge.
         let ext = r("DP-1", 1650.0, 40.0, 1920.0, 1080.0);
-        assert_eq!(snap(&ext, &[laptop.clone()]), (1600, 40));
+        assert_eq!(snap(&ext, std::slice::from_ref(&laptop)), (1600, 40));
         // Dropped mostly above: sits on top.
         let ext = r("DP-1", 100.0, -1000.0, 1920.0, 1080.0);
         assert_eq!(snap(&ext, &[laptop]), (100, -1080));
@@ -231,7 +231,7 @@ mod tests {
     fn never_overlaps() {
         let a = r("A", 0.0, 0.0, 1000.0, 1000.0);
         let b = r("B", 500.0, 500.0, 1000.0, 1000.0);
-        let (x, y) = snap(&b, &[a.clone()]);
+        let (x, y) = snap(&b, std::slice::from_ref(&a));
         assert!(x >= 1000 || y >= 1000 || x <= -1000 || y <= -1000);
     }
 

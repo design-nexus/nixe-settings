@@ -259,7 +259,7 @@ pub fn remember_pages(id: &str, pages: &[PageInfo]) -> bool {
             })
             .collect(),
     );
-    let _ = crate::cmd::atomic_write(&cache_file(id), &json.to_string());
+    let _ = crate::cmd::atomic_write(&cache_file(id), json.to_string());
     true
 }
 

@@ -522,69 +522,6 @@ fn uncomment_locale(text: &str, entry: &str) -> (String, bool) {
     (format!("{}\n", lines.join("\n")), found)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rejects_malformed_requests() {
-        for args in [&[][..], &["rm", "-rf"], &["add-user", "x"], &["delete-user", "root", "0"], &["firewall", "allow", "22; ls", "tcp"], &["firewall", "delete", "x"], &["rename-user", "root", "x", "0"], &["rename-group", "wheel", "x"], &["set-fullname", "root", "a"], &["printer-set-uri", "a b", "ipp://x"], &["service", "start", "a b.service"], &["logind", "HandleLidSwitch", "rm"], &["set-timezone", "../etc/passwd"], &["lock-user", "a b"], &["add-group", "Bad"], &["set-shell", "root", "/bin/sh"]] {
-            assert!(run(args).is_err(), "{args:?}");
-        }
-    }
-
-    #[test]
-    fn full_names() {
-        assert!(valid_fullname("Ken Smith") && valid_fullname("") && valid_fullname("Zoë O'Neil"));
-        assert!(!valid_fullname("a:b") && !valid_fullname("a,b") && !valid_fullname("a\nb"));
-    }
-
-    #[test]
-    fn ports() {
-        for ok in ["22", "65535", "8000:8010"] {
-            assert!(valid_port(ok), "{ok}");
-        }
-        for bad in ["", "0", "65536", "22; ls", "a", "9000:8000", "1:", "-1"] {
-            assert!(!valid_port(bad), "{bad}");
-        }
-    }
-
-    #[test]
-    fn names_and_times() {
-        assert!(valid_hostname("hades-2") && !valid_hostname("-a") && !valid_hostname("a b") && !valid_hostname(""));
-        assert!(valid_time("2026-01-31 14:05:00") && !valid_time("2026-01-31T14:05:00") && !valid_time("now"));
-        assert!(valid_unit("cups.service") && valid_unit("getty@tty1.service") && !valid_unit("a b.service") && !valid_unit("x.mount") && !valid_unit("--now.service"));
-        assert!(valid_printer("HP_LaserJet-1") && !valid_printer("a b") && !valid_printer(""));
-        assert!(valid_printer_uri("ipp://printer.local/ipp/print") && !valid_printer_uri("file:///etc/passwd") && !valid_printer_uri("ipp://a;b"));
-        assert!(valid_locale("en_US.UTF-8") && !valid_locale("en US") && !valid_locale(""));
-        assert!(!valid_zone("../etc/passwd") && !valid_zone("/etc/passwd") && !valid_zone("") && !valid_zone("Not/AZone"));
-    }
-
-    #[test]
-    fn logind_merge() {
-        let a = merge_logind("", "HandleLidSwitch", "ignore");
-        assert_eq!(a, "[Login]\nHandleLidSwitch=ignore\n");
-        let b = merge_logind(&a, "HandlePowerKey", "suspend");
-        let c = merge_logind(&b, "HandleLidSwitch", "hibernate");
-        assert_eq!(c, "[Login]\nHandleLidSwitch=hibernate\nHandlePowerKey=suspend\n");
-    }
-
-    #[test]
-    fn locale_gen() {
-        let (t, found) = uncomment_locale("#en_US.UTF-8 UTF-8\n#de_DE.UTF-8 UTF-8\n", "de_DE.UTF-8 UTF-8");
-        assert!(found);
-        assert_eq!(t, "#en_US.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\n");
-        assert!(!uncomment_locale("# x\n", "fr_FR.UTF-8 UTF-8").1);
-    }
-
-    #[test]
-    fn flags() {
-        assert!(flag("1").unwrap());
-        assert!(!flag("0").unwrap());
-        assert!(flag("yes").is_err());
-    }
-}
-
 // ---------- Mounts ----------
 
 /// The signed-in user's home folder, where their mounts may also go.
@@ -770,4 +707,67 @@ fn mount_test(fstype: &str, source: &str, options: &str) -> Result<String> {
     let _ = std::fs::remove_dir(&dir);
     let _ = std::fs::remove_file(&cred_file);
     r.map(|_| String::new()).map_err(|e| if e.contains("timeout failed") || e.is_empty() { "It didn't answer within 20 seconds".into() } else { e })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_malformed_requests() {
+        for args in [&[][..], &["rm", "-rf"], &["add-user", "x"], &["delete-user", "root", "0"], &["firewall", "allow", "22; ls", "tcp"], &["firewall", "delete", "x"], &["rename-user", "root", "x", "0"], &["rename-group", "wheel", "x"], &["set-fullname", "root", "a"], &["printer-set-uri", "a b", "ipp://x"], &["service", "start", "a b.service"], &["logind", "HandleLidSwitch", "rm"], &["set-timezone", "../etc/passwd"], &["lock-user", "a b"], &["add-group", "Bad"], &["set-shell", "root", "/bin/sh"]] {
+            assert!(run(args).is_err(), "{args:?}");
+        }
+    }
+
+    #[test]
+    fn full_names() {
+        assert!(valid_fullname("Ken Smith") && valid_fullname("") && valid_fullname("Zoë O'Neil"));
+        assert!(!valid_fullname("a:b") && !valid_fullname("a,b") && !valid_fullname("a\nb"));
+    }
+
+    #[test]
+    fn ports() {
+        for ok in ["22", "65535", "8000:8010"] {
+            assert!(valid_port(ok), "{ok}");
+        }
+        for bad in ["", "0", "65536", "22; ls", "a", "9000:8000", "1:", "-1"] {
+            assert!(!valid_port(bad), "{bad}");
+        }
+    }
+
+    #[test]
+    fn names_and_times() {
+        assert!(valid_hostname("hades-2") && !valid_hostname("-a") && !valid_hostname("a b") && !valid_hostname(""));
+        assert!(valid_time("2026-01-31 14:05:00") && !valid_time("2026-01-31T14:05:00") && !valid_time("now"));
+        assert!(valid_unit("cups.service") && valid_unit("getty@tty1.service") && !valid_unit("a b.service") && !valid_unit("x.mount") && !valid_unit("--now.service"));
+        assert!(valid_printer("HP_LaserJet-1") && !valid_printer("a b") && !valid_printer(""));
+        assert!(valid_printer_uri("ipp://printer.local/ipp/print") && !valid_printer_uri("file:///etc/passwd") && !valid_printer_uri("ipp://a;b"));
+        assert!(valid_locale("en_US.UTF-8") && !valid_locale("en US") && !valid_locale(""));
+        assert!(!valid_zone("../etc/passwd") && !valid_zone("/etc/passwd") && !valid_zone("") && !valid_zone("Not/AZone"));
+    }
+
+    #[test]
+    fn logind_merge() {
+        let a = merge_logind("", "HandleLidSwitch", "ignore");
+        assert_eq!(a, "[Login]\nHandleLidSwitch=ignore\n");
+        let b = merge_logind(&a, "HandlePowerKey", "suspend");
+        let c = merge_logind(&b, "HandleLidSwitch", "hibernate");
+        assert_eq!(c, "[Login]\nHandleLidSwitch=hibernate\nHandlePowerKey=suspend\n");
+    }
+
+    #[test]
+    fn locale_gen() {
+        let (t, found) = uncomment_locale("#en_US.UTF-8 UTF-8\n#de_DE.UTF-8 UTF-8\n", "de_DE.UTF-8 UTF-8");
+        assert!(found);
+        assert_eq!(t, "#en_US.UTF-8 UTF-8\nde_DE.UTF-8 UTF-8\n");
+        assert!(!uncomment_locale("# x\n", "fr_FR.UTF-8 UTF-8").1);
+    }
+
+    #[test]
+    fn flags() {
+        assert!(flag("1").unwrap());
+        assert!(!flag("0").unwrap());
+        assert!(flag("yes").is_err());
+    }
 }

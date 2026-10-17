@@ -415,13 +415,13 @@ mod tests {
 
         // Disable
         set_enabled_in(&user_dir, "app.desktop", false, false).unwrap();
-        let items = list_from(&user_dir, &[sys_dir.clone()]);
+        let items = list_from(&user_dir, std::slice::from_ref(&sys_dir));
         assert_eq!(items.len(), 1);
         assert!(!items[0].enabled);
 
         // Re-enable
         set_enabled_in(&user_dir, "app.desktop", false, true).unwrap();
-        let items = list_from(&user_dir, &[sys_dir.clone()]);
+        let items = list_from(&user_dir, std::slice::from_ref(&sys_dir));
         assert_eq!(items.len(), 1);
         assert!(items[0].enabled);
 
@@ -440,7 +440,7 @@ mod tests {
         std::fs::write(sys_dir.join("helper.desktop"), "[Desktop Entry]\nName=Helper\nExec=helper\n").unwrap();
 
         set_enabled_in(&user_dir, "helper.desktop", true, false).unwrap();
-        let items = list_from(&user_dir, &[sys_dir.clone()]);
+        let items = list_from(&user_dir, std::slice::from_ref(&sys_dir));
         assert!(!items[0].enabled);
 
         set_enabled_in(&user_dir, "helper.desktop", true, true).unwrap();

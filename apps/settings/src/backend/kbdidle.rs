@@ -166,7 +166,7 @@ pub fn apply(cfg: &Config) -> Result<()> {
         }
         return Ok(());
     }
-    cmd::atomic_write(&unit_file(), &generate_unit(&super::hypr::self_command()))?;
+    cmd::atomic_write(&unit_file(), generate_unit(&super::hypr::self_command()))?;
     cmd::run(&["systemctl", "--user", "daemon-reload"])?;
     cmd::run(&["systemctl", "--user", "enable", UNIT])?;
     cmd::run(&["systemctl", "--user", "restart", UNIT])?;

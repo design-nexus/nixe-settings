@@ -351,8 +351,8 @@ pub fn install_and_start(eq: &Eq) -> Result<()> {
     let mut eq = eq.clone();
     eq.target = target.clone();
     save(&eq)?;
-    cmd::atomic_write(&conf_file(), &generate_conf(&eq, &target, limiter_available()))?;
-    cmd::atomic_write(&unit_file(), &generate_unit())?;
+    cmd::atomic_write(&conf_file(), generate_conf(&eq, &target, limiter_available()))?;
+    cmd::atomic_write(&unit_file(), generate_unit())?;
     cmd::run(&["systemctl", "--user", "daemon-reload"])?;
     cmd::run(&["systemctl", "--user", "enable", UNIT])?;
     cmd::run(&["systemctl", "--user", "restart", UNIT])?;

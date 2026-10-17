@@ -469,7 +469,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             title: "Models",
             icon: "drive-harddisk-symbolic",
             group: "Assistant",
-            description: "Choose, download and search language models.",
+            description: "Choose and download the language model.",
             keywords: "assistant model llm gguf hugging face download gemma qwen",
             files: assistant_config,
             build: Build::Native(assistant::models::build),

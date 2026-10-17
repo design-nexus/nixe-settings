@@ -4,6 +4,7 @@ mod backend;
 mod charts;
 use nixe_ui::clamp;
 mod cmd;
+mod control;
 mod dialog;
 mod ext;
 mod fangraph;
@@ -167,6 +168,8 @@ fn main() -> glib::ExitCode {
         flags |= gio::ApplicationFlags::NON_UNIQUE;
     }
     let app = gtk::Application::builder().application_id(APP_ID).flags(flags).build();
+    // Nixe Assistant lists and shows pages through this; it changes nothing (primary instance only).
+    app.connect_startup(|app| nixe_core::control::serve(app, control::tools(), control::handle));
     app.connect_command_line(|app, cl| {
         let argv: Vec<String> = cl.arguments().iter().map(|a| a.to_string_lossy().to_string()).collect();
         let section = argv.iter().position(|a| a == "--section").and_then(|i| argv.get(i + 1)).cloned();

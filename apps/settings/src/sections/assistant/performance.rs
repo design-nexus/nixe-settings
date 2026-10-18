@@ -2,6 +2,7 @@
 
 use super::{client, size};
 use crate::widgets::{self, Page};
+use crate::{cmd, window};
 use gtk::prelude::*;
 use serde_json::Value;
 
@@ -49,6 +50,54 @@ fn timing_bar(stages: Vec<(&'static str, u64)>) -> gtk::DrawingArea {
     area
 }
 
+/// Lite, Balanced or Advanced: one choice that sets the model, its context, where speech
+/// runs and when the models unload (`nixe-assistant preset`).
+fn presets(page: &Page) {
+    let Some(p) = client::json(&["preset", "show", "--json"]) else {
+        return;
+    };
+    let g = page.group("Hardware preset");
+    let title = |name: &str| {
+        let mut c = name.chars();
+        c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
+    };
+    let recommended = p["recommended"].as_str().unwrap_or("");
+    let mut options: Vec<(String, String)> = p["presets"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|x| {
+            let name = x["name"].as_str()?;
+            Some((name.to_string(), if name == recommended { format!("{} (recommended)", title(name)) } else { title(name) }))
+        })
+        .collect();
+    let current = p["current"].as_str().unwrap_or("custom").to_string();
+    if current == "custom" {
+        options.insert(0, ("custom".into(), "Custom".into()));
+    }
+    let why = p["why"].as_str().unwrap_or("");
+    let (r, _) = widgets::choice_row("Preset", &format!("Recommended here: {} ({why}). Changing a setting afterwards makes it Custom.", title(recommended)), options, &current, move |id| {
+        if id == "custom" {
+            return;
+        }
+        cmd::background(
+            move || client::run(&["preset", &id]),
+            |r| {
+                match r {
+                    Ok(out) if out.contains("isn't downloaded") => window::toast("Applied; the preset's model isn't downloaded yet (see Models)"),
+                    Ok(_) => window::toast("Preset applied; the assistant restarts if it needs to"),
+                    Err(e) => window::toast(&format!("Couldn't apply the preset: {e}")),
+                }
+                window::rebuild("assistant-performance");
+            },
+        );
+    });
+    g.add(&r);
+    if let Some(x) = p["presets"].as_array().into_iter().flatten().find(|x| x["name"] == current.as_str()) {
+        g.note(x["description"].as_str().unwrap_or(""));
+    }
+}
+
 fn yes(v: &Value) -> bool {
     v.as_bool().unwrap_or(false)
 }
@@ -62,6 +111,8 @@ pub fn build(page: &Page) {
         page.banner("The assistant isn't running, or needs updating. Start it on the Assistant page.", false);
         return;
     };
+
+    presets(page);
 
     let g = page.group("Last answer");
     let stages: Vec<(&'static str, u64)> = perf["last_turn"]["stages"]
@@ -140,5 +191,5 @@ pub fn build(page: &Page) {
         g.add(&widgets::info_row("Power", if battery { "Battery" } else { "Plugged in" }).0);
     }
     g.note("For repeatable numbers run <tt>nixe-assistant bench load</tt>, <tt>bench duplex</tt>, <tt>bench vision</tt> or <tt>bench computer</tt> in a terminal.");
-    widgets::keywords("performance latency speed timing vram gpu memory benchmark temperature power battery gaps");
+    widgets::keywords("preset lite balanced advanced hardware performance latency speed timing vram gpu memory benchmark temperature power battery gaps");
 }

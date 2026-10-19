@@ -23,6 +23,7 @@ const APPS: &[(&str, &str, &str, &str)] = &[
     ("archive", "Archive", "nixe-archive", "Open and make archives"),
     ("office", "Office", "nixe-office", "Write, Sheets and Present"),
     ("photos", "Photos", "nixe-photos", "A photo gallery and editor"),
+    ("weather", "Weather", "nixe-weather", "Forecasts, hourly conditions and alerts"),
 ];
 
 fn installed(program: &str) -> bool {

@@ -10,6 +10,7 @@ use nixe_theme::ThemeMode;
 const APPS: &[(&str, &str, &str, &str)] = &[
     ("settings", "Settings", "nixe-settings", "A control panel for Omarchy"),
     ("contacts", "Contacts", "nixe-contacts", "Contacts, favorites and lists"),
+    ("git", "Git", "nixe-git", "Git repositories and working changes"),
     ("store", "Store", "nixe-store", "Discover, install and update apps"),
     ("tasks", "Tasks", "nixe-tasks", "Processes, usage and startup apps"),
     ("torrents", "Torrents", "nixe-torrents", "A BitTorrent client"),

@@ -12,6 +12,7 @@ default-run = "nixe-settings"
 nixe-core = { path = "../../crates/nixe-core" }
 nixe-ui = { path = "../../crates/nixe-ui" }
 nixe-theme = { path = "../../crates/nixe-theme" }
+nixe-accounts = { path = "../../crates/nixe-accounts" }
 anyhow = "1.0.104"
 gtk = { version = "0.11", package = "gtk4", features = ["v4_18"] }
 serde = { version = "1.0.229", features = ["derive"] }

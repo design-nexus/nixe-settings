@@ -1,0 +1,14 @@
+[package]
+name = "nixe-goa-helper"
+version = "0.1.0"
+description = "libgoa-backend helper for Nixe Settings add/reauth. Separate process so Settings does not link libadwaita."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(has_goa_backend)"] }
+
+[build-dependencies]
+cc = "1"
+pkg-config = "0.3"

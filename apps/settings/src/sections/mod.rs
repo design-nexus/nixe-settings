@@ -32,6 +32,7 @@ pub mod mouse;
 pub mod network;
 pub mod nightlight;
 pub mod nixe;
+pub mod online_accounts;
 pub mod plugins;
 pub mod power;
 pub mod printers;
@@ -406,6 +407,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "accounts users groups accounts sudo admin administrator password login ssh keys fido2 fingerprint docker wheel security encryption",
             files: accounts::files,
             build: Build::Native(accounts::build),
+            visible: always,
+        },
+        Section {
+            id: "online-accounts",
+            title: "Accounts",
+            icon: "network-workgroup-symbolic",
+            group: "Accounts",
+            description: "Google, Microsoft, Nextcloud and other accounts used by Nixe apps.",
+            keywords: "online accounts google microsoft nextcloud webdav imap oauth email calendar contacts files goa",
+            files: Vec::new,
+            build: Build::Native(online_accounts::build),
             visible: always,
         },
         // ----- Assistant -----

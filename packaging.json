@@ -1,0 +1,11 @@
+{
+  "application": "settings",
+  "directory": "settings",
+  "packages": [
+    "nixe-settings",
+    "nixe-goa-helper"
+  ],
+  "manifest": "Cargo.toml",
+  "prepare": [],
+  "binaries": []
+}

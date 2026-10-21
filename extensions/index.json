@@ -5,7 +5,7 @@
       "name": "ASUS",
       "description": "Performance profiles, fan curves, battery charge limit, firmware settings, Aura keyboard lighting, the Slash lightbar and AniMe Matrix.",
       "devices": "ASUS ROG, TUF, Zephyrus and other laptops supported by asusctl",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/asus",
       "needs": [
         "asusctl"
@@ -17,7 +17,7 @@
       "name": "Logitech",
       "description": "Battery, pointer speed, scrolling, buttons, backlight, Easy-Switch and lighting for Logitech mice and keyboards.",
       "devices": "Logitech HID++ mice, keyboards and Unifying, Bolt and Lightspeed receivers",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/logitech",
       "needs": [],
       "icon": "input-mouse-symbolic"
@@ -27,7 +27,7 @@
       "name": "Headsets",
       "description": "Battery, sidetone, lights, equalizer presets and auto power-off for gaming headsets.",
       "devices": "SteelSeries Arctis, HyperX Cloud, Corsair Void, Logitech G and Roccat headsets supported by HeadsetControl",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/headset",
       "needs": [
         "headsetcontrol"
@@ -39,7 +39,7 @@
       "name": "Webcams",
       "description": "A live preview, microphone level and mic options (never idle, default, unmuted) for USB webcams, plus zoom, pan and tilt, focus, exposure and white balance. OBSBOT Tiny 3 cameras can be kept awake.",
       "devices": "OBSBOT, Logitech, Elgato and other UVC webcams",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/webcam",
       "needs": [
         "v4l2-ctl",
@@ -52,7 +52,7 @@
       "name": "Corsair",
       "description": "Lighting for Corsair keyboards, mice, headsets, memory and fan hubs through OpenRGB: effects, colour, brightness, speed and following the theme colour, plus device details and access for Corsair Web Hub.",
       "devices": "Corsair keyboards (Galleon 100 SD and others), mice, headsets and stands, memory and fan or LED hubs that OpenRGB supports",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/corsair",
       "needs": [],
       "icon": "input-keyboard-symbolic",
@@ -65,7 +65,7 @@
       "name": "Stream Deck",
       "description": "Stream Decks: keys, profiles, pages, brightness and dials, for Elgato Stream Decks (run by nixe-deck) and the Corsair Galleon 100 SD's built-in deck (run by galleon-deck).",
       "devices": "Elgato Stream Deck, MK.2, Mini, XL, +, Neo and Pedal; the Corsair Galleon 100 SD's built-in deck",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/streamdeck",
       "needs": [
         "python3",
@@ -78,7 +78,7 @@
       "name": "RGB lighting",
       "description": "Lighting for every RGB device OpenRGB sees: one colour everywhere, the theme colour, saved profiles, and each device's effects, brightness and speed.",
       "devices": "Motherboards, memory, graphics cards, coolers, LED strips, keyboards, mice and headsets from any brand OpenRGB supports",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/rgb",
       "also": [
         "extensions/common"
@@ -91,7 +91,7 @@
       "name": "Monitors",
       "description": "Brightness, contrast, speaker volume, input switching, colour preset and power for external monitors, on the monitor itself.",
       "devices": "External monitors with DDC/CI (most desktop monitors over DisplayPort, HDMI or USB-C)",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/monitors",
       "also": [
         "extensions/common"
@@ -106,7 +106,7 @@
       "name": "Laptop",
       "description": "Battery health and charge limits, power profile, keyboard light, and microphone and camera switches.",
       "devices": "Laptops of any brand that use the kernel's standard battery and power controls: ThinkPad, Dell, Framework, HP, LG, Lenovo, Huawei, Samsung and others (ASUS laptops use the ASUS extension)",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/laptop",
       "also": [
         "extensions/common"
@@ -119,7 +119,7 @@
       "name": "NVIDIA",
       "description": "Temperature, use, memory, clocks and power of NVIDIA graphics, the programs using it, the power limit and persistence mode.",
       "devices": "NVIDIA GeForce, RTX and Quadro cards with the NVIDIA driver",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/nvidia",
       "also": [
         "extensions/common"
@@ -134,7 +134,7 @@
       "name": "Game controllers",
       "description": "Battery, a live button, stick and trigger tester, a rumble test, and the lightbar and player lights of PlayStation controllers.",
       "devices": "Xbox, PlayStation (DualSense, DualShock 4), Switch Pro, 8BitDo and other controllers the kernel drives, over USB or Bluetooth",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/controllers",
       "also": [
         "extensions/common"
@@ -147,7 +147,7 @@
       "name": "Drawing tablets",
       "description": "Which screen the pen draws on, the area of the tablet used, matching the screen's shape, left-handed and mouse-like use.",
       "devices": "Wacom, XP-Pen, Huion, Gaomon and other tablets Hyprland supports",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/tablet",
       "also": [
         "extensions/common"
@@ -160,7 +160,7 @@
       "name": "Razer",
       "description": "DPI, polling rate, battery, sleep time, lighting effects and brightness for Razer mice, keyboards and headsets.",
       "devices": "Razer devices OpenRazer supports",
-      "repo": "https://github.com/design-nexus/nixe.git",
+      "repo": "https://github.com/design-nexus/nixe-settings.git",
       "path": "extensions/razer",
       "also": [
         "extensions/common"

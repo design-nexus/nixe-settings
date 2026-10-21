@@ -10,7 +10,7 @@ use std::process::Command;
 use std::time::Duration;
 
 /// The catalog on GitHub. `SETTINGS_EXT_INDEX` (a URL or a file) replaces it, for testing.
-pub const INDEX_URL: &str = "https://raw.githubusercontent.com/design-nexus/nixe/main/extensions/index.json";
+pub const INDEX_URL: &str = "https://raw.githubusercontent.com/design-nexus/nixe-settings/main/extensions/index.json";
 
 /// Where extensions came from before they moved into the nixe repository.
 const OLD_REPO: &str = "settings-extensions";

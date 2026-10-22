@@ -1,0 +1,506 @@
+//! rclone accounts managed by the independent Cloud user service.
+use crate::{
+    cmd,
+    widgets::{self, Page},
+    window,
+};
+use gtk::{glib, prelude::*};
+use nixe_cloud::{Client, Remote, SetupSession};
+use serde_json::{Value, json};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
+
+type Session = Arc<Mutex<SetupSession>>;
+fn refresh() {
+    window::rebuild("cloud-storage");
+}
+fn report<T>(result: anyhow::Result<T>) {
+    match result {
+        Ok(_) => refresh(),
+        Err(_) => window::toast("Cloud operation failed. Check the account status and retry."),
+    }
+}
+fn work<T: Send + 'static>(f: impl FnOnce(Client) -> anyhow::Result<T> + Send + 'static) {
+    cmd::background(move || f(Client::connect()?), report);
+}
+fn clear(holder: &gtk::Box) {
+    widgets::forget_rows(holder);
+    while let Some(child) = holder.first_child() {
+        holder.remove(&child);
+    }
+}
+
+pub fn build(page: &Page) {
+    watch_once();
+    let accounts = page.group("Cloud Storage");
+    accounts.note("Connect cloud accounts to browse them in Files. Account removal never deletes cloud files.");
+    let holder = widgets::vbox(0);
+    holder.append(&widgets::label("Looking for cloud accounts…", "dim"));
+    accounts.add(&holder);
+    cmd::background(
+        || Client::connect()?.list(),
+        move |result: anyhow::Result<Vec<Remote>>| {
+            clear(&holder);
+            match result {
+                Ok(remotes) => {
+                    if remotes.is_empty() {
+                        holder.append(&widgets::label("No cloud accounts yet.", "dim"));
+                    }
+                    for remote in remotes {
+                        append_account(&holder, remote);
+                    }
+                }
+                Err(_) => {
+                    holder.append(&widgets::banner(
+                        "Cloud Storage is unavailable. Install nixe-cloud and rclone, then retry.",
+                        true,
+                    ));
+                }
+            }
+            let (row, _) = widgets::button_row(
+                "Add cloud account",
+                "Google Drive, Dropbox, OneDrive, Nextcloud, WebDAV, SFTP or another rclone provider.",
+                "Add",
+                |_| onboarding(None),
+            );
+            holder.append(&row);
+            let (row, _) = widgets::button_row(
+                "Existing rclone accounts",
+                "Choose which existing accounts appear in Files. Configuration stays unchanged.",
+                "Discover",
+                |_| discover(),
+            );
+            holder.append(&row);
+            let (row, _) =
+                widgets::button_row("Refresh status", "Show current connections and mount status.", "Refresh", |_| refresh());
+            holder.append(&row);
+        },
+    );
+}
+fn append_account(holder: &gtk::Box, remote: Remote) {
+    let status = format!(
+        "{} · {} · {}{}",
+        remote.provider,
+        remote.connection.replace('_', " "),
+        remote.mount_status,
+        if remote.error.is_empty() { String::new() } else { format!(" · {}", remote.error) }
+    );
+    let controls = widgets::hbox(6);
+    for (label, action) in [("Connect", 0), ("Disconnect", 1), ("Test", 2), ("Manage", 3)] {
+        let button = gtk::Button::with_label(label);
+        let r = remote.clone();
+        button.connect_clicked(move |_| match action {
+            0 => {
+                let id = r.id.clone();
+                work(move |c| c.mount(&id));
+            }
+            1 => {
+                let id = r.id.clone();
+                work(move |c| c.unmount(&id));
+            }
+            2 => {
+                let id = r.id.clone();
+                work(move |c| c.test(&id));
+            }
+            _ => account_dialog(r.clone()),
+        });
+        controls.append(&button);
+    }
+    holder.append(&widgets::row(&remote.name, &glib::markup_escape_text(&status), Some(controls.upcast_ref())));
+}
+fn dialog(title: &str) -> (gtk::Window, gtk::Box) {
+    let w = gtk::Window::builder().title(title).default_width(650).default_height(550).modal(true).build();
+    if let Some(app) = gtk::gio::Application::default().and_downcast::<gtk::Application>() {
+        w.set_application(Some(&app));
+        if let Some(parent) = app.active_window() {
+            w.set_transient_for(Some(&parent));
+        }
+    }
+    let body = widgets::vbox(12);
+    body.set_margin_start(20);
+    body.set_margin_end(20);
+    body.set_margin_top(20);
+    body.set_margin_bottom(20);
+    let scroll = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::External)
+        .child(&body)
+        .build();
+    w.set_child(Some(&scroll));
+    w.present();
+    (w, body)
+}
+fn field(body: &gtk::Box, label: &str, value: &str, secret: bool) -> gtk::Entry {
+    body.append(&widgets::label(label, "dim"));
+    let e = gtk::Entry::new();
+    e.set_text(value);
+    e.set_visibility(!secret);
+    body.append(&e);
+    e
+}
+fn account_dialog(remote: Remote) {
+    let (w, body) = dialog(&remote.name);
+    let name = field(&body, "Display name", &remote.name, false);
+    let (row, login) = widgets::switch_row(
+        "Mount on login",
+        "Connect automatically when you sign in.",
+        remote.preferences.mount_on_login,
+        |_| {},
+    );
+    body.append(&row);
+    let cache = field(&body, "Cache target (MiB, soft limit)", &remote.preferences.cache_mib.to_string(), false);
+    let bandwidth = field(&body, "Bandwidth limit (rclone format; blank is unlimited)", &remote.preferences.bandwidth, false);
+    body.append(&widgets::label(
+        "Cache and bandwidth changes take effect on the next connection. Pending uploads are retained.",
+        "dim",
+    ));
+    let save = gtk::Button::with_label("Save");
+    let r = remote.clone();
+    let weak = w.downgrade();
+    save.connect_clicked(move |_| {
+        let Ok(cache_mib) = cache.text().parse::<u64>() else {
+            window::toast("Enter a valid cache size.");
+            return;
+        };
+        let mut prefs = r.preferences.clone();
+        prefs.mount_on_login = login.is_active();
+        prefs.cache_mib = cache_mib;
+        prefs.bandwidth = bandwidth.text().into();
+        let id = r.id.clone();
+        let name = name.text().to_string();
+        work(move |c| c.update(&id, &name, &prefs));
+        if let Some(w) = weak.upgrade() {
+            w.close();
+        }
+    });
+    body.append(&save);
+    let r = remote.clone();
+    let reauth = gtk::Button::with_label("Sign in again");
+    reauth.connect_clicked(move |_| {
+        if r.managed { onboarding(Some(r.clone())); }
+        else { window::toast("This account uses an external rclone configuration. Reauthenticate with its original configuration tool, then retry here."); }
+    });
+    body.append(&reauth);
+    body.append(&widgets::label("Stop managing removes this account from Files. Removing configuration also removes local sign-in details. Neither action deletes cloud files.", "dim"));
+    let id = remote.id.clone();
+    let weak = w.downgrade();
+    let forget = widgets::confirm_button("Stop managing", "Confirm stop managing", move |_| {
+        let id = id.clone();
+        work(move |c| c.remove(&id, false));
+        if let Some(w) = weak.upgrade() {
+            w.close();
+        }
+    });
+    body.append(&forget);
+    if remote.managed {
+        let id = remote.id;
+        let weak = w.downgrade();
+        body.append(&widgets::confirm_button("Remove local configuration", "Confirm remove configuration", move |_| {
+            let id = id.clone();
+            work(move |c| c.remove(&id, true));
+            if let Some(w) = weak.upgrade() {
+                w.close();
+            }
+        }));
+    }
+}
+fn discover() {
+    let (_, body) = dialog("Existing rclone accounts");
+    body.append(&widgets::label("Looking for accounts…", "dim"));
+    cmd::background(
+        || Client::connect()?.discover(),
+        move |result: anyhow::Result<Vec<nixe_cloud::Discovery>>| {
+            clear(&body);
+            match result {
+                Ok(remotes) => {
+                    if remotes.is_empty() {
+                        body.append(&widgets::label("No existing remotes found. Use Add cloud account to get started.", "dim"));
+                    }
+                    for r in remotes {
+                        let name = r.name.clone();
+                        let (row, _) = widgets::button_row(&r.name, &r.provider, "Manage", move |_| {
+                            let name = name.clone();
+                            work(move |c| c.adopt(&name));
+                        });
+                        body.append(&row);
+                    }
+                }
+                Err(_) => body.append(&widgets::banner(
+                    "Unable to discover accounts. An encrypted configuration may need unlocking.",
+                    true,
+                )),
+            }
+        },
+    );
+}
+fn onboarding(replace: Option<Remote>) {
+    let (w, body) = dialog("Add cloud account");
+    if replace.is_some() {
+        body.append(&widgets::banner("Disconnect this account before signing in again. Your current credentials are kept until the new connection passes its test.", false));
+    }
+    body.append(&widgets::label("Choose a provider", "dim"));
+    let providers = [
+        ("Google Drive", "drive"),
+        ("Dropbox", "dropbox"),
+        ("Microsoft OneDrive", "onedrive"),
+        ("Nextcloud / WebDAV", "webdav"),
+        ("SFTP", "sftp"),
+        ("Other provider (advanced)", ""),
+    ];
+    let names: Vec<_> = providers.iter().map(|p| p.0).collect();
+    let choice = gtk::DropDown::from_strings(&names);
+    body.append(&choice);
+    let name = field(&body, "Display name", replace.as_ref().map(|r| r.name.as_str()).unwrap_or(""), false);
+    let provider_type = field(&body, "Advanced provider type (used for Other provider)", "", false);
+    let provider_catalog = gtk::DropDown::from_strings(&["Load available providers…"]);
+    body.append(&provider_catalog);
+    let provider_entry = provider_type.clone();
+    cmd::background(
+        || {
+            let mut setup = Client::connect()?.setup()?;
+            setup.request(json!({"action":"providers"}))
+        },
+        move |result: anyhow::Result<Value>| {
+            if let Ok(catalog) = result {
+                if let Some(providers) = catalog["providers"].as_array() {
+                    let ids: Vec<String> = providers.iter().filter_map(|p| p["Name"].as_str().map(str::to_string)).collect();
+                    let names: Vec<String> = providers
+                        .iter()
+                        .map(|p| format!("{} — {}", p["Name"].as_str().unwrap_or(""), p["Description"].as_str().unwrap_or("")))
+                        .collect();
+                    let labels: Vec<&str> = names.iter().map(String::as_str).collect();
+                    provider_catalog.set_model(Some(&gtk::StringList::new(&labels)));
+                    provider_catalog.connect_selected_notify(move |catalog| {
+                        if let Some(id) = ids.get(catalog.selected() as usize) {
+                            provider_entry.set_text(id);
+                        }
+                    });
+                }
+            }
+        },
+    );
+    let forms = widgets::vbox(6);
+    body.append(&forms);
+    let fields: Rc<RefCell<Vec<(String, gtk::Entry)>>> = Rc::new(RefCell::new(Vec::new()));
+    let build_fields = {
+        let forms = forms.clone();
+        let fields = fields.clone();
+        move |index: u32| {
+            clear(&forms);
+            fields.borrow_mut().clear();
+            let specs: &[(&str, &str, bool)] = match index {
+                3 => &[
+                    ("url", "Server URL", false),
+                    ("user", "Username", false),
+                    ("pass", "Password or app password", true),
+                    ("vendor", "Vendor: nextcloud or other", false),
+                ],
+                4 => &[
+                    ("host", "Host", false),
+                    ("user", "Username", false),
+                    ("port", "Port (optional)", false),
+                    ("pass", "Password (optional with SSH key)", true),
+                    ("key_file", "SSH private key path (optional)", false),
+                    ("key_file_pass", "Private key password (optional)", true),
+                    ("known_hosts_file", "Known hosts file (required)", false),
+                ],
+                5 => &[],
+                _ => &[
+                    ("client_id", "Custom OAuth client ID (optional)", false),
+                    ("client_secret", "Custom OAuth client secret (optional)", true),
+                ],
+            };
+            for (key, label, secret) in specs {
+                let e = field(&forms, label, if *key == "vendor" { "nextcloud" } else { "" }, *secret);
+                fields.borrow_mut().push((key.to_string(), e));
+            }
+        }
+    };
+    let initial = replace.as_ref().and_then(|r| providers.iter().position(|p| p.1 == r.provider)).unwrap_or(0) as u32;
+    choice.set_selected(initial);
+    if replace.is_some() {
+        choice.set_sensitive(false);
+    }
+    build_fields(initial);
+    choice.connect_selected_notify(move |choice| build_fields(choice.selected()));
+    let advanced = field(&body, "Additional provider options (JSON object, optional)", "", true);
+    body.append(&widgets::label("OAuth opens your browser. Follow any additional configuration questions below. Passwords and tokens are sent only through the private setup channel.", "dim"));
+    let status = widgets::label("", "dim");
+    status.set_wrap(true);
+    body.append(&status);
+    let next = gtk::Button::with_label("Connect");
+    body.append(&next);
+    let question_body = widgets::vbox(6);
+    body.append(&question_body);
+    let session: Arc<Mutex<Option<std::os::unix::net::UnixStream>>> = Arc::new(Mutex::new(None));
+    let session_slot = session.clone();
+    let weak = w.downgrade();
+    let replacement = replace.as_ref().map(|r| r.id.clone());
+    next.connect_clicked(move |button| {
+        let index = choice.selected() as usize;
+        let provider = if index < 5 { providers[index].1.to_string() } else { provider_type.text().to_string() };
+        if provider.trim().is_empty() || name.text().trim().is_empty() {
+            status.set_text("Enter a display name and provider.");
+            return;
+        }
+        let mut parameters = if advanced.text().trim().is_empty() {
+            json!({})
+        } else {
+            match serde_json::from_str::<Value>(&advanced.text()) {
+                Ok(v) if v.is_object() => v,
+                _ => {
+                    status.set_text("Additional options must be a JSON object.");
+                    return;
+                }
+            }
+        };
+        for (key, entry) in fields.borrow().iter() {
+            if !entry.text().is_empty() {
+                parameters[key] = json!(entry.text().as_str());
+            }
+        }
+        if provider == "sftp" && parameters["known_hosts_file"].as_str().unwrap_or("").is_empty() {
+            status.set_text("Choose a known hosts file to verify the server identity.");
+            return;
+        }
+        button.set_sensitive(false);
+        status.set_text("Connecting… Complete authorization in your browser if requested.");
+        let replacement = replacement.clone();
+        let slot = session_slot.clone();
+        let button = button.clone();
+        let status = status.clone();
+        let questions = question_body.clone();
+        let name = name.text().to_string();
+        let weak = weak.clone();
+        cmd::background(
+            move || {
+                let mut setup = Client::connect()?.setup()?;
+                *slot.lock().unwrap() = Some(setup.cancellation_handle()?);
+                let result = setup
+                    .request(json!({"action":"configure", "provider":provider,"parameters":parameters,"replace":replacement}))?;
+                let session = Arc::new(Mutex::new(setup));
+
+                Ok((session, result, provider))
+            },
+            move |result: anyhow::Result<(Session, Value, String)>| {
+                if !weak.upgrade().is_some_and(|w| w.is_visible()) {
+                    return;
+                }
+                match result {
+                    Ok((session, response, provider)) => {
+                        setup_step(&questions, &status, &button, session, response, name, provider, weak)
+                    }
+                    Err(_) => {
+                        button.set_sensitive(true);
+                        status.set_text("Could not configure this account. Check details and retry.");
+                    }
+                }
+            },
+        );
+    });
+    w.connect_close_request(move |_| {
+        if let Some(stream) = session.lock().unwrap().take() {
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+        }
+        glib::Propagation::Proceed
+    });
+}
+fn setup_step(
+    body: &gtk::Box,
+    status: &gtk::Label,
+    start: &gtk::Button,
+    session: Session,
+    response: Value,
+    name: String,
+    provider: String,
+    window: glib::WeakRef<gtk::Window>,
+) {
+    clear(body);
+    let state = response["State"].as_str().unwrap_or("").to_string();
+    if state.is_empty() {
+        status.set_text("Account configured. Choose connection preferences, then test and save.");
+        let (row, login) = widgets::switch_row("Mount on login", "Connect automatically when you sign in.", false, |_| {});
+        body.append(&row);
+        let cache = field(body, "Cache target (MiB, soft limit)", "2048", false);
+        let bandwidth = field(body, "Bandwidth limit (blank is unlimited)", "", false);
+        let finish = gtk::Button::with_label("Test and save");
+        body.append(&finish);
+        let status = status.clone();
+        let start = start.clone();
+        finish.connect_clicked(move |button| {
+            let Ok(cache_mib) = cache.text().parse::<u64>() else { status.set_text("Enter a valid cache size."); return; };
+            if cache_mib == 0 { status.set_text("Cache size must be greater than zero."); return; }
+            let request = json!({"action":"finish","name":name,"provider":provider,"preferences":{"mount_on_login":login.is_active(),"cache_mib":cache_mib,"bandwidth":bandwidth.text().as_str()}});
+            button.set_sensitive(false); status.set_text("Testing the connection…");
+            let session = session.clone(); let status = status.clone(); let start = start.clone(); let window = window.clone();
+            cmd::background(move || session.lock().unwrap().request(request), move |result| {
+                if result.is_ok() { refresh(); if let Some(w) = window.upgrade() { w.close(); } }
+                else { status.set_text("Connection test failed. Check authorization and retry."); start.set_sensitive(true); }
+            });
+        });
+        return;
+    }
+    let option = &response["Option"];
+    status.set_text(option["Help"].as_str().unwrap_or("Additional account details are required."));
+    if let Some(examples) = option["Examples"].as_array() {
+        for ex in examples {
+            body.append(&widgets::label(
+                &format!("{} — {}", ex["Value"].as_str().unwrap_or(""), ex["Help"].as_str().unwrap_or("")),
+                "dim",
+            ));
+        }
+    }
+    let answer = field(
+        body,
+        option["Name"].as_str().unwrap_or("Answer"),
+        option["Default"].as_str().unwrap_or(""),
+        option["IsPassword"].as_bool().unwrap_or(false),
+    );
+    let next = gtk::Button::with_label("Continue");
+    body.append(&next);
+    let weak_body = body.downgrade();
+    let status = status.clone();
+    let start = start.clone();
+    next.connect_clicked(move |button| {
+        button.set_sensitive(false);
+        let request = json!({"action":"configure","provider":provider,"parameters":{},"opt":{"continue":true,"state":state,"result":answer.text().as_str(),"nonInteractive":true}});
+        let session = session.clone(); let next_session = session.clone(); let weak_body = weak_body.clone(); let status = status.clone(); let start = start.clone(); let name = name.clone(); let provider = provider.clone(); let window = window.clone();
+        cmd::background(move || session.lock().unwrap().request(request), move |result| {
+            if let Some(body) = weak_body.upgrade() { match result {
+                Ok(response) => setup_step(&body, &status, &start, next_session, response, name, provider, window),
+                Err(_) => { status.set_text("Authorization failed. Retry adding the account."); start.set_sensitive(true); }
+            } }
+        });
+    });
+}
+
+fn watch_once() {
+    thread_local! {
+        static WATCH: RefCell<Option<gtk::gio::SignalSubscription>> = const { RefCell::new(None) };
+        static STARTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    if STARTED.with(|started| started.replace(true)) {
+        return;
+    }
+    glib::spawn_future_local(async {
+        let Ok(bus) = gtk::gio::bus_get_future(gtk::gio::BusType::Session).await else {
+            STARTED.with(|started| started.set(false));
+            return;
+        };
+        let subscription = bus.subscribe_to_signal(
+            Some(nixe_cloud::BUS),
+            Some(nixe_cloud::BUS),
+            Some("Changed"),
+            Some(nixe_cloud::PATH),
+            None,
+            gtk::gio::DBusSignalFlags::NONE,
+            |_| {
+                glib::timeout_add_local_once(std::time::Duration::from_millis(200), || window::rebuild_if_built("cloud-storage"));
+            },
+        );
+        WATCH.with(|slot| slot.replace(Some(subscription)));
+    });
+}

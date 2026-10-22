@@ -9,6 +9,7 @@ edition = "2024"
 default-run = "nixe-settings"
 
 [dependencies]
+nixe-cloud = { git = "https://github.com/design-nexus/nixe-cloud.git", rev = "95c2afde2b5cd5c1bafb5b6fb0a4629f07d9b1c0" }
 nixe-core = { git = "https://github.com/design-nexus/nixe-core.git", rev = "7cd0be5d09cd1d91510794f58bbc720605951c12" }
 nixe-ui = { git = "https://github.com/design-nexus/nixe-design.git", rev = "609c1d2a5af41a8ee3b76ba23611eb30d95a4743" }
 nixe-theme = { git = "https://github.com/design-nexus/nixe-design.git", rev = "609c1d2a5af41a8ee3b76ba23611eb30d95a4743" }

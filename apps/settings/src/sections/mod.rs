@@ -33,6 +33,7 @@ pub mod network;
 pub mod nightlight;
 pub mod nixe;
 pub mod online_accounts;
+pub mod cloud;
 pub mod plugins;
 pub mod power;
 pub mod printers;
@@ -418,6 +419,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             keywords: "online accounts google microsoft nextcloud webdav imap oauth email calendar contacts files goa",
             files: Vec::new,
             build: Build::Native(online_accounts::build),
+            visible: always,
+        },
+        Section {
+            id: "cloud-storage",
+            title: "Cloud Storage",
+            icon: "folder-remote-symbolic",
+            group: "Accounts",
+            description: "Cloud accounts, connections and mounting preferences for Files.",
+            keywords: "cloud storage rclone drive dropbox onedrive nextcloud webdav sftp files",
+            files: Vec::new,
+            build: Build::Native(cloud::build),
             visible: always,
         },
         // ----- Assistant -----

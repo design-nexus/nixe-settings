@@ -464,7 +464,7 @@ fn microsoft_note(account: &Account) -> Option<String> {
             || goa::find_bin("nixe-reminders").is_some()
             || goa::find_bin("nixe-contacts").is_some())
     {
-        parts.push("Its calendars and task lists need <b>evolution-ews</b> installed.".to_string());
+        parts.push("Calendar and Contacts need <b>evolution-ews</b> installed.".to_string());
     }
     (!parts.is_empty()).then(|| parts.join(" "))
 }

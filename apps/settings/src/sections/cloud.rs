@@ -530,6 +530,39 @@ fn watch_once() {
 }
 
 fn append_connection_controls(body: &gtk::Box, remote: &Remote) {
+    let status = widgets::label(&format!("Storage: {} · {}", remote.connection.replace('_', " "), remote.mount_status), "dim");
+    status.set_wrap(true);
+    body.append(&status);
+    let refresh = gtk::Button::with_label("Refresh status");
+    let id = remote.id.clone();
+    let output = status.downgrade();
+    refresh.connect_clicked(move |button| {
+        button.set_sensitive(false);
+        let weak = button.downgrade();
+        let id = id.clone();
+        let output = output.clone();
+        cmd::background(
+            move || {
+                Client::connect()?.list()?.into_iter().find(|r| r.id == id).ok_or_else(|| anyhow::anyhow!("Account unavailable"))
+            },
+            move |result| {
+                if let Some(b) = weak.upgrade() {
+                    b.set_sensitive(true);
+                }
+                if let Some(label) = output.upgrade() {
+                    match result {
+                        Ok(r) => label.set_text(&format!(
+                            "Storage: {} · {}{}",
+                            r.connection.replace('_', " "),
+                            r.mount_status,
+                            if r.error.is_empty() { String::new() } else { format!(" · {}", r.error) }
+                        )),
+                        Err(_) => label.set_text("Storage status unavailable. Check Cloud and retry."),
+                    }
+                }
+            },
+        );
+    });
     let controls = widgets::hbox(6);
     for (label, action) in [("Connect", 0), ("Disconnect", 1), ("Test connection", 2)] {
         let b = gtk::Button::with_label(label);
@@ -544,6 +577,7 @@ fn append_connection_controls(body: &gtk::Box, remote: &Remote) {
         });
         controls.append(&b);
     }
+    controls.append(&refresh);
     body.append(&controls);
 }
 /// Storage and Notes use Cloud even when GOA does not advertise a Files interface.

@@ -11,3 +11,11 @@ and integrations are preserved.
 
 Shared dependencies are pinned to immutable GitHub revisions.
 Use main for the standalone build; preserved tags describe historical source.
+
+Online Accounts is the single account manager. Each account's Settings popup
+selects its supported services, including Storage visibility in Files and optional
+Markdown Notes synchronization. Existing rclone connections can be explicitly
+imported without changing their original configuration. Additional storage OAuth
+stays inside the account setup flow. Legacy `--section cloud-storage` opens
+Online Accounts. Microsoft Mail/Tasks remain unavailable; the popup offers
+installation of the EDS backend needed for Microsoft Calendar/Contacts.

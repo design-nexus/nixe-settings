@@ -1017,7 +1017,7 @@ dependencies = [
 [[package]]
 name = "nixe-cloud"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-cloud.git?rev=95c2afde2b5cd5c1bafb5b6fb0a4629f07d9b1c0#95c2afde2b5cd5c1bafb5b6fb0a4629f07d9b1c0"
+source = "git+https://github.com/design-nexus/nixe-cloud.git?rev=053a31d9704c5f0379c1b17e70a659b353357881#053a31d9704c5f0379c1b17e70a659b353357881"
 dependencies = [
  "anyhow",
  "reqwest",

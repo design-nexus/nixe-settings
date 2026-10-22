@@ -9,7 +9,6 @@ use std::rc::Rc;
 
 enum Screen {
     List,
-    Detail(String),
     Add,
     Wait,
 }
@@ -22,7 +21,6 @@ thread_local! {
 fn screen() -> Screen {
     SCREEN.with(|s| match &*s.borrow() {
         Screen::List => Screen::List,
-        Screen::Detail(id) => Screen::Detail(id.clone()),
         Screen::Add => Screen::Add,
         Screen::Wait => Screen::Wait,
     })
@@ -36,10 +34,12 @@ fn show(next: Screen) {
 pub fn build(page: &Page) {
     watch_once();
     match screen() {
-        Screen::Detail(id) => detail(page, id),
         Screen::Add => add_page(page),
         Screen::Wait => wait_page(page),
-        Screen::List => list(page),
+        Screen::List => {
+            list(page);
+            super::cloud::build(page);
+        }
     }
 }
 
@@ -87,10 +87,7 @@ fn fill_list(g: &widgets::Group, holder: &gtk::Box, listed: Result<Listed, Error
         }
         Ok(Listed { accounts, keyring }) => {
             if !keyring {
-                g.top(&widgets::banner(
-                    "<b>The keyring isn't available.</b> Online accounts cannot be saved.",
-                    true,
-                ));
+                g.top(&widgets::banner("<b>The keyring isn't available.</b> Online accounts cannot be saved.", true));
             }
             if !goa::backend_available() && !goa::helper_available() {
                 g.top(&widgets::banner(
@@ -133,9 +130,9 @@ fn row(account: &Account) -> gtk::Box {
         status.add_css_class("danger");
     }
     controls.append(&status);
-    let open = gtk::Button::with_label("Open");
+    let open = gtk::Button::with_label("Settings…");
     let id = account.id.clone();
-    open.connect_clicked(move |_| show(Screen::Detail(id.clone())));
+    open.connect_clicked(move |_| account_popup(id.clone()));
     controls.append(&open);
     let r = widgets::row(account.label(), &desc, Some(controls.upcast_ref()));
     widgets::keywords(&format!(
@@ -145,11 +142,17 @@ fn row(account: &Account) -> gtk::Box {
     r
 }
 
-fn detail(page: &Page, id: String) {
-    let (back, _) = widgets::button_row("All accounts", "", "Back", |_| show(Screen::List));
-    let top = page.group("");
-    top.add(&back);
-
+fn account_popup(id: String) {
+    thread_local! {static OPEN: RefCell<std::collections::HashMap<String,gtk::glib::WeakRef<gtk::Window>>> = RefCell::new(std::collections::HashMap::new());}
+    if let Some(w) = OPEN.with(|s| s.borrow().get(&id).and_then(|w| w.upgrade())) {
+        w.present();
+        return;
+    }
+    let (popup, body) = super::cloud::dialog("Account settings");
+    OPEN.with(|s| {
+        s.borrow_mut().insert(id.clone(), popup.downgrade());
+    });
+    let page = Page { root: gtk::ScrolledWindow::new(), body };
     let info = page.group("Account");
     let holder = widgets::vbox(0);
     holder.append(&widgets::label("Looking for this account…", "dim"));
@@ -219,7 +222,16 @@ fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, f
     widgets::keywords("reauth sign in again oauth expired");
     holder.append(&r);
 
-    let services: Vec<ServiceState> = account.services.iter().filter(|s| s.can_toggle).cloned().collect();
+    let services: Vec<ServiceState> = account
+        .services
+        .iter()
+        .filter(|s| {
+            s.can_toggle
+                && s.service != goa::Service::Files
+                && !(account.provider_type == "ms_graph" && s.service == goa::Service::Mail)
+        })
+        .cloned()
+        .collect();
     if !services.is_empty() {
         let g = group_on(page_body, "Services");
         g.note("Turning a service off stops this computer using it. Mail, events and files stay on the provider.");
@@ -228,9 +240,6 @@ fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, f
             let service = svc.service.clone();
             let on = svc.enabled;
             let (r, _) = widgets::switch_row(svc.service.label(), &used_by(&svc.service), on, move |now| {
-                if now == on {
-                    return;
-                }
                 let (path, service) = (path.clone(), service.clone());
                 cmd::background(
                     move || {
@@ -250,16 +259,53 @@ fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, f
         }
     }
 
+    if account.provider_type == "ms_graph" {
+        let support = group_on(page_body, "Microsoft services");
+        support.note("Mail and Tasks are not supported for this account yet. Calendar and Contacts use Evolution Data Server.");
+        if !std::path::Path::new("/usr/lib/evolution-data-server/registry-modules/module-microsoft365-backend.so").exists() {
+            let (row, _) = widgets::button_row(
+                "Calendar and Contacts support",
+                "Install evolution-ews. System authorization is required.",
+                "Install support",
+                |_| {
+                    cmd::background(
+                        || {
+                            let status = std::process::Command::new("pkexec")
+                                .args(["/usr/bin/pacman", "-S", "--needed", "--noconfirm", "evolution-ews"])
+                                .status()?;
+                            anyhow::ensure!(status.success(), "Installation did not complete");
+                            anyhow::Ok(())
+                        },
+                        |result| match result {
+                            Ok(()) => window::toast("Support installed. Sign out and back in to load the new account backend."),
+                            Err(_) => window::toast("Support was not installed. You can retry from this account's settings."),
+                        },
+                    );
+                },
+            );
+            support.add(&row);
+        }
+    }
+    super::cloud::append_for_account(page_body, &account.id);
+
     let g = group_on(page_body, "Remove");
     g.note("This disconnects the account from this computer. Mail, events, contacts, and files on the provider are not deleted.");
     if account.locked {
         g.add(&widgets::label("This account is locked, so it can't be removed here.", "dim"));
     } else {
         let path = account.path.clone();
+        let account_id = account.id.clone();
         let b = widgets::confirm_button("Remove", "Remove this account?", move |_| {
             let path = path.clone();
+            let account_id = account_id.clone();
             cmd::background(
                 move || {
+                    if let Ok(cloud) = nixe_cloud::Client::connect() {
+                        let remotes = cloud.list().map_err(|_| Error::Unavailable)?;
+                        for r in remotes.into_iter().filter(|r| r.account_id.as_deref() == Some(&account_id)) {
+                            cloud.remove(&r.id, r.managed).map_err(|_| Error::Unavailable)?;
+                        }
+                    }
                     let client = goa::Client::connect().map_err(|_| Error::Unavailable)?;
                     client.remove(&path)
                 },
@@ -319,10 +365,7 @@ fn fill_providers(holder: &gtk::Box, list: Result<Vec<goa::ProviderInfo>, Error>
                 );
                 holder.append(&r);
             } else {
-                holder.append(&widgets::banner(
-                    "<b>Can't list providers.</b> Install gnome-online-accounts.",
-                    true,
-                ));
+                holder.append(&widgets::banner("<b>Can't list providers.</b> Install gnome-online-accounts.", true));
             }
         }
         Err(e) => holder.append(&widgets::banner(&glib_markup(&e.to_string()), true)),
@@ -396,10 +439,10 @@ fn cancel_job() {
 /// The installed Nixe app that uses a service, for its switch.
 fn used_by(service: &goa::Service) -> String {
     let app = match service {
-        goa::Service::Mail => ("nixe-mail", "Nixe Mail"),
-        goa::Service::Calendar => ("nixe-calendar", "Nixe Calendar"),
-        goa::Service::Tasks => ("nixe-reminders", "Nixe Reminders"),
-        goa::Service::Contacts => ("nixe-contacts", "Nixe Contacts"),
+        goa::Service::Mail => ("nixe-mail", "Mail"),
+        goa::Service::Calendar => ("nixe-calendar", "Calendar"),
+        goa::Service::Tasks => ("nixe-reminders", "Reminders"),
+        goa::Service::Contacts => ("nixe-contacts", "Contacts"),
         _ => return String::new(),
     };
     if goa::find_bin(app.0).is_some() { format!("Used by {}", app.1) } else { String::new() }
@@ -412,11 +455,15 @@ fn microsoft_note(account: &Account) -> Option<String> {
     }
     let mut parts = Vec::new();
     if goa::find_bin("nixe-mail").is_some() {
-        parts.push("Nixe Mail can't use Microsoft 365 mail yet.".to_string());
+        parts.push("Mail can't use Microsoft 365 mail yet.".to_string());
     }
     let modules = std::path::Path::new("/usr/lib/evolution-data-server/registry-modules");
     let ews = ["module-microsoft365-backend.so", "module-ews-backend.so"].iter().any(|m| modules.join(m).exists());
-    if !ews && (goa::find_bin("nixe-calendar").is_some() || goa::find_bin("nixe-reminders").is_some()) {
+    if !ews
+        && (goa::find_bin("nixe-calendar").is_some()
+            || goa::find_bin("nixe-reminders").is_some()
+            || goa::find_bin("nixe-contacts").is_some())
+    {
         parts.push("Its calendars and task lists need <b>evolution-ews</b> installed.".to_string());
     }
     (!parts.is_empty()).then(|| parts.join(" "))

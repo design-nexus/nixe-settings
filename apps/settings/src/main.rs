@@ -173,7 +173,7 @@ fn main() -> glib::ExitCode {
     app.connect_command_line(|app, cl| {
         let argv: Vec<String> = cl.arguments().iter().map(|a| a.to_string_lossy().to_string()).collect();
         let section = argv.iter().position(|a| a == "--section").and_then(|i| argv.get(i + 1)).cloned();
-        window::present(app, section.as_deref());
+        window::present(app, section.as_deref().map(|id| if id == "cloud-storage" {"online-accounts"} else {id}));
         glib::ExitCode::SUCCESS
     });
     app.run()

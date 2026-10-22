@@ -6,7 +6,7 @@ window for everything you'd otherwise change by editing Lua files.
 ![Settings: Sound, with the 9-band equalizer and preamp](docs/audio.png)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh | bash -s -- settings
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/install.sh | bash -s -- settings
 ```
 
 ## Features
@@ -169,21 +169,21 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh |
 isn't a prebuilt one for your machine):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh | bash -s -- settings
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/install.sh | bash -s -- settings
 ```
 
 To also add a gear button to the Omarchy bar (left-click opens Settings,
 right-click opens Sound):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe/main/install.sh | bash -s -- settings --gear
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/install.sh | bash -s -- settings --gear
 ```
 
 **From source:**
 
 ```sh
-git clone https://github.com/design-nexus/nixe.git
-cd omarchy-settings
+git clone https://github.com/design-nexus/nixe-settings.git
+cd nixe-settings
 ./install.sh          # add --gear for the bar button
 ```
 

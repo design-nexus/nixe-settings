@@ -194,6 +194,9 @@ fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, f
             true,
         ));
     }
+    if let Some(text) = microsoft_note(&account) {
+        info.top(&widgets::banner(&text, false));
+    }
 
     let (r, _) = widgets::info_row("Account", account.label());
     holder.append(&r);
@@ -224,7 +227,7 @@ fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, f
             let path = account.path.clone();
             let service = svc.service.clone();
             let on = svc.enabled;
-            let (r, _) = widgets::switch_row(svc.service.label(), "", on, move |now| {
+            let (r, _) = widgets::switch_row(svc.service.label(), &used_by(&svc.service), on, move |now| {
                 if now == on {
                     return;
                 }
@@ -388,6 +391,35 @@ fn cancel_job() {
             p.force_exit();
         }
     });
+}
+
+/// The installed Nixe app that uses a service, for its switch.
+fn used_by(service: &goa::Service) -> String {
+    let app = match service {
+        goa::Service::Mail => ("nixe-mail", "Nixe Mail"),
+        goa::Service::Calendar => ("nixe-calendar", "Nixe Calendar"),
+        goa::Service::Tasks => ("nixe-reminders", "Nixe Reminders"),
+        goa::Service::Contacts => ("nixe-contacts", "Nixe Contacts"),
+        _ => return String::new(),
+    };
+    if goa::find_bin(app.0).is_some() { format!("Used by {}", app.1) } else { String::new() }
+}
+
+/// What Nixe Mail and Calendar can and can't do with a Microsoft 365 account.
+fn microsoft_note(account: &Account) -> Option<String> {
+    if account.provider_type != "ms_graph" {
+        return None;
+    }
+    let mut parts = Vec::new();
+    if goa::find_bin("nixe-mail").is_some() {
+        parts.push("Nixe Mail can't use Microsoft 365 mail yet.".to_string());
+    }
+    let modules = std::path::Path::new("/usr/lib/evolution-data-server/registry-modules");
+    let ews = ["module-microsoft365-backend.so", "module-ews-backend.so"].iter().any(|m| modules.join(m).exists());
+    if !ews && (goa::find_bin("nixe-calendar").is_some() || goa::find_bin("nixe-reminders").is_some()) {
+        parts.push("Its calendars and task lists need <b>evolution-ews</b> installed.".to_string());
+    }
+    (!parts.is_empty()).then(|| parts.join(" "))
 }
 
 fn service_line(services: &[ServiceState]) -> String {

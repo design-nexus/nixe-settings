@@ -111,7 +111,37 @@ fn live_monitor(name: &str) -> Option<Monitor> {
 
 pub fn build(page: &Page) {
     monitors(page);
+    rendering(page);
     laptop_screen(page);
+}
+
+fn rendering(page: &Page) {
+    let g = page.group("Rendering");
+    g.note("Applies to all displays. Actual VRR and cursor use are shown above for each screen.");
+    g.add(&widgets::hypr_choice_typed(
+        "misc.vrr",
+        "Variable refresh rate (VRR)",
+        "Adaptive Sync on supported displays. Fullscreen modes activate only while eligible content is fullscreen.",
+        opts(&[("0", "Off"), ("1", "On"), ("2", "Fullscreen only"), ("3", "Fullscreen video / games")]),
+        true,
+    ));
+    widgets::keywords("adaptive sync freesync gsync vrr power gpu");
+    g.add(&widgets::hypr_choice_typed(
+        "cursor.no_hardware_cursors",
+        "Hardware cursors",
+        "Use a hardware cursor when possible to reduce compositor work during pointer movement. Automatic lets Hyprland decide.",
+        opts(&[("0", "Enabled when possible"), ("1", "Disabled"), ("2", "Automatic")]),
+        true,
+    ));
+    widgets::keywords("hardware software cursor pointer igpu gpu performance");
+    g.add(&widgets::hypr_choice_typed(
+        "render.direct_scanout",
+        "Direct scanout",
+        "Lets eligible fullscreen apps bypass composition. Automatic applies to games. Turn off if fullscreen graphics glitch.",
+        opts(&[("0", "Off"), ("1", "On"), ("2", "Automatic for games")]),
+        true,
+    ));
+    widgets::keywords("direct scanout fullscreen video game compositor igpu gpu performance");
 }
 
 /// The built-in screen: off while an external monitor is in use, or mirrored onto it.
@@ -204,6 +234,18 @@ fn monitors(page: &Page) {
         let desc = m.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
         let g = page.group(&name);
         g.note(&glib::markup_escape_text(&desc));
+
+        if !m.get("disabled").and_then(Value::as_bool).unwrap_or(false) {
+            for (title, field) in [("VRR active", "vrr"), ("Hardware cursors in use", "hardwareCursorsInUse")] {
+                let status = match m.get(field).and_then(Value::as_bool) {
+                    Some(true) => "Yes",
+                    Some(false) => "No",
+                    None => "Unknown",
+                };
+                let (r, _) = widgets::info_row(title, status);
+                g.add(&r);
+            }
+        }
 
         if let Some(b) = brightness.filter(|_| m.get("focused").and_then(|f| f.as_bool()).unwrap_or(false)) {
             let n = name.clone();

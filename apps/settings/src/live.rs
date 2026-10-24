@@ -70,7 +70,7 @@ fn displays() -> String {
         .and_then(|v| v.as_array().cloned())
         .unwrap_or_default()
         .iter()
-        .map(|m| format!("{} {} {}", m["name"], m["disabled"], m["description"]))
+        .map(|m| format!("{} {} {} {} {}", m["name"], m["disabled"], m["description"], m["vrr"], m["hardwareCursorsInUse"]))
         .collect::<Vec<_>>()
         .join("\n")
 }

@@ -25,6 +25,7 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("resize", "Resize window (follows fingers)"),
     ("menu", "Omarchy menu"),
     ("apps", "App launcher"),
+    ("glimpse", "Glimpse"),
     ("notifications", "Notification history"),
     ("screenshot", "Screenshot"),
     ("volume-up", "Volume up"),
@@ -32,6 +33,7 @@ pub const ACTIONS: &[(&str, &str)] = &[
     ("brightness-up", "Brightness up"),
     ("brightness-down", "Brightness down"),
     ("lock", "Lock screen"),
+    ("app", "Open an app…"),
     ("command", "Run a command…"),
 ];
 
@@ -62,6 +64,8 @@ pub struct FingerSet {
     pub actions: BTreeMap<String, String>,
     /// direction -> shell command, used when the action is `command`
     pub commands: BTreeMap<String, String>,
+    /// direction -> desktop entry id (`firefox.desktop`), used when the action is `app`
+    pub apps: BTreeMap<String, String>,
     pub reverse_horizontal: bool,
     pub reverse_vertical: bool,
 }
@@ -150,9 +154,16 @@ fn step_helper() -> String {
     )
 }
 
+/// Desktop entry ids are limited to these characters, so one can go into a shell
+/// command unquoted.
+fn valid_app_id(id: &str) -> bool {
+    id.ends_with(".desktop") && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
 /// The `action = …` part (plus any extra fields) for one action id, or None.
+/// `arg` is the command for `command` and the desktop entry id for `app`.
 /// `loop_count` makes next/previous workspace wrap around 1..N.
-fn action_lua(action: &str, command: Option<&str>, loop_count: Option<u32>) -> Option<String> {
+fn action_lua(action: &str, arg: Option<&str>, loop_count: Option<u32>) -> Option<String> {
     if let Some(n) = loop_count {
         match action {
             "next-workspace" => return Some(format!("action = function() {STEP_FN}(1, {n}) end")),
@@ -182,8 +193,13 @@ fn action_lua(action: &str, command: Option<&str>, loop_count: Option<u32>) -> O
         "brightness-up" => format!("action = {}", exec("omarchy-brightness-display +5%")),
         "brightness-down" => format!("action = {}", exec("omarchy-brightness-display 5%-")),
         "lock" => format!("action = {}", exec("omarchy-system-lock")),
+        "glimpse" => format!("action = {}", exec("nixe-glimpse --toggle")),
+        "app" => {
+            let id = arg.map(str::trim).filter(|id| valid_app_id(id))?;
+            format!("action = {}", exec(&format!("uwsm-app -- {id}")))
+        }
         "command" => {
-            let cmd = command.map(str::trim).filter(|c| !c.is_empty())?;
+            let cmd = arg.map(str::trim).filter(|c| !c.is_empty())?;
             format!("action = {}", exec(cmd))
         }
         _ => return None,
@@ -255,7 +271,8 @@ fn set_lines(fingers: u8, set: &FingerSet, loop_count: Option<u32>, out: &mut Ve
         if horizontal_only(action) {
             continue;
         }
-        if let Some(body) = action_lua(action, set.commands.get(*dir).map(String::as_str), loop_count) {
+        let arg = if action == "app" { set.apps.get(*dir) } else { set.commands.get(*dir) };
+        if let Some(body) = action_lua(action, arg.map(String::as_str), loop_count) {
             let direction = physical(set, dir);
             out.push(format!("hl.gesture({{ fingers = {fingers}, direction = \"{direction}\", {body} }})"));
         }
@@ -487,6 +504,24 @@ mod tests {
         assert!(!lua(&g).iter().any(|l| l.contains("pinchout")));
         g.four.commands.insert("pinchout".into(), "kitty".into());
         assert!(lua(&g).iter().any(|l| l.contains("pinchout") && l.contains("'kitty'") || l.contains("\"kitty\"")));
+    }
+
+    #[test]
+    fn glimpse_toggles_the_panel() {
+        let mut g = Gestures { enabled: true, ..Gestures::default() };
+        g.three.actions.insert("up".into(), "glimpse".into());
+        assert!(line(&lua(&g), 3, "up").contains("nixe-glimpse --toggle"));
+    }
+
+    #[test]
+    fn app_launches_the_chosen_desktop_entry() {
+        let mut g = Gestures { enabled: true, ..Gestures::default() };
+        g.four.actions.insert("pinchout".into(), "app".into());
+        assert!(line(&lua(&g), 4, "pinchout").is_empty(), "no app chosen yet");
+        g.four.apps.insert("pinchout".into(), "firefox.desktop; rm -rf ~".into());
+        assert!(line(&lua(&g), 4, "pinchout").is_empty(), "not a desktop entry id");
+        g.four.apps.insert("pinchout".into(), "org.mozilla.firefox.desktop".into());
+        assert!(line(&lua(&g), 4, "pinchout").contains("uwsm-app -- org.mozilla.firefox.desktop"));
     }
 
     #[test]

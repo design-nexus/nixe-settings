@@ -2,6 +2,7 @@ use crate::backend::gestures::{self, FingerSet, Gestures};
 use crate::backend::store;
 use crate::{cmd, window};
 use crate::widgets::{self, Page, hypr_choice, hypr_choice_typed, hypr_slider, hypr_switch, opts};
+use gtk::gio;
 use gtk::prelude::*;
 use std::rc::Rc;
 
@@ -13,12 +14,37 @@ fn edit(fingers: u8, f: impl FnOnce(&mut FingerSet)) {
     store::update(true, |s| f(finger_set(&mut s.gestures, fingers)));
 }
 
-fn action_options(dir: &str) -> Vec<(String, String)> {
+fn action_options(dir: &str, glimpse: bool) -> Vec<(String, String)> {
     gestures::ACTIONS
         .iter()
         .filter(|(id, _)| !gestures::horizontal_only(id) || dir == "left" || dir == "right")
+        .filter(|(id, _)| glimpse || *id != "glimpse")
         .map(|(id, label)| (id.to_string(), label.to_string()))
         .collect()
+}
+
+/// (desktop id, name) of every app the launcher shows, by name.
+fn installed_apps() -> Vec<(String, String)> {
+    let mut apps: Vec<(String, String)> = gio::AppInfo::all()
+        .into_iter()
+        .filter(|a| a.should_show())
+        .filter_map(|a| Some((a.id()?.to_string(), a.name().to_string())))
+        .collect();
+    apps.sort_by(|a, b| a.0.cmp(&b.0));
+    apps.dedup_by(|a, b| a.0 == b.0);
+    apps.sort_by_key(|a| a.1.to_lowercase());
+    apps
+}
+
+/// App picker choices; a chosen app that's since been uninstalled stays listed
+/// so the row shows what the gesture is set to.
+fn app_options(installed: &[(String, String)], current: Option<&String>) -> Vec<(String, String)> {
+    let mut options = vec![(String::new(), "Choose an app…".to_string())];
+    if let Some(id) = current.filter(|id| !id.is_empty() && !installed.iter().any(|(i, _)| i == *id)) {
+        options.push((id.clone(), id.trim_end_matches(".desktop").to_string()));
+    }
+    options.extend_from_slice(installed);
+    options
 }
 
 /// The swipe/pinch editor for one finger count.
@@ -31,6 +57,8 @@ fn finger_card(fingers: u8) -> gtk::Box {
     grid.set_row_spacing(8);
     grid.set_column_spacing(14);
     let dropdowns: Rc<std::cell::RefCell<Vec<(String, gtk::DropDown)>>> = Default::default();
+    let glimpse = cmd::present("nixe-glimpse") || gestures::DIRECTIONS.iter().any(|d| set.action(d) == "glimpse");
+    let installed = installed_apps();
 
     for (i, dir) in gestures::DIRECTIONS.iter().enumerate() {
         let dir = dir.to_string();
@@ -38,10 +66,14 @@ fn finger_card(fingers: u8) -> gtk::Box {
         l.set_width_chars(12);
         grid.attach(&l, 0, i as i32, 1, 1);
 
-        let options = action_options(&dir);
+        let options = action_options(&dir, glimpse);
         let dd = widgets::dropdown(&options, set.action(&dir));
         dd.set_hexpand(true);
         grid.attach(&dd, 1, i as i32, 1, 1);
+
+        let extra = widgets::hbox(0);
+        extra.set_hexpand(true);
+        grid.attach(&extra, 2, i as i32, 1, 1);
 
         let entry = gtk::Entry::new();
         entry.set_placeholder_text(Some("Command to run"));
@@ -49,7 +81,22 @@ fn finger_card(fingers: u8) -> gtk::Box {
         entry.set_text(set.commands.get(&dir).map(String::as_str).unwrap_or(""));
         entry.set_visible(set.action(&dir) == "command");
         entry.set_hexpand(true);
-        grid.attach(&entry, 2, i as i32, 1, 1);
+        extra.append(&entry);
+
+        let apps = app_options(&installed, set.apps.get(&dir));
+        let picker = widgets::dropdown(&apps, set.apps.get(&dir).map(String::as_str).unwrap_or(""));
+        picker.set_visible(set.action(&dir) == "app");
+        picker.set_hexpand(true);
+        extra.append(&picker);
+
+        let d = dir.clone();
+        picker.connect_selected_notify(move |p| {
+            let Some((id, _)) = apps.get(p.selected() as usize).cloned() else { return };
+            let d = d.clone();
+            edit(fingers, move |s| {
+                s.apps.insert(d, id);
+            });
+        });
 
         let d = dir.clone();
         entry.connect_changed(move |e| {
@@ -62,10 +109,12 @@ fn finger_card(fingers: u8) -> gtk::Box {
 
         let d = dir.clone();
         let e2 = entry.clone();
+        let p2 = picker.clone();
         let all = dropdowns.clone();
         dd.connect_selected_notify(move |dd| {
             let Some((id, _)) = options.get(dd.selected() as usize).cloned() else { return };
             e2.set_visible(id == "command");
+            p2.set_visible(id == "app");
             if WidgetExt::is_visible(&e2) {
                 e2.grab_focus();
             }
@@ -84,7 +133,7 @@ fn finger_card(fingers: u8) -> gtk::Box {
                     let partner_id = if id == "workspace-follow" { "workspace-follow".to_string() } else { "none".to_string() };
                     for (dir, other) in all.borrow().iter() {
                         if dir == p {
-                            let o = action_options(p);
+                            let o = action_options(p, glimpse);
                             if let Some(pos) = o.iter().position(|(x, _)| *x == partner_id)
                                 && other.selected() != pos as u32
                             {

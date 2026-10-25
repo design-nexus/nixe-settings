@@ -119,24 +119,44 @@ fn append_account(holder: &gtk::Box, remote: Remote) {
     holder.append(&widgets::row(&remote.name, &glib::markup_escape_text(&status), Some(controls.upcast_ref())));
 }
 pub(super) fn dialog(title: &str) -> (gtk::Window, gtk::Box) {
-    let w = gtk::Window::builder().title(title).default_width(650).default_height(550).modal(true).build();
-    if let Some(app) = gtk::gio::Application::default().and_downcast::<gtk::Application>() {
-        w.set_application(Some(&app));
-        if let Some(parent) = app.active_window() {
-            w.set_transient_for(Some(&parent));
-        }
+    // Stay a transient dialog, not another Settings application window.
+    // Hyprland tiles those to the right of the parent and they go off-screen;
+    // wrapping labels then grow the mapped window further to the right.
+    const WIDTH: i32 = 650;
+    const HEIGHT: i32 = 550;
+    let w = gtk::Window::builder().title(title).default_width(WIDTH).default_height(HEIGHT).modal(true).build();
+    if let Some(parent) = window::window() {
+        w.set_transient_for(Some(&parent));
     }
+    w.add_css_class("settings-window");
+    w.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
     let body = widgets::vbox(12);
     body.set_margin_start(20);
     body.set_margin_end(20);
     body.set_margin_top(20);
     body.set_margin_bottom(20);
+    let clamp = nixe_ui::clamp::Clamp::new(&body, WIDTH - 40);
     let scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
         .vscrollbar_policy(gtk::PolicyType::External)
-        .child(&body)
+        .propagate_natural_width(false)
+        .min_content_width(WIDTH)
+        .max_content_width(WIDTH)
+        .min_content_height(HEIGHT)
+        .max_content_height(HEIGHT)
+        .child(&clamp)
         .build();
     w.set_child(Some(&scroll));
+    let keys = gtk::EventControllerKey::new();
+    let close = w.clone();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk::gdk::Key::Escape {
+            close.close();
+            return glib::Propagation::Stop;
+        }
+        glib::Propagation::Proceed
+    });
+    w.add_controller(keys);
     w.present();
     (w, body)
 }

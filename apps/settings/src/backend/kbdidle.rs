@@ -78,6 +78,28 @@ fn set_brightness(led: &str, value: u32) {
     brightnessctl(&["-q", "-d", led, "set", &value.to_string()]);
 }
 
+fn preferred_file() -> PathBuf {
+    paths::app_dir().join("keyboard-brightness.json")
+}
+
+fn remember_levels() {
+    let mut non_zero: Vec<(String, u32)> = Vec::new();
+    for led in leds() {
+        if let Some(v) = read_brightness(&led).filter(|v| *v > 0) {
+            non_zero.push((led, v));
+        }
+    }
+    if !non_zero.is_empty()
+        && let Ok(text) = serde_json::to_string(&non_zero)
+    {
+        let _ = std::fs::write(preferred_file(), text);
+    }
+}
+
+fn load_preferred() -> Vec<(String, u32)> {
+    std::fs::read_to_string(preferred_file()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+}
+
 // Omarchy's lock screen turns the backlight off with `brightnessctl -s … set 0`
 // and its wake step puts back whatever `brightnessctl -s` last saved. If the
 // lock blanks while this helper has the light off, that saved level is 0, and
@@ -102,10 +124,14 @@ fn saved_file() -> PathBuf {
 /// Turn the backlight off, remembering what it was (in the runtime dir, so a
 /// stopped service can still put it back).
 fn dim() {
+    remember_levels();
+    let preferred = load_preferred();
     let mut saved: Vec<(String, u32)> = Vec::new();
     for led in leds() {
-        if let Some(v) = read_brightness(&led).filter(|v| *v > 0) {
-            saved.push((led.clone(), v));
+        let cur = read_brightness(&led).unwrap_or(0);
+        let target = if cur > 0 { cur } else { preferred.iter().find(|(l, _)| l == &led).map(|(_, v)| *v).unwrap_or(1) };
+        saved.push((led.clone(), target));
+        if cur > 0 {
             switch_off(&led);
         }
     }
@@ -119,18 +145,25 @@ fn dim() {
 /// Put back what [`dim`] turned off. Does nothing if it didn't.
 pub fn restore() -> Result<()> {
     let path = saved_file();
-    let Ok(text) = std::fs::read_to_string(&path) else { return Ok(()) };
-    let saved: Vec<(String, u32)> = serde_json::from_str(&text).unwrap_or_default();
+    let preferred = load_preferred();
+    let saved: Vec<(String, u32)> = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .or_else(|| if !preferred.is_empty() { Some(preferred.clone()) } else { None })
+        .unwrap_or_else(|| leds().into_iter().map(|l| (l, 1)).collect());
+
     for (led, value) in saved {
+        let target = value.max(1);
         // Don't fight a brightness the user has already set since.
         if read_brightness(&led) == Some(0) {
-            set_brightness(&led, value);
+            set_brightness(&led, target);
         }
         if read_brightness(&led).is_some_and(|v| v > 0) {
             save_level(&led);
         }
     }
     let _ = std::fs::remove_file(path);
+    remember_levels();
     Ok(())
 }
 
@@ -245,10 +278,16 @@ impl Dispatch<ExtIdleNotificationV1, ()> for Idle {
                 eprintln!("settings-kbd-idle: idle, turning the backlight off");
                 dim();
             }
-            ext_idle_notification_v1::Event::Resumed if state.dimmed => {
+            ext_idle_notification_v1::Event::Resumed => {
+                let was_dimmed = state.dimmed;
                 state.dimmed = false;
-                eprintln!("settings-kbd-idle: input, turning the backlight back on");
-                let _ = restore();
+                let any_zero = leds().iter().any(|l| read_brightness(l) == Some(0));
+                if was_dimmed || any_zero {
+                    eprintln!("settings-kbd-idle: input, turning the backlight back on");
+                    let _ = restore();
+                } else {
+                    remember_levels();
+                }
             }
             _ => {}
         }
@@ -275,6 +314,7 @@ pub fn run_daemon() -> Result<()> {
         notifier.get_idle_notification(ms, &seat, &qh, ())
     };
     eprintln!("settings-kbd-idle: watching for {} s of no input", cfg.timeout_secs);
+    remember_levels();
     // Recover from a previous run that was killed while dimmed.
     let _ = restore();
     let mut state = Idle { dimmed: false };

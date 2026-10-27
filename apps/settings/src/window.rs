@@ -1,6 +1,6 @@
-//! The main window: a top bar (sidebar toggle, where you are, the page's
-//! config files, search, close), the navigation sidebar, a stack of section
-//! pages built the first time they're shown, and a status bar.
+//! The main window: the unified header (the app and the page, the sidebar
+//! toggle, search, the page's config files), the navigation sidebar, a stack of
+//! section pages built the first time they're shown, and a status bar.
 
 use crate::sections::{self, Section};
 use crate::widgets::{self, SEARCH};
@@ -28,10 +28,8 @@ struct Ui {
     current: &'static str,
     overlay: gtk::Overlay,
     collapse_button: gtk::Button,
-    /// Where you are, in the top bar: the page's group and its name.
-    crumb_group: gtk::Label,
-    crumb_group_sep: gtk::Label,
-    crumb: gtk::Label,
+    /// The header, which shows the page's name after the app's.
+    header: nixe_ui::chrome::AppHeader,
     /// Holds the current page's "open the config file" button.
     edit: gtk::Box,
     /// The page's description, in the status bar.
@@ -68,10 +66,12 @@ fn focus_search(search: &gtk::SearchEntry) {
     search.grab_focus();
 }
 
-/// Clear the search and put the field away.
+/// Clear the search; the field stays in the header.
 fn close_search(search: &gtk::SearchEntry) {
     search.set_text("");
-    search.set_visible(false);
+    if let Some(w) = search.root().and_downcast::<gtk::Window>() {
+        gtk::prelude::GtkWindowExt::set_focus(&w, None::<&gtk::Widget>);
+    }
 }
 
 thread_local! {
@@ -179,46 +179,19 @@ fn build(app: &gtk::Application) {
     body.append(&nav);
     body.append(&stack);
 
-    // ----- Top bar: the sidebar toggle and where you are; the page's config
-    // files and search -----
-    let top = widgets::hbox(4);
-    top.add_css_class("top-bar");
+    // ----- Header: the app and the page, the sidebar toggle, search, and the
+    // page's config files -----
+    let header = nixe_ui::chrome::app_header(&window, "preferences-system-symbolic", "Settings");
     let collapse_button = widgets::bar_button("sidebar-show-symbolic", "Collapse the sidebar (Ctrl+B)");
     collapse_button.connect_clicked(|_| toggle_sidebar());
-    top.append(&collapse_button);
-    let crumbs = widgets::hbox(10);
-    crumbs.add_css_class("crumbs");
-    crumbs.append(&widgets::label("Settings", "crumb-root"));
-    crumbs.append(&widgets::label("/", "crumb-sep"));
-    let crumb_group = widgets::label("", "crumb-root");
-    crumbs.append(&crumb_group);
-    let crumb_group_sep = widgets::label("/", "crumb-sep");
-    crumbs.append(&crumb_group_sep);
-    let crumb = widgets::label("", "crumb");
-    crumb.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    crumbs.append(&crumb);
-    crumbs.set_hexpand(true);
-    top.append(&crumbs);
-    let edit = widgets::hbox(0);
-    top.append(&edit);
+    header.start.append(&collapse_button);
     let search = gtk::SearchEntry::new();
-    search.set_placeholder_text(Some("Search settings"));
+    search.set_placeholder_text(Some("Search all settings  (Ctrl+F)"));
     search.add_css_class("bar-search");
-    search.set_width_chars(26);
-    search.set_visible(false);
-    top.append(&search);
-    let find = widgets::bar_button("system-search-symbolic", "Search settings (Ctrl+F)");
-    {
-        let search = search.clone();
-        find.connect_clicked(move |_| {
-            if search.is_visible() && search.text().is_empty() {
-                search.set_visible(false);
-            } else {
-                focus_search(&search);
-            }
-        });
-    }
-    top.append(&find);
+    search.set_width_chars(34);
+    header.center.append(&search);
+    let edit = widgets::hbox(0);
+    header.end.append(&edit);
 
     // ----- Status bar: the shortcuts, and what the page is for -----
     let status_bar = widgets::hbox(16);
@@ -240,7 +213,7 @@ fn build(app: &gtk::Application) {
 
     let frame = widgets::vbox(0);
     frame.add_css_class("window-frame");
-    frame.append(&top);
+    frame.append(&header.root);
     frame.append(&body);
     frame.append(&status_bar);
 
@@ -346,9 +319,7 @@ fn build(app: &gtk::Application) {
         current: "",
         overlay,
         collapse_button,
-        crumb_group,
-        crumb_group_sep,
-        crumb,
+        header,
         edit,
         status,
         empty_label,
@@ -853,10 +824,9 @@ pub fn navigate(id: &str) {
     u.stack.set_visible_child_name(id);
     u.current = id;
     if let Some(s) = u.sections.iter().find(|s| s.id == id) {
-        u.crumb.set_text(s.title);
-        u.crumb_group.set_text(s.group);
-        u.crumb_group.set_visible(!s.group.is_empty());
-        u.crumb_group_sep.set_visible(!s.group.is_empty());
+        u.header.set_subtitle(s.title);
+        let group = if s.group.is_empty() { "home".to_string() } else { s.group.to_lowercase() };
+        nixe_theme::set_section(Some(&group));
         u.status.set_text(s.description);
         while let Some(c) = u.edit.first_child() {
             u.edit.remove(&c);

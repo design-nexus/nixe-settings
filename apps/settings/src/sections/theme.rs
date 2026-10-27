@@ -283,6 +283,8 @@ pub fn build(page: &Page) {
         glib::ControlFlow::Continue
     });
     g.add(&widgets::row("Current colors", "", Some(swatches.upcast_ref())));
+    g.add(&nixe_ui::widgets::accent_row("settings"));
+    widgets::keywords("accent colour color swatch highlight");
 
     let (r, _) = widgets::switch_row("Glow", "Soft accent glow around focused and selected elements.", p.glow, |on| {
         prefs::update(|p| p.glow = on);

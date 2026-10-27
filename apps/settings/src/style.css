@@ -1,89 +1,109 @@
-.mono,
-.value-readout,
-.key-cap {
-  font-family: "JetBrains Mono", "JetBrainsMono Nerd Font", monospace;
-  font-feature-settings: "tnum";
-}
+/* Settings' own parts, on top of the shared Nixe 2.0 sheet (buttons, inputs,
+ * segmented controls, banners, the sidebar and the header come from there).
+ * Cards are a fill with no outline; rows inside them are split by spacing. */
 
-/* Small capitals, for labels that sit above other content. */
-
-.settings-navigation .nav-group,
-.bar-section-title,
-.home-fact-title {
-  font-size: 0.72em;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  color: @theme_dim_text;
-}
+/* ---------- Sidebar ---------- */
 
 .settings-navigation separator.nav-divider {
-  margin: 8px 10px;
+  margin: 6px 10px;
   min-height: 1px;
-  background: alpha(@theme_border, 0.7);
+  background: transparent;
 }
 
-.settings-navigation .nav-group {
-  margin: 10px -6px 4px;
-  padding: 16px 18px 4px;
-  border-top: 1px solid @hairline;
-  font-size: 0.76em;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: @theme_dim_text;
-}
-
-.settings-navigation button.nav-item.active .nav-label {
-  font-weight: 600;
+.settings-navigation.compact .nav-group {
+  margin: 6px 0;
+  padding: 0;
+  min-height: 0;
+  font-size: 0;
 }
 
 .settings-navigation .search-count {
-  background: alpha(@theme_accent, 0.18);
+  background: alpha(@theme_accent, 0.16);
   color: @theme_accent;
+  border-radius: 999px;
+  padding: 0 7px;
 }
 
 .settings-navigation .nav-badge {
-  font-size: 0.68em;
-  padding: 0 6px;
+  font-size: 0.8em;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: alpha(@theme_accent, 0.16);
+  color: @theme_accent;
+}
+
+/* Small capitals above other content. */
+.bar-section-title,
+.home-fact-title {
+  font-size: 0.846em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: @theme_text_tertiary;
 }
 
 /* ---------- Search ---------- */
-
-entry.settings-search,
-entry.settings-search > text {
-  min-height: 32px;
-}
 
 .search-empty {
   padding: 96px 24px;
 }
 
 .search-empty image {
-  color: alpha(@theme_dim_text, 0.6);
+  color: @theme_text_tertiary;
 }
 
 .search-empty .search-empty-title {
   font-size: 1.15em;
-  font-weight: 700;
+  font-weight: 600;
 }
 
-/* A collapsible group's title is a card row with a chevron; its rows open below. */
+/* ---------- Cards and rows ---------- */
 
+/* One card per group. */
+.settings-card {
+  background: @theme_card;
+  border-radius: var(--nixe-radius-card);
+  padding: 2px 0;
+}
+
+/* Rows inside a card are part of it. */
+.settings-card .settings-option,
+.settings-card .card-row {
+  background: transparent;
+  border-radius: 0;
+}
+
+.settings-card > label,
+.settings-card > box > label {
+  padding: 12px 14px;
+}
+
+/* A row on its own, outside a card, is a card itself. */
+.settings-option:not(.card-row),
+.settings-page > .settings-option,
+.plain-list > .settings-option:not(.bare) {
+  background: @theme_card;
+  border-radius: var(--nixe-radius-card);
+}
+
+.settings-option.bare {
+  padding: 0;
+  background: transparent;
+}
+
+/* A collapsible group: the title row is a card row with a chevron. */
 .settings-group.collapsible {
   margin-top: 12px;
 }
 
 window.settings-window button.group-toggle {
-  min-height: 32px;
-  padding: 10px 16px;
-  border-radius: 10px;
-  background: transparent;
-  border: 1px solid @hairline;
-  box-shadow: none;
+  padding: 10px 14px;
+  border-radius: var(--nixe-radius-card);
+  background: @theme_card;
+  border: none;
 }
 
 window.settings-window button.group-toggle:hover {
-  background: @row_hover;
-  border-color: alpha(@theme_border, 0.95);
+  background: mix(@theme_card, @theme_accent, 0.06);
 }
 
 window.settings-window button.group-toggle .settings-option-description {
@@ -91,30 +111,19 @@ window.settings-window button.group-toggle .settings-option-description {
 }
 
 /* Open, the title row and its rows read as one card. */
-
 window.settings-window button.group-toggle.open {
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
 }
 
 .settings-group.collapsible .settings-card {
-  border-top-width: 0;
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
 
-.settings-group.collapsible .settings-card > .card-row:first-child,
-.settings-group.collapsible .settings-card > :first-child > .card-row:first-child,
-.settings-group.collapsible .settings-card .card-row.first-shown {
-  border-top-color: @divider;
-}
-
-/* A notice inside an open group joins the card too. */
-
 .collapsible-head .banner {
   margin: 0;
   border-radius: 0;
-  border-top-width: 0;
 }
 
 image.chevron {
@@ -126,71 +135,16 @@ image.chevron {
   -gtk-icon-transform: rotate(90deg);
 }
 
-/* One card per group; its rows are split by hairlines. */
-
-.settings-card {
-  border: 1px solid @hairline;
-  border-radius: 10px;
-}
-
-.settings-card .card-row {
-  border-top: 1px solid @divider;
-}
-
-.settings-card > .card-row:first-child,
-.settings-card > :first-child > .card-row:first-child,
-.settings-card .card-row.first-shown {
-  border-top-color: transparent;
-}
-
-/* Plain text placed straight in a card (status lines, "nothing found"). */
-
-.settings-card > label,
-.settings-card > box > label {
-  padding: 12px 16px;
-}
-
-/* ---------- Rows ---------- */
-
-/* GTK's min-height is the content box: 32 + padding = 52. */
-
-.settings-option {
-  min-height: 52px;
-  padding: 10px 20px;
-}
-
-/* A row on its own, outside a card, keeps its own frame. */
-
-.settings-option:not(.card-row),
-.settings-page > .settings-option,
-.plain-list > .settings-option:not(.bare) {
-  border: 1px solid @hairline;
-  border-radius: 10px;
-}
-
-.settings-option.tall {
-  padding: 14px 20px;
-}
-
-/* A row that only carries its content (e.g. the theme grid in a plain group). */
-
-.settings-option.bare {
-  padding: 0;
-}
-
-/* ---------- Disclosure (a row that opens more rows) ---------- */
-
+/* A row that opens more rows. */
 window.settings-window button.disclosure {
-  min-height: 32px;
-  padding: 10px 16px;
+  padding: 10px 14px;
   border: none;
   border-radius: 0;
   background: transparent;
-  box-shadow: none;
 }
 
 window.settings-window button.disclosure:hover {
-  background: alpha(@theme_highlight, 0.35);
+  background: @row_hover;
 }
 
 window.settings-window button.disclosure .settings-option-description {
@@ -198,7 +152,7 @@ window.settings-window button.disclosure .settings-option-description {
 }
 
 .disclosure-content {
-  padding: 0 16px 12px;
+  padding: 0 14px 12px;
 }
 
 .disclosure-content > .settings-option {
@@ -206,69 +160,24 @@ window.settings-window button.disclosure .settings-option-description {
   padding-right: 0;
 }
 
-/* A disclosure outside a card draws its own frame. */
-
 .disclosure-row:not(.card-row),
 .settings-page > .disclosure-row {
-  background: mix(@theme_bg, @theme_muted, 0.25);
-  border: 1px solid @hairline;
-  border-radius: 10px;
+  background: @theme_card;
+  border-radius: var(--nixe-radius-card);
+}
+
+/* Buttons for a whole group, on the line of its title. */
+.group-tools {
+  margin: -32px 0 8px;
 }
 
 /* ---------- Buttons ---------- */
 
-window.settings-window button {
-  min-height: 32px;
-  padding: 0 12px;
-  border-radius: 6px;
-  background: transparent;
-  border: 1px solid @hairline;
-  box-shadow: none;
-  color: @theme_text;
-  transition: background 150ms ease-out, border-color 150ms ease-out;
-}
-
-window.settings-window button:hover {
-  background: @row_hover;
-}
-
-window.settings-window button:active {
-  background: alpha(@theme_accent, 0.22);
-}
-
-window.settings-window button.suggested-action {
-  background: @nav_active;
-  border-color: transparent;
-  color: @theme_text;
-  font-weight: 600;
-}
-
-window.settings-window button.suggested-action:hover {
-  background: mix(@theme_bg, @theme_accent, 0.26);
-}
-
-window.settings-window button.destructive-action {
-  background: alpha(@theme_danger, 0.12);
-  border-color: alpha(@theme_danger, 0.55);
-  color: @theme_danger;
-}
-
 /* The first click of a two-step button: the second one does it. */
-
 window.settings-window button.armed {
   background: alpha(@theme_danger, 0.18);
-  border-color: @theme_danger;
   color: @theme_danger;
   font-weight: 600;
-}
-
-window.settings-window button.flat {
-  background: transparent;
-  border-color: transparent;
-}
-
-window.settings-window button.flat:hover {
-  background: @row_hover;
 }
 
 window.settings-window button.reset-button {
@@ -276,104 +185,19 @@ window.settings-window button.reset-button {
   min-width: 26px;
   padding: 0;
   border-radius: 999px;
+  background: transparent;
   color: @theme_dim_text;
 }
 
-window.settings-window button.chip {
-  min-height: 28px;
-  padding: 0 12px;
-  border-radius: 6px;
-  font-size: 0.9em;
+window.settings-window button.show-all {
+  padding: 0 14px;
 }
 
-window.settings-window button.chip.selected {
-  background: @nav_active;
-  border-color: transparent;
-  color: @theme_text;
+.quick-actions button {
+  min-height: 40px;
 }
 
-/* ---------- Inputs ---------- */
-
-window.settings-window entry,
-window.settings-window spinbutton {
-  min-height: 32px;
-  border-radius: 6px;
-  background: transparent;
-  border: 1px solid @hairline;
-  box-shadow: none;
-  color: @theme_text;
-}
-
-window.settings-window entry:focus-within,
-window.settings-window spinbutton:focus-within {
-  border-color: @theme_accent;
-  box-shadow: none;
-}
-
-window.settings-window entry.error {
-  border-color: @theme_danger;
-}
-
-window.settings-window dropdown > button {
-  min-width: 160px;
-}
-
-window.settings-window .segmented button.segment {
-  min-height: 28px;
-  padding: 0 12px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: alpha(@theme_text, 0.78);
-  font-weight: 600;
-  box-shadow: none;
-}
-
-window.settings-window .segmented button.segment:hover {
-  background: @row_hover;
-  color: @theme_text;
-}
-
-window.settings-window .segmented button.segment:checked {
-  background: @nav_active;
-  color: @theme_text;
-}
-
-/* ---------- Banners, toasts, dialogs ---------- */
-
-.banner {
-  padding: 12px 16px;
-  border-radius: 8px;
-  background: alpha(@theme_accent, 0.12);
-  border: 1px solid alpha(@theme_accent, 0.45);
-  margin-bottom: 14px;
-}
-
-.banner.warning {
-  background: alpha(@theme_danger, 0.1);
-  border-color: alpha(@theme_danger, 0.45);
-}
-
-/* Buttons on a banner are its action: a solid accent, so they stand out on the tint. */
-window.settings-window .banner button {
-  background: @theme_accent;
-  border-color: @theme_accent;
-  color: @theme_on_accent;
-  font-weight: 600;
-}
-
-window.settings-window .banner button:hover {
-  background: mix(@theme_accent, @theme_text, 0.12);
-}
-
-window.settings-window .banner.warning button {
-  background: @theme_danger;
-  border-color: @theme_danger;
-}
-
-window.settings-window .banner.warning button:hover {
-  background: mix(@theme_danger, @theme_text, 0.12);
-}
+/* ---------- Banners and toasts ---------- */
 
 .settings-card .banner,
 .disclosure-content .banner {
@@ -388,38 +212,17 @@ window.settings-window .banner.warning button:hover {
   margin: 4px 0;
 }
 
-window.settings-window button.toast-action {
-  min-height: 28px;
-  margin: -4px -8px -4px 0;
-  padding: 0 12px;
-  font-weight: 700;
-  color: @theme_accent;
-}
-
-.key-cap {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.85em;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: alpha(@theme_muted, 0.55);
-  border: 1px solid alpha(@theme_border, 0.9);
-}
-
-/* ---------- Inner panels (inside a row) ---------- */
+/* ---------- Panels inside a row ---------- */
 
 .eq-panel,
 .fan-graph,
 .gesture-grid,
 .bar-section {
-  background: mix(@theme_bg, @theme_surface, 0.5);
-  border: 1px solid alpha(@theme_border, 0.45);
-  border-radius: 10px;
+  background: mix(@theme_card, @theme_bg, 0.5);
+  border-radius: var(--nixe-radius-card);
 }
 
 .eq-panel {
-  background: mix(@theme_bg, @theme_surface, 0.5);
-  border: 1px solid alpha(@theme_border, 0.55);
-  border-radius: 9px;
   padding: 18px 18px 12px;
 }
 
@@ -429,6 +232,11 @@ window.settings-window button.toast-action {
 
 .bar-section {
   padding: 12px 12px 8px;
+}
+
+.gesture-grid .direction {
+  font-weight: 600;
+  color: @theme_dim_text;
 }
 
 /* ---------- Equalizer ---------- */
@@ -447,7 +255,7 @@ window.settings-window button.toast-action {
 
 window.settings-window .fader-scale > trough {
   min-width: 6px;
-  background: alpha(@theme_muted, 0.65);
+  background: @track;
 }
 
 window.settings-window .fader-scale > trough > slider,
@@ -459,7 +267,7 @@ window.settings-window .fader-scale.marks-after > trough > slider {
   border-radius: 4px;
   background: @theme_text;
   border: none;
-  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.72), 0 0 10px alpha(@theme_glow, 0.4);
+  box-shadow: 0 1px 3px alpha(@theme_shadow, 0.45);
 }
 
 window.settings-window .fader.preamp .fader-scale > trough > highlight {
@@ -467,55 +275,55 @@ window.settings-window .fader.preamp .fader-scale > trough > highlight {
 }
 
 .fader-label {
-  font-size: 0.78em;
-  font-weight: 700;
+  font-size: 0.846em;
+  font-weight: 600;
   color: @theme_dim_text;
 }
 
 .fader-value {
-  font-size: 0.82em;
+  font-size: 0.885em;
 }
 
 .eq-divider {
   min-width: 1px;
   margin: 6px 10px;
-  background: alpha(@theme_border, 0.7);
+  background: @theme_divider;
 }
 
-.headroom-ok { color: @theme_accent; }
-
-.headroom-warn { color: mix(@theme_accent, @theme_danger, 0.5); }
-
+.headroom-ok { color: @theme_success; }
+.headroom-warn { color: @theme_warning; }
 .headroom-hot { color: @theme_danger; }
+
+/* ---------- Themes and swatches ---------- */
+
+.theme-card {
+  background: @theme_card;
+  border: 1px solid transparent;
+  border-radius: var(--nixe-radius-card);
+}
 
 .theme-card.selected {
   border-color: @theme_accent;
-  box-shadow: 0 0 0 1px alpha(@theme_accent, 0.72), 0 0 14px alpha(@theme_glow, 0.24);
+  box-shadow: 0 0 0 1px @theme_accent;
 }
 
 .theme-strip {
-  border-radius: 9px 9px 0 0;
+  border-radius: var(--nixe-radius-card) var(--nixe-radius-card) 0 0;
 }
 
 /* The tick on the theme in use. */
-
 image.theme-tick {
   margin: 6px;
   padding: 3px;
   border-radius: 999px;
   background: @theme_accent;
-  color: @theme_bg;
+  color: @theme_on_accent;
   -gtk-icon-size: 12px;
   opacity: 0;
 }
 
 .theme-card.selected image.theme-tick {
   opacity: 1;
-}
-
-window.settings-window button.show-all {
-  min-height: 28px;
-  padding: 0 14px;
 }
 
 window.settings-window button.swatch-button {
@@ -528,12 +336,11 @@ window.settings-window button.swatch-button {
 }
 
 window.settings-window button.swatch-button:hover {
-  border-color: alpha(@theme_border, 0.95);
+  border-color: @theme_text_tertiary;
 }
 
 window.settings-window button.swatch-button.selected {
   border-color: @theme_accent;
-  box-shadow: 0 0 10px alpha(@theme_glow, 0.35);
 }
 
 .swatch-dot {
@@ -543,18 +350,13 @@ window.settings-window button.swatch-button.selected {
   border: 1px solid alpha(@theme_shadow, 0.5);
 }
 
-.gesture-grid .direction {
-  font-weight: 700;
-  color: @theme_dim_text;
-}
-
 /* ---------- Bar layout editor ---------- */
 
 .bar-item {
   padding: 6px 8px 6px 12px;
-  border-radius: 6px;
-  background: mix(@theme_bg, @theme_muted, 0.25);
-  border: 1px solid @hairline;
+  border-radius: var(--nixe-radius-small);
+  background: @theme_card;
+  border: 1px solid transparent;
   transition: border-color 120ms ease-out, opacity 120ms ease-out;
 }
 
@@ -575,16 +377,16 @@ window.settings-window button.swatch-button.selected {
 }
 
 .bar-item-name {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .bar-item-id {
-  font-size: 0.8em;
+  font-size: 0.846em;
 }
 
 .bar-drop-end {
   min-height: 12px;
-  border-radius: 6px;
+  border-radius: var(--nixe-radius-small);
 }
 
 .bar-drop-end.drop-before {
@@ -598,36 +400,35 @@ window.settings-window button.swatch-button.selected {
 /* ---------- Home ---------- */
 
 .home-hero {
-  padding: 24px;
-  border-radius: 10px;
-  border: 1px solid @hairline;
-  background: linear-gradient(135deg, alpha(@theme_accent, 0.12), mix(@theme_bg, @theme_muted, 0.25) 60%);
+  padding: 22px 24px;
+  border-radius: var(--nixe-radius-card);
+  background: @theme_card;
 }
 
 .home-host {
   font-size: 1.5em;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .home-fact {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 window.settings-window button.home-badge {
   min-width: 150px;
   padding: 16px;
-  border-radius: 10px;
-  background: alpha(@theme_muted, 0.32);
+  border-radius: var(--nixe-radius-card);
+  background: @theme_raised;
 }
 
 window.settings-window button.home-badge.pending {
-  border-color: alpha(@theme_accent, 0.7);
-  background: alpha(@theme_accent, 0.12);
+  background: alpha(@theme_accent, 0.14);
 }
 
 .home-badge-count {
   font-size: 2.1em;
-  font-weight: 700;
+  font-weight: 600;
+  font-feature-settings: "tnum";
 }
 
 .home-badge.pending .home-badge-count {
@@ -635,12 +436,12 @@ window.settings-window button.home-badge.pending {
 }
 
 .home-badge-caption {
-  font-size: 0.82em;
+  font-size: 0.885em;
   color: @theme_dim_text;
 }
 
 .home-block {
-  margin-top: 24px;
+  margin-top: 20px;
 }
 
 .home-flow flowboxchild {
@@ -652,39 +453,37 @@ window.settings-window button.home-badge.pending {
 .chart-card,
 .update-list {
   padding: 16px;
-  border-radius: 10px;
-  border: 1px solid @hairline;
-  background: mix(@theme_bg, @theme_muted, 0.25);
-  transition: border-color 150ms ease-out;
+  border-radius: var(--nixe-radius-card);
+  background: @theme_card;
+  transition: background 120ms ease-out;
 }
 
 .settings-card .update-list {
-  border: none;
   background: transparent;
 }
 
 .stat-tile.clickable:hover {
-  border-color: alpha(@theme_accent, 0.6);
+  background: mix(@theme_card, @theme_accent, 0.06);
 }
 
 .stat-value {
   font-size: 1.15em;
-  font-weight: 700;
+  font-weight: 600;
   font-feature-settings: "tnum";
 }
 
 .stat-label {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .stat-detail {
-  font-size: 0.84em;
+  font-size: 0.92em;
   color: @theme_dim_text;
 }
 
 .chart {
-  border-radius: 6px;
-  background: mix(@theme_bg, @theme_surface, 0.5);
+  border-radius: var(--nixe-radius-small);
+  background: mix(@theme_card, @theme_bg, 0.5);
 }
 
 .legend-dot {
@@ -699,19 +498,15 @@ window.settings-window button.home-badge.pending {
 }
 
 .update-name {
-  font-weight: 600;
-}
-
-.quick-actions button {
-  min-height: 40px;
+  font-weight: 500;
 }
 
 /* ---------- Displays ---------- */
 
 .arrange-canvas {
   margin: 8px 0;
-  border-radius: 10px;
-  background: alpha(@theme_bg, 0.6);
+  border-radius: var(--nixe-radius-card);
+  background: mix(@theme_card, @theme_bg, 0.5);
 }
 
 window.identify-window {
@@ -720,7 +515,7 @@ window.identify-window {
 
 .identify-name {
   font-size: 64px;
-  font-weight: 800;
+  font-weight: 700;
   color: @theme_accent;
 }
 
@@ -729,25 +524,22 @@ window.identify-window {
   color: @theme_dim_text;
 }
 
-/* ---------- Keyboard shortcuts ---------- */
+/* ---------- Keyboard shortcuts and launcher lists ---------- */
 
 .clash-warning {
   color: @theme_danger;
-  font-size: 0.9em;
+  font-size: 0.92em;
 }
 
 .shortcut-filter {
   margin-bottom: 4px;
 }
 
-/* ---------- Launcher lists ---------- */
-
 .launcher-icon {
   margin-right: 2px;
 }
 
 /* Edit and Remove show on the row being pointed at or focused. */
-
 .launcher-row .row-actions {
   opacity: 0;
   transition: opacity 120ms ease-out;
@@ -763,129 +555,10 @@ window.identify-window {
   padding-bottom: 10px;
 }
 
-/* Buttons for a whole group, on the line of its title. */
-
-.group-tools {
-  margin: -36px 0 8px;
-}
-
-.group-tools button {
-  min-height: 28px;
-  padding: 0 12px;
-  font-size: 0.92em;
-}
-
-window.settings-window button.bar-button {
-  min-width: 30px;
-  min-height: 30px;
-  padding: 0;
-  border-radius: 6px;
-  border-color: transparent;
-  background: transparent;
-  color: @theme_dim_text;
-}
-
-window.settings-window button.bar-button:hover {
-  background: @row_hover;
-  color: @theme_text;
-}
-
-/* A config-file menu in the top bar looks like the other bar buttons. */
-window.settings-window menubutton.bar-button > button {
-  min-width: 30px;
-  min-height: 30px;
-  padding: 0;
-  border-radius: 6px;
-  border-color: transparent;
-  background: transparent;
-  color: @theme_dim_text;
-}
-
-window.settings-window menubutton.bar-button > button:hover {
-  background: @row_hover;
-  color: @theme_text;
-}
-
-window.settings-window entry.bar-search {
-  min-height: 30px;
-  margin-right: 4px;
-}
-
-window.settings-window button.status-help {
-  min-height: 24px;
-  padding: 0 6px;
-  border: none;
-  background: transparent;
-  color: @theme_dim_text;
-  font-weight: 500;
-}
-
-window.settings-window button.status-help:hover {
-  color: @theme_text;
-}
-
-.settings-navigation .nav-group.first {
-  margin-top: 0;
-  padding-top: 6px;
-  border-top: none;
-}
-
-.settings-navigation.compact .nav-group {
-  margin: 8px -6px;
-  padding: 0;
-  min-height: 0;
-  font-size: 0;
-}
-
-.settings-navigation.compact .nav-group.first {
-  border-top: none;
-  margin: 0;
-}
-
-.group-list .settings-option {
-  border: none;
-  border-top: 1px solid @divider;
-  border-radius: 0;
-}
-
-.group-list > .settings-option:first-child,
-.group-list > box:first-child > .settings-option:first-child {
-  border-top: none;
-}
-
-window.settings-window columnview > header,
-window.settings-window columnview > header > button,
-window.settings-window columnview > header > button > box {
-  font-size: 1em;
-}
+/* ---------- The settings card over the window ---------- */
 
 .settings-dialog.narrow .settings-dialog-main .settings-page {
   padding: 4px 16px 24px;
-}
-
-window.settings-window button.dialog-nav {
-  min-height: 0;
-  padding: 10px 14px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-}
-
-window.settings-window button.dialog-nav image {
-  margin-top: 2px;
-  color: @theme_dim_text;
-}
-
-window.settings-window button.dialog-nav:hover {
-  background: @row_hover;
-}
-
-window.settings-window button.dialog-nav.active {
-  background: @lift_active;
-}
-
-window.settings-window button.dialog-nav.active image {
-  color: @theme_accent;
 }
 
 .settings-dialog-main .settings-page {
@@ -904,41 +577,42 @@ window.settings-window button.dialog-nav.active image {
 
 window.settings-window button.picture-card {
   padding: 8px 8px 10px;
-  border: 1px solid @hairline;
-  border-radius: 10px;
-  background: mix(@theme_surface, @theme_text, 0.03);
-  box-shadow: none;
+  border: 1px solid transparent;
+  border-radius: var(--nixe-radius-card);
+  background: @theme_raised;
 }
 
 window.settings-window button.picture-card:hover {
-  background: @row_hover;
+  background: mix(@theme_raised, @theme_accent, 0.06);
 }
 
 window.settings-window button.picture-card:checked {
   border-color: @theme_accent;
   background: @nav_active;
-  box-shadow: 0 0 0 1px @theme_accent;
 }
 
 .picture-card-label {
-  font-size: 0.88em;
+  font-size: 0.92em;
   color: @theme_dim_text;
 }
 
 button.picture-card:checked .picture-card-label {
   color: @theme_text;
+  font-weight: 500;
+}
+
+.picture-card-title {
   font-weight: 600;
 }
 
 .preview-card {
   padding: 10px;
-  border-radius: 12px;
-  background: mix(@theme_surface, @theme_bg, 0.5);
-  border: 1px solid @hairline;
+  border-radius: var(--nixe-radius-card);
+  background: @theme_card;
 }
 
 .preview-caption {
-  font-size: 0.86em;
+  font-size: 0.885em;
   color: @theme_dim_text;
   margin-left: 2px;
 }
@@ -958,21 +632,21 @@ button.picture-card:checked .picture-card-label {
   font-size: 1.05em;
 }
 
-.drive-icon {
+.drive-icon,
+.mount-icon {
   color: @theme_accent;
 }
 
 .warn-tag {
   color: @theme_danger;
-  border-color: alpha(@theme_danger, 0.5);
 }
 
 .ok-tag {
-  color: @theme_accent;
+  color: @theme_success;
 }
 
 window.settings-window button.health-good {
-  color: mix(@theme_text, #6fcf7f, 0.7);
+  color: @theme_success;
 }
 
 window.settings-window button.health-bad {
@@ -983,9 +657,8 @@ window.settings-window button.health-bad {
 .part-panel {
   margin-top: 2px;
   padding: 14px;
-  border-radius: 10px;
-  border: 1px solid @hairline;
-  background: mix(@theme_surface, @theme_bg, 0.4);
+  border-radius: var(--nixe-radius-card);
+  background: mix(@theme_card, @theme_bg, 0.5);
 }
 
 .part-title {
@@ -998,7 +671,7 @@ levelbar.part-usage block.filled {
 }
 
 levelbar.part-usage block.empty {
-  background: alpha(@theme_dim_text, 0.18);
+  background: @track;
   border-radius: 4px;
 }
 
@@ -1008,14 +681,6 @@ levelbar.part-usage trough {
 
 .part-actions button {
   padding: 4px 12px;
-}
-
-.mount-icon {
-  color: @theme_accent;
-}
-
-.picture-card-title {
-  font-weight: 600;
 }
 
 .error-text {

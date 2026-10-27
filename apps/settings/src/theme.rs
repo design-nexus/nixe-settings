@@ -9,6 +9,7 @@ pub fn install() {
     if let Some(display) = gtk::gdk::Display::default() {
         install_icons(&display);
     }
+    nixe_theme::use_design_2();
     nixe_theme::install(Style {
         window_class: "settings-window",
         base_skip: &[

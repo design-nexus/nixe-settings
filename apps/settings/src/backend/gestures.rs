@@ -234,8 +234,8 @@ pub const LOOP_END_ID: u32 = 11;
 
 fn loop_redirect(count: u32) -> String {
     format!(
-        "hl.workspace_rule({{ workspace = \"name:{LOOP_START}\", persistent = true }})\n\
-hl.workspace_rule({{ workspace = \"{LOOP_END_ID}\", persistent = true }})\n\
+        "hl.workspace_rule({{ workspace = \"name:{LOOP_START}\", monitor = settings_gesture_monitor, persistent = true }})\n\
+hl.workspace_rule({{ workspace = \"{LOOP_END_ID}\", monitor = settings_gesture_monitor, persistent = true }})\n\
 local settings_loop_last = (hl.get_active_workspace() or {{ id = 1 }}).id\n\
 hl.on(\"workspace.active\", function()\n\
 \x20 local ws = hl.get_active_workspace()\n\
@@ -293,11 +293,14 @@ pub fn lua(g: &Gestures) -> Vec<String> {
     }
     let count = g.loop_count.clamp(2, 10);
     let loop_count = g.loop_workspaces.then_some(count);
+    // Omarchy can add a virtual display. Keep the swipe path on the laptop
+    // panel instead of letting empty persistent workspaces land on HEADLESS-1.
+    out.push("local settings_gesture_monitor = (function() local active = hl.get_active_monitor(); for _, monitor in ipairs(hl.get_monitors()) do if monitor.name:match(\"^eDP\") or monitor.name:match(\"^LVDS\") or monitor.name:match(\"^DSI\") then return monitor.name end end; return active and active.name or nil end)()".into());
     // Keep 1..N alive even when empty. Hyprland removes empty workspaces, and a
     // swipe only moves between workspaces that exist, so without this it would
     // skip straight over the empty ones the bar still shows.
     for id in 1..=count {
-        out.push(format!("hl.workspace_rule({{ workspace = \"{id}\", persistent = true }})"));
+        out.push(format!("hl.workspace_rule({{ workspace = \"{id}\", monitor = settings_gesture_monitor, persistent = true }})"));
     }
     let invert3 = set_lines(3, &g.three, loop_count, &mut out);
     let invert4 = set_lines(4, &g.four, loop_count, &mut out);
@@ -306,7 +309,7 @@ pub fn lua(g: &Gestures) -> Vec<String> {
         out.push(loop_redirect(count));
     }
     if out.iter().any(|l| l.contains(STEP_FN)) {
-        out.insert(count as usize, step_helper());
+        out.insert(count as usize + 1, step_helper());
     }
     if smooth_loop || out.iter().any(|l| l.contains(STEP_FN)) {
         // Slide in from the correct side when wrapping from the last to the first.
@@ -414,8 +417,8 @@ mod tests {
         assert!(line(&lines, 3, "horizontal").contains("action = \"workspace\""));
         assert!(!lines.iter().any(|l| l.contains("action = \"unset\"")));
         let r = lines.iter().find(|l| l.contains("settings-loop-start")).unwrap();
-        assert!(r.contains("workspace = \"name:settings-loop-start\", persistent = true"));
-        assert!(r.contains("workspace = \"11\", persistent = true"));
+        assert!(r.contains("workspace = \"name:settings-loop-start\", monitor = settings_gesture_monitor, persistent = true"));
+        assert!(r.contains("workspace = \"11\", monitor = settings_gesture_monitor, persistent = true"));
         assert!(r.contains("settings_loop_last == 1 and 5 or 1"));
         assert!(r.contains("settings_loop_last == 5 and 1 or 5"));
         assert!(lines.iter().any(|l| l.contains("workspace_wraparound = true")));
@@ -457,7 +460,10 @@ mod tests {
     fn keeps_bar_workspaces_and_stops_creating_new_ones() {
         let lines = lua(&Gestures { enabled: true, ..Gestures::default() });
         for id in 1..=5 {
-            assert!(lines.iter().any(|l| l == &format!("hl.workspace_rule({{ workspace = \"{id}\", persistent = true }})")));
+            assert!(lines.iter().any(|l| l
+                == &format!(
+                    "hl.workspace_rule({{ workspace = \"{id}\", monitor = settings_gesture_monitor, persistent = true }})"
+                )));
         }
         assert!(!lines.iter().any(|l| l.contains("workspace = \"6\"")));
         assert!(lines.iter().any(|l| l.contains("workspace_swipe_create_new = false")));

@@ -1,7 +1,7 @@
 [package]
-name = "nixe-goa-helper"
+name = "nyx-goa-helper"
 version = "0.1.0"
-description = "libgoa-backend helper for Nixe Settings add/reauth. Separate process so Settings does not link libadwaita."
+description = "libgoa-backend helper for Nyx Settings add/reauth. Separate process so Settings does not link libadwaita."
 edition.workspace = true
 license.workspace = true
 repository.workspace = true

@@ -57,7 +57,7 @@ fn finger_card(fingers: u8) -> gtk::Box {
     grid.set_row_spacing(8);
     grid.set_column_spacing(14);
     let dropdowns: Rc<std::cell::RefCell<Vec<(String, gtk::DropDown)>>> = Default::default();
-    let glimpse = cmd::present("nixe-glimpse") || gestures::DIRECTIONS.iter().any(|d| set.action(d) == "glimpse");
+    let glimpse = cmd::present("nyx-glimpse") || gestures::DIRECTIONS.iter().any(|d| set.action(d) == "glimpse");
     let installed = installed_apps();
 
     for (i, dir) in gestures::DIRECTIONS.iter().enumerate() {

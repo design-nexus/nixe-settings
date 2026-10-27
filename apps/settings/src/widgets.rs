@@ -1,7 +1,7 @@
-//! Nixe-style building blocks: pages, groups and option rows, plus rows bound
+//! Nyx-style building blocks: pages, groups and option rows, plus rows bound
 //! directly to Hyprland options.
 
-pub use nixe_ui::widgets::*;
+pub use nyx_ui::widgets::*;
 
 use crate::backend::{hypr, store};
 use crate::cmd;

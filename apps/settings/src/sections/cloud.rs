@@ -5,7 +5,7 @@ use crate::{
     window,
 };
 use gtk::{glib, prelude::*};
-use nixe_cloud::{Client, Remote, SetupSession};
+use nyx_cloud::{Client, Remote, SetupSession};
 use serde_json::{Value, json};
 use std::{
     cell::RefCell,
@@ -42,7 +42,7 @@ pub fn build(page: &Page) {
     accounts.add(&holder);
     cmd::background(
         || {
-            let accounts = nixe_accounts::Client::connect().ok().and_then(|c| c.list().ok()).unwrap_or_default();
+            let accounts = nyx_accounts::Client::connect().ok().and_then(|c| c.list().ok()).unwrap_or_default();
             Ok(Client::connect()?
                 .list()?
                 .into_iter()
@@ -62,7 +62,7 @@ pub fn build(page: &Page) {
                 }
                 Err(_) => {
                     holder.append(&widgets::banner(
-                        "Cloud Storage is unavailable. Install nixe-cloud and rclone, then retry.",
+                        "Cloud Storage is unavailable. Install nyx-cloud and rclone, then retry.",
                         true,
                     ));
                 }
@@ -135,7 +135,7 @@ pub(super) fn dialog(title: &str) -> (gtk::Window, gtk::Box) {
     body.set_margin_end(20);
     body.set_margin_top(20);
     body.set_margin_bottom(20);
-    let clamp = nixe_ui::clamp::Clamp::new(&body, WIDTH - 40);
+    let clamp = nyx_ui::clamp::Clamp::new(&body, WIDTH - 40);
     let scroll = gtk::ScrolledWindow::builder()
         .hscrollbar_policy(gtk::PolicyType::Never)
         .vscrollbar_policy(gtk::PolicyType::External)
@@ -252,7 +252,7 @@ fn discover() {
     body.append(&widgets::label("Looking for accounts…", "dim"));
     cmd::background(
         || Client::connect()?.discover(),
-        move |result: anyhow::Result<Vec<nixe_cloud::Discovery>>| {
+        move |result: anyhow::Result<Vec<nyx_cloud::Discovery>>| {
             clear(&body);
             match result {
                 Ok(remotes) => {
@@ -533,10 +533,10 @@ fn watch_once() {
             return;
         };
         let subscription = bus.subscribe_to_signal(
-            Some(nixe_cloud::BUS),
-            Some(nixe_cloud::BUS),
+            Some(nyx_cloud::BUS),
+            Some(nyx_cloud::BUS),
             Some("Changed"),
-            Some(nixe_cloud::PATH),
+            Some(nyx_cloud::PATH),
             None,
             gtk::gio::DBusSignalFlags::NONE,
             |_| {
@@ -612,10 +612,10 @@ pub fn append_for_account(body: &gtk::Box, id: &str) {
         let Ok(bus) = gtk::gio::bus_get_future(gtk::gio::BusType::Session).await else { return };
         let weak_callback = weak.clone();
         let subscription = bus.subscribe_to_signal(
-            Some(nixe_cloud::BUS),
-            Some(nixe_cloud::BUS),
+            Some(nyx_cloud::BUS),
+            Some(nyx_cloud::BUS),
             Some("Changed"),
-            Some(nixe_cloud::PATH),
+            Some(nyx_cloud::PATH),
             None,
             gtk::gio::DBusSignalFlags::NONE,
             move |_| {
@@ -721,14 +721,14 @@ fn service_controls(body: &gtk::Box, remote: &Remote) {
     let folder = field(
         body,
         "Dedicated cloud Notes folder",
-        if remote.notes.folder.is_empty() { "Nixe Notes" } else { &remote.notes.folder },
+        if remote.notes.folder.is_empty() { "Nyx Notes" } else { &remote.notes.folder },
         false,
     );
     body.append(&widgets::label("Cloud Notes keeps immutable Markdown revisions in this folder to protect simultaneous edits. Existing personal WebDAV sync settings remain available in Notes.","dim"));
     let save = gtk::Button::with_label("Save services");
     let remote = remote.clone();
     save.connect_clicked(move |button| {
-        let notes = nixe_cloud::NotesPreferences {
+        let notes = nyx_cloud::NotesPreferences {
             enabled: notes.is_active(),
             vault: vault.text().into(),
             folder: folder.text().trim().into(),

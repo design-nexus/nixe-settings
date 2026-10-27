@@ -108,7 +108,7 @@ impl Applier {
             move |r| {
                 me.busy.set(false);
                 if let Err(e) = r {
-                    eprintln!("nixe-settings: {e:#}");
+                    eprintln!("nyx-settings: {e:#}");
                 }
                 if me.again.replace(false) {
                     me.push();

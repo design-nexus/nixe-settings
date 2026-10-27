@@ -2,27 +2,27 @@
 //! fixed set of changes and nothing else: every argument is checked here, because the
 //! caller is a normal user's program.
 //!
-//!   nixe-settings-helper add-user NAME SHELL ADMIN(0|1)     password on stdin
-//!   nixe-settings-helper delete-user NAME KEEP_HOME(0|1)
-//!   nixe-settings-helper lock-user NAME | unlock-user NAME
-//!   nixe-settings-helper set-password NAME                  password on stdin
-//!   nixe-settings-helper set-shell NAME SHELL
-//!   nixe-settings-helper add-group NAME | delete-group NAME | rename-group OLD NEW
-//!   nixe-settings-helper rename-user OLD NEW MOVE_HOME(0|1) | set-fullname NAME TEXT
-//!   nixe-settings-helper add-member USER GROUP | remove-member USER GROUP
-//!   nixe-settings-helper firewall enable|disable|rules | allow PORT PROTO | delete N
-//!   nixe-settings-helper set-timezone ZONE | set-ntp 0|1 | set-time 'YYYY-MM-DD HH:MM:SS'
-//!   nixe-settings-helper enable-locale 'LOCALE CHARSET' | set-locale LOCALE | set-hostname NAME
-//!   nixe-settings-helper logind KEY VALUE | sleep-delay SECONDS
-//!   nixe-settings-helper service start|stop|restart|enable|disable|enable-now|disable-now UNIT
-//!   nixe-settings-helper printer-remove NAME | printer-add NAME URI | printer-set-uri NAME URI
-//!   nixe-settings-helper mount-add-net ID TYPE SOURCE DIR OPTIONS    SMB user, password, domain on stdin
-//!   nixe-settings-helper mount-test TYPE SOURCE OPTIONS              same stdin; mounts once, then not
-//!   nixe-settings-helper mount-add-drive ID UUID DIR TYPE OPTIONS
-//!   nixe-settings-helper mount-remove ID | mount-now DIR | unmount DIR | mkdir-mount DIR
-//!   nixe-settings-helper password-free on|off   no password for disks, mounts and cleanup
-//!   nixe-settings-helper clean-pkg-cache | remove-orphans | vacuum-journal SIZE
-//!   nixe-settings-helper --version              needs no root; Settings compares it
+//!   nyx-settings-helper add-user NAME SHELL ADMIN(0|1)     password on stdin
+//!   nyx-settings-helper delete-user NAME KEEP_HOME(0|1)
+//!   nyx-settings-helper lock-user NAME | unlock-user NAME
+//!   nyx-settings-helper set-password NAME                  password on stdin
+//!   nyx-settings-helper set-shell NAME SHELL
+//!   nyx-settings-helper add-group NAME | delete-group NAME | rename-group OLD NEW
+//!   nyx-settings-helper rename-user OLD NEW MOVE_HOME(0|1) | set-fullname NAME TEXT
+//!   nyx-settings-helper add-member USER GROUP | remove-member USER GROUP
+//!   nyx-settings-helper firewall enable|disable|rules | allow PORT PROTO | delete N
+//!   nyx-settings-helper set-timezone ZONE | set-ntp 0|1 | set-time 'YYYY-MM-DD HH:MM:SS'
+//!   nyx-settings-helper enable-locale 'LOCALE CHARSET' | set-locale LOCALE | set-hostname NAME
+//!   nyx-settings-helper logind KEY VALUE | sleep-delay SECONDS
+//!   nyx-settings-helper service start|stop|restart|enable|disable|enable-now|disable-now UNIT
+//!   nyx-settings-helper printer-remove NAME | printer-add NAME URI | printer-set-uri NAME URI
+//!   nyx-settings-helper mount-add-net ID TYPE SOURCE DIR OPTIONS    SMB user, password, domain on stdin
+//!   nyx-settings-helper mount-test TYPE SOURCE OPTIONS              same stdin; mounts once, then not
+//!   nyx-settings-helper mount-add-drive ID UUID DIR TYPE OPTIONS
+//!   nyx-settings-helper mount-remove ID | mount-now DIR | unmount DIR | mkdir-mount DIR
+//!   nyx-settings-helper password-free on|off   no password for disks, mounts and cleanup
+//!   nyx-settings-helper clean-pkg-cache | remove-orphans | vacuum-journal SIZE
+//!   nyx-settings-helper --version              needs no root; Settings compares it
 
 #[path = "../backend/passwd.rs"]
 mod passwd;
@@ -574,10 +574,10 @@ fn write_private(path: &str, text: &str) -> Result<()> {
 
 /// fstab replaced in one step, with a copy of the first version kept.
 fn write_fstab(text: &str) -> Result<()> {
-    if !std::path::Path::new("/etc/fstab.nixe-bak").exists() {
-        let _ = std::fs::copy("/etc/fstab", "/etc/fstab.nixe-bak");
+    if !std::path::Path::new("/etc/fstab.nyx-bak").exists() {
+        let _ = std::fs::copy("/etc/fstab", "/etc/fstab.nyx-bak");
     }
-    let tmp = "/etc/.fstab.nixe-new";
+    let tmp = "/etc/.fstab.nyx-new";
     std::fs::write(tmp, text).map_err(|e| e.to_string())?;
     std::fs::rename(tmp, "/etc/fstab").map_err(|e| e.to_string())?;
     let _ = exec("/usr/bin/systemctl", &["daemon-reload"], None);
@@ -681,11 +681,11 @@ fn mount_remove(id: &str) -> Result<String> {
 
 fn mount_test(fstype: &str, source: &str, options: &str) -> Result<String> {
     let creds = if fstype == "cifs" { smb_login()? } else { None };
-    let dir = format!("/run/nixe-settings-test-{}", std::process::id());
+    let dir = format!("/run/nyx-settings-test-{}", std::process::id());
     let mut opts: Vec<String> = options_list(options).into_iter().filter(|o| !o.starts_with("x-systemd") && o != "nofail" && o != "_netdev").collect();
     // Checked as a line would be, with a stand-in folder.
     mounts::network_line("test", fstype, source, "/mnt/test", &opts, false, std::path::Path::new("/nonexistent"))?;
-    let cred_file = format!("/run/nixe-settings-test-{}.cred", std::process::id());
+    let cred_file = format!("/run/nyx-settings-test-{}.cred", std::process::id());
     match &creds {
         Some(c) => {
             write_private(&cred_file, c)?;

@@ -23,7 +23,7 @@ fn run(args: &[String]) -> Result<()> {
                 println!("{reply}");
             }
         }
-        "theme-changed" => nixe_ext::lighting::theme_changed()?,
+        "theme-changed" => nyx_ext::lighting::theme_changed()?,
         "probe" => {
             let ask = !args.iter().any(|a| a == "--no-query");
             let report = probe::report(ask);

@@ -1,11 +1,11 @@
 //! Well-known locations. Every path honours the XDG overrides so the whole app
 //! can be pointed at a scratch copy of `~/.config` for testing.
 
-pub use nixe_core::paths::*;
+pub use nyx_core::paths::*;
 
 use std::path::PathBuf;
 
-/// `~/.local/share/nixe-settings/extensions` — one folder per installed extension.
+/// `~/.local/share/nyx-settings/extensions` — one folder per installed extension.
 pub fn ext_dir() -> PathBuf {
     data_dir().join("extensions")
 }

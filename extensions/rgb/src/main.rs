@@ -5,9 +5,9 @@
 //! one per device.
 
 use anyhow::{Context, Result, bail};
-use nixe_ext::openrgb::{self, Client, Rgb};
-use nixe_ext::page::{self, Page, desc};
-use nixe_ext::{Extension, lighting, sys};
+use nyx_ext::openrgb::{self, Client, Rgb};
+use nyx_ext::page::{self, Page, desc};
+use nyx_ext::{Extension, lighting, sys};
 use serde_json::{Value, json};
 
 const ALL: &str = "all";
@@ -103,7 +103,7 @@ impl Extension for Rgbx {
                 for d in &devices {
                     openrgb::set_colour(&mut c, d, colour)?;
                 }
-                Ok(nixe_ext::toast(&format!("{} devices set", devices.len())))
+                Ok(nyx_ext::toast(&format!("{} devices set", devices.len())))
             }
             "profile/save" => {
                 let name = value.trim();
@@ -111,11 +111,11 @@ impl Extension for Rgbx {
                     bail!("Give the profile a name");
                 }
                 c.save_profile(name)?;
-                Ok(nixe_ext::refresh())
+                Ok(nyx_ext::refresh())
             }
             "profile/load" => {
                 c.load_profile(value)?;
-                Ok(nixe_ext::toast(&format!("Loaded {value}")))
+                Ok(nyx_ext::toast(&format!("Loaded {value}")))
             }
             _ => bail!("unknown setting {key}"),
         }
@@ -127,5 +127,5 @@ impl Extension for Rgbx {
 }
 
 fn main() {
-    nixe_ext::run(&Rgbx);
+    nyx_ext::run(&Rgbx);
 }

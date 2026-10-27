@@ -7,14 +7,14 @@ mod input;
 
 use anyhow::{Context, Result, bail};
 use input::Pad;
-use nixe_ext::page::{self, Page};
-use nixe_ext::{Extension, access, sys};
+use nyx_ext::page::{self, Page};
+use nyx_ext::{Extension, access, sys};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
 /// PlayStation controllers' lights are root's until this rule lets the user write them.
 static RULE: access::Rule = access::Rule {
-    file: "47-nixe-controllers.rules",
+    file: "47-nyx-controllers.rules",
     text: "# Written by Settings: lets the signed-in user set game controllers' lights.\n\
 SUBSYSTEM==\"leds\", KERNEL==\"*:rgb:indicator\", RUN+=\"/bin/chmod 0666 /sys%p/brightness /sys%p/multi_intensity\"\n\
 SUBSYSTEM==\"leds\", KERNEL==\"*:white:player-*\", RUN+=\"/bin/chmod 0666 /sys%p/brightness\"\n",
@@ -169,7 +169,7 @@ impl Extension for Controllers {
     fn set(&self, id: &str, key: &str, value: &str) -> Result<Option<Value>> {
         if key == "access" {
             RULE.install()?;
-            return Ok(nixe_ext::refresh());
+            return Ok(nyx_ext::refresh());
         }
         let pad = input::pads().into_iter().find(|p| p.id() == id).context("that controller isn't connected any more")?;
         match key {
@@ -203,7 +203,7 @@ impl Extension for Controllers {
 }
 
 fn main() {
-    nixe_ext::run(&Controllers);
+    nyx_ext::run(&Controllers);
 }
 
 #[cfg(test)]

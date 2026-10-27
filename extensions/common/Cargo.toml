@@ -1,5 +1,5 @@
 [package]
-name = "nixe-ext"
+name = "nyx-ext"
 version = "0.1.0"
 description = "What every Settings extension shares: pages, commands, device access, OpenRGB"
 license = "MIT"

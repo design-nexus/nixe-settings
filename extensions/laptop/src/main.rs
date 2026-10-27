@@ -7,13 +7,13 @@
 //! stays out of the way.
 
 use anyhow::{Context, Result, bail};
-use nixe_ext::page::{self, Page, desc, refreshes};
-use nixe_ext::{Extension, sys};
+use nyx_ext::page::{self, Page, desc, refreshes};
+use nyx_ext::{Extension, sys};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
 const PAGE: &str = "laptop";
-const RULE: &str = "/etc/udev/rules.d/46-nixe-battery.rules";
+const RULE: &str = "/etc/udev/rules.d/46-nyx-battery.rules";
 
 fn battery() -> Option<PathBuf> {
     let rd = std::fs::read_dir("/sys/class/power_supply").ok()?;
@@ -30,7 +30,7 @@ fn kbd_backlight() -> Option<PathBuf> {
 
 /// An ASUS that the ASUS extension looks after.
 fn asus_handled() -> bool {
-    if std::env::var_os("NIXE_LAPTOP_SHOW").is_some() {
+    if std::env::var_os("NYX_LAPTOP_SHOW").is_some() {
         return false;
     }
     sys::read("/sys/class/dmi/id/sys_vendor").is_some_and(|v| v.to_uppercase().contains("ASUS")) && sys::present("asusctl")
@@ -59,7 +59,7 @@ fn rule_text(name: &str, start: Option<i64>, end: Option<i64>) -> String {
 fn set_limits(bat: &Path, start: Option<i64>, end: Option<i64>) -> Result<()> {
     let name = bat.file_name().context("no battery")?.to_string_lossy().to_string();
     let dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    let tmp = dir.join("46-nixe-battery.rules");
+    let tmp = dir.join("46-nyx-battery.rules");
     std::fs::write(&tmp, rule_text(&name, start, end))?;
     // Lowering the stop limit below the start limit is refused: change start first.
     let mut script = String::new();
@@ -211,7 +211,7 @@ impl Extension for Laptop {
                     start = Some((e - 5).max(0));
                 }
                 set_limits(&bat, start, end)?;
-                Ok(if key == "full" { nixe_ext::toast("Charging to 100% until you set a limit again") } else { nixe_ext::refresh() })
+                Ok(if key == "full" { nyx_ext::toast("Charging to 100% until you set a limit again") } else { nyx_ext::refresh() })
             }
             "profile" => {
                 sys::run("powerprofilesctl", &["set", value])?;
@@ -235,7 +235,7 @@ impl Extension for Laptop {
                 let on = value == "true";
                 sys::run_root("modprobe", if on { &["uvcvideo"][..] } else { &["-r", "uvcvideo"][..] })
                     .map_err(|e| if on { e } else { e.context("an app is probably using the camera; close it first") })?;
-                Ok(nixe_ext::refresh())
+                Ok(nyx_ext::refresh())
             }
             _ => bail!("unknown setting {key}"),
         }
@@ -249,7 +249,7 @@ fn has_camera() -> bool {
 }
 
 fn main() {
-    nixe_ext::run(&Laptop);
+    nyx_ext::run(&Laptop);
 }
 
 #[cfg(test)]

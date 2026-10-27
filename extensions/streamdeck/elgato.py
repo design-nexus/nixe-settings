@@ -1,6 +1,6 @@
 """Elgato Stream Decks for the Stream Deck page: setup (packages, device
-access, the nixe-deck service), brightness, profiles and pages, and what each
-key does. nixe-deck (beside this file) runs the deck itself."""
+access, the nyx-deck service), brightness, profiles and pages, and what each
+key does. nyx-deck (beside this file) runs the deck itself."""
 
 import glob
 import os
@@ -11,12 +11,12 @@ import tomllib
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 HOME = os.path.expanduser("~")
-CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "nixe-deck")
+CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "nyx-deck")
 CONFIG = os.path.join(CONF, "config.toml")
 PROFILES = os.path.join(CONF, "profiles")
-UNIT = "nixe-deck.service"
+UNIT = "nyx-deck.service"
 UNIT_FILE = os.path.join(HOME, ".config/systemd/user", UNIT)
-UDEV_RULE = "/etc/udev/rules.d/71-nixe-elgato.rules"
+UDEV_RULE = "/etc/udev/rules.d/71-nyx-elgato.rules"
 RULE_TEXT = (
     "# Written by Settings: lets the signed-in user run Elgato Stream Decks.\n"
     'SUBSYSTEMS=="usb", ATTRS{idVendor}=="0fd9", TAG+="uaccess"\n'
@@ -187,7 +187,7 @@ def describe(state):
     cfg = read_toml(CONFIG)
     groups.append({"title": "Stream Deck", "rows": [
         {"kind": "switch", "key": "elgato-run", "title": "Running", "value": service_active(),
-         "desc": "nixe-deck runs the deck in the background, and starts at every sign-in."},
+         "desc": "nyx-deck runs the deck in the background, and starts at every sign-in."},
         {"kind": "slider", "key": "elgato-brightness", "title": "Brightness", "value": int(cfg.get("brightness", 70)),
          "min": 0, "max": 100, "step": 5, "unit": " %", "on_release": True},
     ]})
@@ -232,7 +232,7 @@ def write_config(key, value):
 
 def unit_text():
     return ("[Unit]\nDescription=Elgato Stream Deck (Settings)\nAfter=graphical-session.target\n\n"
-            f"[Service]\nExecStart=/usr/bin/python3 {os.path.join(HERE, 'nixe-deck')}\nRestart=on-failure\nRestartSec=5\n\n"
+            f"[Service]\nExecStart=/usr/bin/python3 {os.path.join(HERE, 'nyx-deck')}\nRestart=on-failure\nRestartSec=5\n\n"
             "[Install]\nWantedBy=default.target\n")
 
 

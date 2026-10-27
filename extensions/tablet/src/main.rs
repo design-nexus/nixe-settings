@@ -1,19 +1,19 @@
 //! Drawing tablets (Wacom, XP-Pen, Huion and others): which screen the pen
 //! draws on, the part of the tablet that's used, left-handed and mouse-like
 //! use. Hyprland does the work; these settings live in
-//! `~/.config/hypr/nixe-tablet.lua`, loaded from `hyprland.lua`, and apply at once.
+//! `~/.config/hypr/nyx-tablet.lua`, loaded from `hyprland.lua`, and apply at once.
 
 use anyhow::{Context, Result, bail};
-use nixe_ext::page::{self, Page, desc, refreshes};
-use nixe_ext::{Extension, sys};
+use nyx_ext::page::{self, Page, desc, refreshes};
+use nyx_ext::{Extension, sys};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
 const PAGE: &str = "tablet";
-const REQUIRE: &str = "require(\"hypr.nixe-tablet\") -- Drawing tablets (Settings)";
+const REQUIRE: &str = "require(\"hypr.nyx-tablet\") -- Drawing tablets (Settings)";
 
 fn lua_file() -> PathBuf {
-    sys::home().join(".config/hypr/nixe-tablet.lua")
+    sys::home().join(".config/hypr/nyx-tablet.lua")
 }
 
 fn state_file() -> PathBuf {
@@ -130,7 +130,7 @@ fn apply(s: &Settings) -> Result<()> {
     std::fs::write(lua_file(), format!("-- Written by Settings (Drawing tablets). Change it there.\n{code}\n"))?;
     let main = sys::home().join(".config/hypr/hyprland.lua");
     if let Ok(text) = std::fs::read_to_string(&main)
-        && !text.contains("hypr.nixe-tablet")
+        && !text.contains("hypr.nyx-tablet")
     {
         // Before Settings' own file, which is loaded last.
         let new = match text.find("require(\"hypr.settings\")") {
@@ -219,7 +219,7 @@ impl Extension for Tablet {
 }
 
 fn main() {
-    nixe_ext::run(&Tablet);
+    nyx_ext::run(&Tablet);
 }
 
 #[cfg(test)]

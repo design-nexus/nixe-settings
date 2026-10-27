@@ -3,8 +3,8 @@
 use crate::usb::{self, Access, Device};
 use crate::{access, models};
 use anyhow::{Result, bail};
-use nixe_ext::lighting;
-use nixe_ext::openrgb;
+use nyx_ext::lighting;
+use nyx_ext::openrgb;
 use serde_json::{Value, json};
 use std::process::Command;
 

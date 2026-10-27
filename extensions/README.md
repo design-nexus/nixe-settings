@@ -1,10 +1,10 @@
 # Settings Extensions
 
-Device and app support for [Settings](../apps/settings), the Nixe control panel,
+Device and app support for [Settings](../apps/settings), the Nyx control panel,
 installed from **Settings → Extensions** or the command line:
 
 ```sh
-nixe-settings --ext install asus
+nyx-settings --ext install asus
 ```
 
 Each extension adds pages drawn with the same controls as the rest of Settings.
@@ -27,10 +27,10 @@ Hardware-specific pages appear when matching hardware is found.
 | `monitors` | External monitors over DDC/CI: brightness, contrast, volume, input, colour preset, power | `ddcutil` |
 | `nvidia` | NVIDIA graphics: temperature, use, memory, clocks, power, the programs using it, power limit, persistence mode | `nvidia-smi` |
 | `webcam` | USB webcams (OBSBOT, Logitech, Elgato…): live preview, microphone level, mic options (never idle, default, unmuted), zoom, framing and saved pan/tilt positions, focus, exposure, white balance; keep OBSBOT Tiny 3 cameras awake (vendor commands from [obsbot-tiny3-linux](https://github.com/joshualambert/obsbot-tiny3-linux)) | `v4l2-ctl`, `ffmpeg` |
-| `streamdeck` | Elgato Stream Decks (run by nixe-deck) and the Galleon 100 SD's built-in deck (via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck)): keys, profiles, pages, brightness, dials | `python3` |
+| `streamdeck` | Elgato Stream Decks (run by nyx-deck) and the Galleon 100 SD's built-in deck (via [galleon-deck](https://github.com/NLMP-DDHS/galleon-deck)): keys, profiles, pages, brightness, dials | `python3` |
 
 Rust extensions share `common/` (pages, commands, device access, OpenRGB) and its
-`install-rust.sh`, which fetches a release build (`ext-<id>-v<version>` in nixe) or
+`install-rust.sh`, which fetches a release build (`ext-<id>-v<version>` in nyx) or
 builds from source.
 
 `index.json` is the catalog Settings reads. Each entry names this repository and the extension's folder (`extensions/<id>`); Settings checks out only that folder, plus any listed in `also` (shared code).
@@ -38,16 +38,16 @@ builds from source.
 ## Command line
 
 ```
-nixe-settings --ext list                  catalog, and what's installed
-nixe-settings --ext install ID            from the catalog
-nixe-settings --ext install URL [FOLDER]  any git repository (FOLDER: the extension's folder in it)
-nixe-settings --ext update [ID]
-nixe-settings --ext disable ID            turn off without removing (pages hidden)
-nixe-settings --ext enable ID
-nixe-settings --ext remove ID
+nyx-settings --ext list                  catalog, and what's installed
+nyx-settings --ext install ID            from the catalog
+nyx-settings --ext install URL [FOLDER]  any git repository (FOLDER: the extension's folder in it)
+nyx-settings --ext update [ID]
+nyx-settings --ext disable ID            turn off without removing (pages hidden)
+nyx-settings --ext enable ID
+nyx-settings --ext remove ID
 ```
 
-Extensions live in `~/.local/share/nixe-settings/extensions/<id>`. Each one can be
+Extensions live in `~/.local/share/nyx-settings/extensions/<id>`. Each one can be
 turned off on the Extensions page, which hides its pages without removing it.
 
 ## Writing an extension

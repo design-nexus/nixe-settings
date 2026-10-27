@@ -3,7 +3,7 @@
 use crate::widgets::{self, Page};
 use crate::{cmd, window};
 use gtk::prelude::*;
-use nixe_accounts::{self as goa, Account, Error, ServiceState};
+use nyx_accounts::{self as goa, Account, Error, ServiceState};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -300,7 +300,7 @@ fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, f
             let account_id = account_id.clone();
             cmd::background(
                 move || {
-                    if let Ok(cloud) = nixe_cloud::Client::connect() {
+                    if let Ok(cloud) = nyx_cloud::Client::connect() {
                         let remotes = cloud.list().map_err(|_| Error::Unavailable)?;
                         for r in remotes.into_iter().filter(|r| r.account_id.as_deref() == Some(&account_id)) {
                             cloud.remove(&r.id, r.managed).map_err(|_| Error::Unavailable)?;
@@ -436,33 +436,33 @@ fn cancel_job() {
     });
 }
 
-/// The installed Nixe app that uses a service, for its switch.
+/// The installed Nyx app that uses a service, for its switch.
 fn used_by(service: &goa::Service) -> String {
     let app = match service {
-        goa::Service::Mail => ("nixe-mail", "Mail"),
-        goa::Service::Calendar => ("nixe-calendar", "Calendar"),
-        goa::Service::Tasks => ("nixe-reminders", "Reminders"),
-        goa::Service::Contacts => ("nixe-contacts", "Contacts"),
+        goa::Service::Mail => ("nyx-mail", "Mail"),
+        goa::Service::Calendar => ("nyx-calendar", "Calendar"),
+        goa::Service::Tasks => ("nyx-reminders", "Reminders"),
+        goa::Service::Contacts => ("nyx-contacts", "Contacts"),
         _ => return String::new(),
     };
     if goa::find_bin(app.0).is_some() { format!("Used by {}", app.1) } else { String::new() }
 }
 
-/// What Nixe Mail and Calendar can and can't do with a Microsoft 365 account.
+/// What Nyx Mail and Calendar can and can't do with a Microsoft 365 account.
 fn microsoft_note(account: &Account) -> Option<String> {
     if account.provider_type != "ms_graph" {
         return None;
     }
     let mut parts = Vec::new();
-    if goa::find_bin("nixe-mail").is_some() {
+    if goa::find_bin("nyx-mail").is_some() {
         parts.push("Mail can't use Microsoft 365 mail yet.".to_string());
     }
     let modules = std::path::Path::new("/usr/lib/evolution-data-server/registry-modules");
     let ews = ["module-microsoft365-backend.so", "module-ews-backend.so"].iter().any(|m| modules.join(m).exists());
     if !ews
-        && (goa::find_bin("nixe-calendar").is_some()
-            || goa::find_bin("nixe-reminders").is_some()
-            || goa::find_bin("nixe-contacts").is_some())
+        && (goa::find_bin("nyx-calendar").is_some()
+            || goa::find_bin("nyx-reminders").is_some()
+            || goa::find_bin("nyx-contacts").is_some())
     {
         parts.push("Calendar and Contacts need <b>evolution-ews</b> installed.".to_string());
     }

@@ -7,7 +7,7 @@ authors = ["Ken Smith"]
 edition = "2024"
 
 [dependencies]
-nixe-ext = { path = "../common" }
+nyx-ext = { path = "../common" }
 anyhow = "1.0.104"
 libc = "0.2"
 serde_json = { version = "1.0.151", features = ["preserve_order"] }

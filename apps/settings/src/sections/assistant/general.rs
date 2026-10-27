@@ -31,7 +31,7 @@ fn service_button(label: &str, action: &'static str) -> gtk::Button {
     b
 }
 
-/// Run `nixe-assistant ARGS…` off the main thread; redraw the page when it's done.
+/// Run `nyx-assistant ARGS…` off the main thread; redraw the page when it's done.
 fn run_then_redraw(args: Vec<String>, failed: &'static str) {
     cmd::background(
         move || client::run(&args.iter().map(String::as_str).collect::<Vec<_>>()),
@@ -46,7 +46,7 @@ fn run_then_redraw(args: Vec<String>, failed: &'static str) {
 
 /// (id, name) of each saved persona.
 fn personas() -> Vec<(String, String)> {
-    let dir = paths::config_home().join("nixe-assistant/personas");
+    let dir = paths::config_home().join("nyx-assistant/personas");
     let Ok(rd) = std::fs::read_dir(dir) else { return Vec::new() };
     let mut out: Vec<(String, String)> = rd
         .flatten()
@@ -124,7 +124,7 @@ pub fn build(page: &Page) {
         g.add(&r);
     }
     let (r, _) = widgets::button_row("Check everything", "Runs the assistant's own checks in a terminal: models, audio, browser and search.", "Check", |_| {
-        cmd::spawn(&["xdg-terminal-exec", "bash", "-c", "nixe-assistant doctor; echo; read -rp 'Press Enter to close'"]);
+        cmd::spawn(&["xdg-terminal-exec", "bash", "-c", "nyx-assistant doctor; echo; read -rp 'Press Enter to close'"]);
     });
     g.add(&r);
     widgets::keywords("start stop restart service mute doctor");

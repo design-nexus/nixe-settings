@@ -2,8 +2,8 @@
   "application": "settings",
   "directory": "settings",
   "packages": [
-    "nixe-settings",
-    "nixe-goa-helper"
+    "nyx-settings",
+    "nyx-goa-helper"
   ],
   "manifest": "Cargo.toml",
   "prepare": [],
@@ -14,9 +14,9 @@
       "test",
       "--locked",
       "-p",
-      "nixe-settings",
+      "nyx-settings",
       "--bin",
-      "nixe-settings"
+      "nyx-settings"
     ]
   ]
 }

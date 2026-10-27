@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/settings", "crates/nixe-goa-helper"]
+members = ["apps/settings", "crates/nyx-goa-helper"]
 
 exclude = ["extensions"]
 
@@ -8,7 +8,7 @@ exclude = ["extensions"]
 edition = "2024"
 license = "MIT"
 authors = ["Ken Smith"]
-repository = "https://github.com/design-nexus/nixe-settings"
+repository = "https://github.com/design-nexus/nyx-settings"
 
 [profile.release]
 lto = "thin"

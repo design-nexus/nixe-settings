@@ -16,11 +16,11 @@ pub const REQUIRE_LINE: &str = "require(\"hypr.settings\") -- Settings app (mana
 
 /// Absolute path of this binary as other programs should call it.
 pub fn self_command() -> String {
-    let installed = paths::home().join(".local/bin/nixe-settings");
+    let installed = paths::home().join(".local/bin/nyx-settings");
     if installed.exists() {
         return installed.to_string_lossy().into();
     }
-    std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "nixe-settings".into())
+    std::env::current_exe().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "nyx-settings".into())
 }
 
 pub fn generate(state: &State, self_cmd: &str) -> String {

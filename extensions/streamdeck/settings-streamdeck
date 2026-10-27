@@ -26,7 +26,7 @@ except ImportError:  # Python 3.10
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, HERE)
-import elgato  # noqa: E402  Elgato Stream Decks, run by nixe-deck
+import elgato  # noqa: E402  Elgato Stream Decks, run by nyx-deck
 VENDOR = os.path.join(HERE, "vendor", "galleon-deck")
 HOME = os.path.expanduser("~")
 CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "galleon-deck")

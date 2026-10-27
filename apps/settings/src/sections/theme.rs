@@ -283,7 +283,7 @@ pub fn build(page: &Page) {
         glib::ControlFlow::Continue
     });
     g.add(&widgets::row("Current colors", "", Some(swatches.upcast_ref())));
-    g.add(&nixe_ui::widgets::accent_row("settings"));
+    g.add(&nyx_ui::widgets::accent_row("settings"));
     widgets::keywords("accent colour color swatch highlight");
 
     let (r, _) = widgets::switch_row("Glow", "Soft accent glow around focused and selected elements.", p.glow, |on| {
@@ -310,8 +310,8 @@ pub fn build(page: &Page) {
     );
     widgets::keywords("fahrenheit celsius degrees units temperature");
     g.add(&r);
-    // Shared by every Nixe app, like the theme.
-    g.add(&nixe_ui::widgets::start_row());
+    // Shared by every Nyx app, like the theme.
+    g.add(&nyx_ui::widgets::start_row());
     widgets::keywords("start startup launch first page home remember last open on");
 }
 

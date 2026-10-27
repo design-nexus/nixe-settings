@@ -195,7 +195,7 @@ def pages():
 # ---------------------------------------------------------------- options
 
 def positions_file():
-    state = os.environ.get("SETTINGS_EXTENSION_STATE") or os.path.join(os.path.expanduser("~"), ".local/state/nixe-webcam")
+    state = os.environ.get("SETTINGS_EXTENSION_STATE") or os.path.join(os.path.expanduser("~"), ".local/state/nyx-webcam")
     os.makedirs(state, exist_ok=True)
     return os.path.join(state, "positions.json")
 

@@ -1,4 +1,4 @@
-/* libgoa-backend add/list/refresh. Runs in its own process so Nixe Settings
+/* libgoa-backend add/list/refresh. Runs in its own process so Nyx Settings
  * never links libadwaita. Does not print tokens. */
 
 #include <goa/goa.h>
@@ -229,7 +229,7 @@ cmd_refresh(const char *id)
 }
 
 int
-nixe_goa_run(int argc, char **argv)
+nyx_goa_run(int argc, char **argv)
 {
     if (argc >= 2 && strcmp(argv[1], "list") == 0) {
         return cmd_list();
@@ -240,6 +240,6 @@ nixe_goa_run(int argc, char **argv)
     if (argc >= 3 && strcmp(argv[1], "refresh") == 0) {
         return cmd_refresh(argv[2]);
     }
-    fprintf(stderr, "usage: nixe-goa-helper list | add TYPE | refresh ID\n");
+    fprintf(stderr, "usage: nyx-goa-helper list | add TYPE | refresh ID\n");
     return 1;
 }

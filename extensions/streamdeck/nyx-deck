@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""nixe-deck: runs Elgato Stream Decks for Settings' Stream Deck page.
+"""nyx-deck: runs Elgato Stream Decks for Settings' Stream Deck page.
 
-Profiles are TOML files in ~/.config/nixe-deck/profiles/, the same shape the
+Profiles are TOML files in ~/.config/nyx-deck/profiles/, the same shape the
 page edits for the Galleon:
 
     start_page = "main"
@@ -11,7 +11,7 @@ page edits for the Galleon:
 
 A key does one thing: `key` (a key), `keys` (a shortcut), `exec` (a command),
 `media` (play-pause, next, previous, stop), `page` or `profile`. The Stream
-Deck + dials change the volume; pressing one mutes. ~/.config/nixe-deck/config.toml
+Deck + dials change the volume; pressing one mutes. ~/.config/nyx-deck/config.toml
 holds `brightness` (0–100) and `start_profile`.
 
 Needs python-elgato-streamdeck and python-pillow; shortcuts are typed with
@@ -27,10 +27,10 @@ import time
 import tomllib
 
 HOME = os.path.expanduser("~")
-CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "nixe-deck")
+CONF = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "nyx-deck")
 CONFIG = os.path.join(CONF, "config.toml")
 PROFILES = os.path.join(CONF, "profiles")
-STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local/state"), "nixe-deck")
+STATE = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local/state"), "nyx-deck")
 
 
 def read_toml(path):
@@ -207,7 +207,7 @@ def main():
     try:
         from StreamDeck.DeviceManager import DeviceManager
     except ImportError:
-        sys.exit("nixe-deck needs python-elgato-streamdeck")
+        sys.exit("nyx-deck needs python-elgato-streamdeck")
     decks = [Deck(d) for d in DeviceManager().enumerate()]
     if not decks:
         sys.exit("No Elgato Stream Deck found")

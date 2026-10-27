@@ -3,8 +3,8 @@
 //! lighting effects and brightness.
 
 use anyhow::{Context, Result, bail};
-use nixe_ext::page::{self, Page, desc, refreshes};
-use nixe_ext::{Extension, sys};
+use nyx_ext::page::{self, Page, desc, refreshes};
+use nyx_ext::{Extension, sys};
 use serde_json::{Value, json};
 
 const SETUP: &str = "setup";
@@ -183,7 +183,7 @@ impl Extension for Razer {
             let user = std::env::var("USER").context("who am I?")?;
             sys::run_root("gpasswd", &["-a", &user, "plugdev"])?;
             let _ = sys::run("systemctl", &["--user", "enable", "--now", "openrazer-daemon.service"]);
-            return Ok(nixe_ext::reload("Done: sign out and back in to finish"));
+            return Ok(nyx_ext::reload("Done: sign out and back in to finish"));
         }
         let p = format!("/org/razer/device/{id}");
         if !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
@@ -236,7 +236,7 @@ fn razer_plugged_in() -> bool {
 }
 
 fn main() {
-    nixe_ext::run(&Razer);
+    nyx_ext::run(&Razer);
 }
 
 #[cfg(test)]

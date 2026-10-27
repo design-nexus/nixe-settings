@@ -1,6 +1,6 @@
 //! This app's own preferences (`~/.config/settings/settings.toml`).
 
-pub use nixe_theme::ThemeMode;
+pub use nyx_theme::ThemeMode;
 
 use crate::{cmd, paths};
 use serde::{Deserialize, Serialize};
@@ -28,7 +28,7 @@ pub struct Prefs {
     pub temp_unit: TempUnit,
     pub last_section: String,
     /// Where Settings opened before the suite-wide "Open on" (`home`, `last`);
-    /// `suite` once carried over to `~/.config/nixe/theme.toml`.
+    /// `suite` once carried over to `~/.config/nyx/theme.toml`.
     pub open_on: String,
     /// Installed extensions that are turned off: kept, but their pages are hidden.
     pub disabled_extensions: Vec<String>,

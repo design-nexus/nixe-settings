@@ -2,7 +2,7 @@
 
 mod backend;
 mod charts;
-use nixe_ui::clamp;
+use nyx_ui::clamp;
 mod cmd;
 mod control;
 mod dialog;
@@ -23,9 +23,9 @@ mod window;
 use gtk::prelude::*;
 use gtk::{gio, glib};
 
-const APP_ID: &str = "io.github.design_nexus.nixe.Settings";
+const APP_ID: &str = "io.github.design_nexus.nyx.Settings";
 
-const USAGE: &str = "Usage: nixe-settings [--section ID] [--volume raise|lower|+N|-N] [--eq on|off|toggle|status] [--apply]\n\
+const USAGE: &str = "Usage: nyx-settings [--section ID] [--volume raise|lower|+N|-N] [--eq on|off|toggle|status] [--apply]\n\
 \n\
   --section ID   open (or switch the open window) to a page, e.g. audio, trackpad\n\
   --volume STEP  change the output volume, allowing past 100% up to the maximum set in Sound\n\
@@ -40,8 +40,8 @@ const USAGE: &str = "Usage: nixe-settings [--section ID] [--volume raise|lower|+
   --apply        rewrite ~/.config/hypr/settings.lua from saved state and exit\n";
 
 fn main() -> glib::ExitCode {
-    nixe_core::app::init(nixe_core::app::App { slug: "nixe-settings", name: "Settings" });
-    nixe_core::migrate::from(&["settings"]);
+    nyx_core::app::init(nyx_core::app::App { slug: "nyx-settings", name: "Settings" });
+    nyx_core::migrate::from(&["settings"]);
     let args: Vec<String> = std::env::args().collect();
 
     // Headless commands never touch GTK.
@@ -51,7 +51,7 @@ fn main() -> glib::ExitCode {
         return match backend::audio::step_volume(step, max) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -69,7 +69,7 @@ fn main() -> glib::ExitCode {
         return match backend::kbdidle::apply(&backend::kbdidle::Config { timeout_secs }) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -78,7 +78,7 @@ fn main() -> glib::ExitCode {
         return match backend::accounts::install_helper() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -87,7 +87,7 @@ fn main() -> glib::ExitCode {
         return match backend::updates::cli(&args[i + 1..]) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -96,7 +96,7 @@ fn main() -> glib::ExitCode {
         return match ext::manage::cli(&args[i + 1..]) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -106,7 +106,7 @@ fn main() -> glib::ExitCode {
         return match backend::themehook::sync() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -115,7 +115,7 @@ fn main() -> glib::ExitCode {
         return match backend::kbdidle::run_daemon() {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -142,7 +142,7 @@ fn main() -> glib::ExitCode {
         return match result {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -152,7 +152,7 @@ fn main() -> glib::ExitCode {
         return match backend::hypr::write(&state) {
             Ok(()) => glib::ExitCode::SUCCESS,
             Err(e) => {
-                eprintln!("nixe-settings: {e:#}");
+                eprintln!("nyx-settings: {e:#}");
                 glib::ExitCode::FAILURE
             }
         };
@@ -168,8 +168,8 @@ fn main() -> glib::ExitCode {
         flags |= gio::ApplicationFlags::NON_UNIQUE;
     }
     let app = gtk::Application::builder().application_id(APP_ID).flags(flags).build();
-    // Nixe Assistant lists and shows pages through this; it changes nothing (primary instance only).
-    app.connect_startup(|app| nixe_core::control::serve(app, control::tools(), control::handle));
+    // Nyx Assistant lists and shows pages through this; it changes nothing (primary instance only).
+    app.connect_startup(|app| nyx_core::control::serve(app, control::tools(), control::handle));
     app.connect_command_line(|app, cl| {
         let argv: Vec<String> = cl.arguments().iter().map(|a| a.to_string_lossy().to_string()).collect();
         let section = argv.iter().position(|a| a == "--section").and_then(|i| argv.get(i + 1)).cloned();

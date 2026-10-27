@@ -17,8 +17,8 @@ BarWidget {
     horizontalMargin: 7.5
     onPressed: function(button) {
       if (!root.bar) return
-      if (button === Qt.RightButton) root.bar.run("nixe-settings --section audio")
-      else root.bar.run("nixe-settings")
+      if (button === Qt.RightButton) root.bar.run("nyx-settings --section audio")
+      else root.bar.run("nyx-settings")
     }
   }
 }

@@ -1,4 +1,4 @@
-"""Tests for the Elgato page (elgato.py) and nixe-deck's shortcut typing.
+"""Tests for the Elgato page (elgato.py) and nyx-deck's shortcut typing.
 Run: python3 -m unittest test_elgato.py (uses a throwaway config folder)."""
 
 import importlib.machinery
@@ -14,8 +14,8 @@ os.environ["XDG_CONFIG_HOME"] = TMP
 sys.path.insert(0, HERE)
 import elgato  # noqa: E402
 
-loader = importlib.machinery.SourceFileLoader("nixe_deck", os.path.join(HERE, "nixe-deck"))
-spec = importlib.util.spec_from_loader("nixe_deck", loader)
+loader = importlib.machinery.SourceFileLoader("nyx_deck", os.path.join(HERE, "nyx-deck"))
+spec = importlib.util.spec_from_loader("nyx_deck", loader)
 deck = importlib.util.module_from_spec(spec)
 loader.exec_module(deck)
 

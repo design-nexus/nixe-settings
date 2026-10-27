@@ -6,7 +6,7 @@ use std::os::raw::{c_char, c_int};
 
 #[cfg(has_goa_backend)]
 unsafe extern "C" {
-    fn nixe_goa_run(argc: c_int, argv: *const *const c_char) -> c_int;
+    fn nyx_goa_run(argc: c_int, argv: *const *const c_char) -> c_int;
 }
 
 fn main() {
@@ -19,7 +19,7 @@ fn main() {
     {
         let args: Vec<CString> = env::args().map(|a| CString::new(a).expect("arg")).collect();
         let ptrs: Vec<*const c_char> = args.iter().map(|c| c.as_ptr()).collect();
-        let rc = unsafe { nixe_goa_run(ptrs.len() as c_int, ptrs.as_ptr()) };
+        let rc = unsafe { nyx_goa_run(ptrs.len() as c_int, ptrs.as_ptr()) };
         std::process::exit(rc);
     }
 }

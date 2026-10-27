@@ -93,7 +93,7 @@ fn load(st: &Shared, quiet: bool) {
                 }
                 // A failed poll keeps what's shown; a failed first load says why.
                 Err(e) if !quiet || st.last.borrow().is_empty() => show_error(&st, &e),
-                Err(e) => eprintln!("nixe-settings: {e}"),
+                Err(e) => eprintln!("nyx-settings: {e}"),
             }
         },
     );

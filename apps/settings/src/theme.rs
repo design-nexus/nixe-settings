@@ -1,6 +1,6 @@
-//! Theming: the shared Nixe theme engine, given this app's stylesheet.
+//! Theming: the shared Nyx theme engine, given this app's stylesheet.
 
-pub use nixe_theme::*;
+pub use nyx_theme::*;
 
 use crate::prefs;
 
@@ -9,8 +9,8 @@ pub fn install() {
     if let Some(display) = gtk::gdk::Display::default() {
         install_icons(&display);
     }
-    nixe_theme::use_design_2();
-    nixe_theme::install(Style {
+    nyx_theme::use_design_2();
+    nyx_theme::install(Style {
         window_class: "settings-window",
         base_skip: &[
             ".settings-option",

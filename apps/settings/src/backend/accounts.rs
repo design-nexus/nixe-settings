@@ -1,6 +1,6 @@
 //! Users and groups. Reading needs no privileges; changes go through
-//! `nixe-settings-helper`, which runs as root via pkexec and only does a fixed set of
-//! account operations (see `src/bin/nixe-settings-helper.rs`).
+//! `nyx-settings-helper`, which runs as root via pkexec and only does a fixed set of
+//! account operations (see `src/bin/nyx-settings-helper.rs`).
 
 use super::helper_version::HELPER_VERSION;
 use super::passwd::{self, Group, User};
@@ -11,9 +11,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-pub const HELPER: &str = "/usr/local/lib/nixe-settings/nixe-settings-helper";
-const POLICY: &str = "/usr/share/polkit-1/actions/io.github.design_nexus.nixe.settings.policy";
-const POLICY_XML: &str = include_str!("../../data/io.github.design_nexus.nixe.settings.policy");
+pub const HELPER: &str = "/usr/local/lib/nyx-settings/nyx-settings-helper";
+const POLICY: &str = "/usr/share/polkit-1/actions/io.github.design_nexus.nyx.settings.policy";
+const POLICY_XML: &str = include_str!("../../data/io.github.design_nexus.nyx.settings.policy");
 
 pub fn helper_installed() -> bool {
     Path::new(HELPER).is_file() && Path::new(POLICY).is_file() && cmd::present("pkexec")
@@ -76,16 +76,16 @@ pub fn helper(args: &[&str], stdin: Option<&str>) -> Result<String> {
 }
 
 /// Copy the helper next to this binary into a root-owned place and register the
-/// polkit action. Run as root (`sudo nixe-settings --install-helper`); a user-writable
+/// polkit action. Run as root (`sudo nyx-settings --install-helper`); a user-writable
 /// helper would let any program of yours become root.
 pub fn install_helper() -> Result<()> {
     if !nix_is_root() {
-        bail!("run this as root: sudo nixe-settings --install-helper");
+        bail!("run this as root: sudo nyx-settings --install-helper");
     }
     let exe = std::env::current_exe()?.canonicalize()?;
-    let source = exe.with_file_name("nixe-settings-helper");
+    let source = exe.with_file_name("nyx-settings-helper");
     if !source.is_file() {
-        bail!("{} not found next to the nixe-settings binary", source.display());
+        bail!("{} not found next to the nyx-settings binary", source.display());
     }
     let dir = Path::new(HELPER).parent().context("no helper directory")?;
     std::fs::create_dir_all(dir)?;

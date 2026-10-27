@@ -93,24 +93,25 @@ pub struct State {
     pub workspaces: Vec<WorkspaceRule>,
 }
 
-/// The suite's programs by the names they had before it was called Nixe.
+/// The suite's programs by the names they had before it was called Nixe (and
+/// then Nyx). Any other `nixe-<name>` is now `nyx-<name>`.
 const OLD_PROGRAMS: &[(&str, &str)] = &[
-    ("archive", "nixe-archive"),
-    ("chat", "nixe-chat"),
-    ("fonts", "nixe-fonts"),
-    ("media-player", "nixe-media-player"),
-    ("music", "nixe-music"),
-    ("notepad", "nixe-notepad"),
-    ("pdf", "nixe-pdf"),
-    ("settings", "nixe-settings"),
-    ("tasks", "nixe-tasks"),
-    ("torrents", "nixe-torrents"),
-    ("nexus-photos", "nixe-photos"),
-    ("npv", "nixe-viewer"),
-    ("nexus-office", "nixe-office"),
-    ("nexus-write", "nixe-write"),
-    ("nexus-sheets", "nixe-sheets"),
-    ("nexus-present", "nixe-present"),
+    ("archive", "nyx-archive"),
+    ("chat", "nyx-chat"),
+    ("fonts", "nyx-fonts"),
+    ("media-player", "nyx-media-player"),
+    ("music", "nyx-music"),
+    ("notepad", "nyx-notepad"),
+    ("pdf", "nyx-pdf"),
+    ("settings", "nyx-settings"),
+    ("tasks", "nyx-tasks"),
+    ("torrents", "nyx-torrents"),
+    ("nexus-photos", "nyx-photos"),
+    ("npv", "nyx-viewer"),
+    ("nexus-office", "nyx-office"),
+    ("nexus-write", "nyx-write"),
+    ("nexus-sheets", "nyx-sheets"),
+    ("nexus-present", "nyx-present"),
 ];
 
 /// A command line that starts one of the suite's programs by its old name,
@@ -119,7 +120,8 @@ fn renamed_command(command: &str) -> Option<String> {
     let trimmed = command.trim_start();
     let (word, rest) = trimmed.split_once(char::is_whitespace).map_or((trimmed, ""), |(w, r)| (w, r));
     let (dir, program) = word.rsplit_once('/').map_or(("", word), |(d, p)| (d, p));
-    let new = OLD_PROGRAMS.iter().find(|(old, _)| *old == program)?.1;
+    let nixe = program.strip_prefix("nixe-").map(|name| format!("nyx-{name}"));
+    let new = OLD_PROGRAMS.iter().find(|(old, _)| *old == program).map(|(_, new)| new.to_string()).or(nixe)?;
     // A path must be the installer's, not some other program of the same name.
     if !dir.is_empty() && !dir.ends_with("/.local/bin") {
         return None;
@@ -130,13 +132,14 @@ fn renamed_command(command: &str) -> Option<String> {
 
 /// A window class of the suite from before the rename, with the new one.
 fn renamed_class(class: &str) -> String {
-    let class = class.replace("io.github.nexus.photos.viewer", "io.github.design_nexus.nixe.PhotoViewer");
-    let class = class.replace("io.github.nexus.photos", "io.github.design_nexus.nixe.Photos");
-    let class = class.replace("io\\.github\\.nexus\\.photos", "io\\.github\\.design_nexus\\.nixe\\.Photos");
-    if class.contains("design_nexus.nixe") || class.contains("design_nexus\\.nixe") {
+    let class = class.replace("design_nexus.nixe.", "design_nexus.nyx.").replace("design_nexus\\.nixe\\.", "design_nexus\\.nyx\\.");
+    let class = class.replace("io.github.nexus.photos.viewer", "io.github.design_nexus.nyx.PhotoViewer");
+    let class = class.replace("io.github.nexus.photos", "io.github.design_nexus.nyx.Photos");
+    let class = class.replace("io\\.github\\.nexus\\.photos", "io\\.github\\.design_nexus\\.nyx\\.Photos");
+    if class.contains("design_nexus.nyx") || class.contains("design_nexus\\.nyx") {
         return class;
     }
-    class.replace("design_nexus.", "design_nexus.nixe.").replace("design_nexus\\.", "design_nexus\\.nixe\\.")
+    class.replace("design_nexus.", "design_nexus.nyx.").replace("design_nexus\\.", "design_nexus\\.nyx\\.")
 }
 
 impl State {
@@ -148,7 +151,7 @@ impl State {
     }
 
     /// Point bindings, autostart entries and window rules at the suite's programs
-    /// by their Nixe names.
+    /// by their current names.
     fn rename_old_programs(&mut self) {
         for b in &mut self.binds {
             if let Some(c) = renamed_command(&b.command) {
@@ -172,14 +175,18 @@ mod rename_tests {
 
     #[test]
     fn renames_the_suite_programs() {
-        assert_eq!(renamed_command("tasks").as_deref(), Some("nixe-tasks"));
-        assert_eq!(renamed_command("settings --section audio").as_deref(), Some("nixe-settings --section audio"));
-        assert_eq!(renamed_command("/home/u/.local/bin/notepad --toggle").as_deref(), Some("/home/u/.local/bin/nixe-notepad --toggle"));
+        assert_eq!(renamed_command("tasks").as_deref(), Some("nyx-tasks"));
+        assert_eq!(renamed_command("settings --section audio").as_deref(), Some("nyx-settings --section audio"));
+        assert_eq!(renamed_command("/home/u/.local/bin/notepad --toggle").as_deref(), Some("/home/u/.local/bin/nyx-notepad --toggle"));
         assert_eq!(renamed_command("/usr/bin/music"), None);
         assert_eq!(renamed_command("taskset -c 1 foo"), None);
-        assert_eq!(renamed_command("nixe-tasks"), None);
-        assert_eq!(renamed_class("^io\\.github\\.design_nexus\\.Notepad$"), "^io\\.github\\.design_nexus\\.nixe\\.Notepad$");
-        assert_eq!(renamed_class("io.github.design_nexus.nixe.Music"), "io.github.design_nexus.nixe.Music");
+        assert_eq!(renamed_command("nyx-tasks"), None);
+        assert_eq!(renamed_command("nixe-tasks").as_deref(), Some("nyx-tasks"));
+        assert_eq!(renamed_command("/home/u/.local/bin/nixe-files /tmp").as_deref(), Some("/home/u/.local/bin/nyx-files /tmp"));
+        assert_eq!(renamed_class("^io\\.github\\.design_nexus\\.nixe\\.Notepad$"), "^io\\.github\\.design_nexus\\.nyx\\.Notepad$");
+        assert_eq!(renamed_class("io.github.design_nexus.nixe.Music"), "io.github.design_nexus.nyx.Music");
+        assert_eq!(renamed_class("^io\\.github\\.design_nexus\\.Notepad$"), "^io\\.github\\.design_nexus\\.nyx\\.Notepad$");
+        assert_eq!(renamed_class("io.github.design_nexus.nyx.Music"), "io.github.design_nexus.nyx.Music");
         assert_eq!(renamed_class("firefox"), "firefox");
     }
 }

@@ -29,7 +29,7 @@ struct Ui {
     overlay: gtk::Overlay,
     collapse_button: gtk::Button,
     /// The header, which shows the page's name after the app's.
-    header: nixe_ui::chrome::AppHeader,
+    header: nyx_ui::chrome::AppHeader,
     /// Holds the current page's "open the config file" button.
     edit: gtk::Box,
     /// The page's description, in the status bar.
@@ -94,12 +94,12 @@ pub fn present(app: &gtk::Application, section: Option<&str>) {
     theme::install();
     build(app);
     let p = prefs::get();
-    // "Open on" is shared by every Nixe app now: carry Settings' own choice over once.
+    // "Open on" is shared by every Nyx app now: carry Settings' own choice over once.
     if p.open_on == "last" {
-        nixe_theme::update_suite(|s| s.start = "last".into());
+        nyx_theme::update_suite(|s| s.start = "last".into());
         prefs::update(|p| p.open_on = "suite".into());
     }
-    let start = section.map(String::from).unwrap_or_else(|| nixe_theme::start_page("home", &p.last_section));
+    let start = section.map(String::from).unwrap_or_else(|| nyx_theme::start_page("home", &p.last_section));
     navigate(&start);
     // Developer aid: SETTINGS_SNAPSHOT=/path.png renders the window to a PNG
     // (invisibly) and quits, so layouts can be checked without a visible window.
@@ -142,8 +142,8 @@ fn build(app: &gtk::Application) {
     window.add_css_class("settings-window");
     // No client-side titlebar: Hyprland manages the window.
     window.set_titlebar(Some(&gtk::Box::new(gtk::Orientation::Horizontal, 0)));
-    nixe_ui::keys::install(&window, nixe_ui::keys::Common { shortcuts: Some(show_shortcuts), ..Default::default() });
-    window.set_icon_name(Some("io.github.design_nexus.nixe.Settings"));
+    nyx_ui::keys::install(&window, nyx_ui::keys::Common { shortcuts: Some(show_shortcuts), ..Default::default() });
+    window.set_icon_name(Some("io.github.design_nexus.nyx.Settings"));
 
     let sections = sections::all();
 
@@ -181,7 +181,7 @@ fn build(app: &gtk::Application) {
 
     // ----- Header: the app and the page, the sidebar toggle, search, and the
     // page's config files -----
-    let header = nixe_ui::chrome::app_header(&window, "preferences-system-symbolic", "Settings");
+    let header = nyx_ui::chrome::app_header(&window, "preferences-system-symbolic", "Settings");
     let collapse_button = widgets::bar_button("sidebar-show-symbolic", "Collapse the sidebar (Ctrl+B)");
     collapse_button.connect_clicked(|_| toggle_sidebar());
     header.start.append(&collapse_button);
@@ -465,7 +465,7 @@ pub fn after_update_check(s: crate::backend::updates::Status) {
 /// Start the installed Settings again on `section`, and quit this one.
 pub fn restart(section: &str) {
     use std::os::unix::process::CommandExt;
-    let exe = crate::paths::home().join(".local/bin/nixe-settings");
+    let exe = crate::paths::home().join(".local/bin/nyx-settings");
     let script = format!("sleep 1; exec '{}' --section '{}'", exe.display(), section.replace('\'', ""));
     let started = std::process::Command::new("sh")
         .args(["-c", &script])
@@ -835,7 +835,7 @@ pub fn navigate(id: &str) {
     u.current = id;
     if let Some(s) = u.sections.iter().find(|s| s.id == id) {
         u.header.set_subtitle(s.title);
-        nixe_theme::set_section(Some(&section_key(s.group)));
+        nyx_theme::set_section(Some(&section_key(s.group)));
         u.status.set_text(s.description);
         while let Some(c) = u.edit.first_child() {
             u.edit.remove(&c);
@@ -1097,7 +1097,7 @@ type ToastAction<'a> = Option<(&'a str, Box<dyn Fn()>)>;
 
 fn show_toast(message: &str, action: ToastAction) {
     let Some(ui) = ui() else {
-        eprintln!("nixe-settings: {message}");
+        eprintln!("nyx-settings: {message}");
         return;
     };
     let overlay = ui.borrow().overlay.clone();

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-pub const REPO: &str = "design-nexus/nixe";
+pub const REPO: &str = "design-nexus/nyx";
 /// Releases of this app in the suite's repository are tagged `settings-v<version>`.
 const TAG_PREFIX: &str = "settings-v";
 const RECHECK: u64 = 20 * 60 * 60;
@@ -45,7 +45,7 @@ fn cache_file() -> std::path::PathBuf {
 
 pub fn cached() -> Status {
     let s: Status = std::fs::read_to_string(cache_file()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
-    // A check made against another repository (before the move to Nixe) says
+    // A check made against another repository (before the move to Nyx) says
     // nothing about this one's releases.
     if !s.url.is_empty() && !s.url.contains(REPO) {
         return Status { extensions: s.extensions, ..Status::default() };
@@ -140,10 +140,10 @@ pub fn update_extensions() -> Result<Vec<String>> {
     Ok(done)
 }
 
-/// Whether this copy is the one the installer manages (`~/.local/bin/nixe-settings`),
+/// Whether this copy is the one the installer manages (`~/.local/bin/nyx-settings`),
 /// rather than a development build.
 pub fn self_updatable() -> bool {
-    let installed = paths::home().join(".local/bin/nixe-settings");
+    let installed = paths::home().join(".local/bin/nyx-settings");
     match (std::env::current_exe().and_then(|p| p.canonicalize()), installed.canonicalize()) {
         (Ok(a), Ok(b)) => a == b,
         _ => false,

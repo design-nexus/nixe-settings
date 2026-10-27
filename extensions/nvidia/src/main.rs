@@ -4,8 +4,8 @@
 //! way to set them.
 
 use anyhow::{Context, Result, bail};
-use nixe_ext::page::{self, Page, desc};
-use nixe_ext::{Extension, sys};
+use nyx_ext::page::{self, Page, desc};
+use nyx_ext::{Extension, sys};
 use serde_json::{Value, json};
 
 const FIELDS: &str = "index,name,driver_version,temperature.gpu,utilization.gpu,memory.used,memory.total,power.draw,power.limit,power.min_limit,power.max_limit,clocks.gr,clocks.mem,fan.speed,persistence_mode,pstate,pci.bus_id";
@@ -180,7 +180,7 @@ impl Extension for Nvidia {
             "limit" => {
                 let w = value.parse::<f64>()?.round() as u32;
                 sys::run_root("nvidia-smi", &["-i", index, "-pl", &w.to_string()])?;
-                Ok(nixe_ext::toast(&format!("Power limit {w} W")))
+                Ok(nyx_ext::toast(&format!("Power limit {w} W")))
             }
             "persistence" => {
                 sys::run_root("nvidia-smi", &["-i", index, "-pm", if value == "true" { "1" } else { "0" }])?;
@@ -192,7 +192,7 @@ impl Extension for Nvidia {
 }
 
 fn main() {
-    nixe_ext::run(&Nvidia);
+    nyx_ext::run(&Nvidia);
 }
 
 #[cfg(test)]

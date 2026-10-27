@@ -1,63 +1,63 @@
-//! Nixe apps: the look every app in the suite shares, and installing, updating
+//! Nyx apps: the look every app in the suite shares, and installing, updating
 //! and removing the apps themselves.
 
 use crate::widgets::{self, Page};
 use crate::{cmd, paths};
 use gtk::prelude::*;
-use nixe_theme::ThemeMode;
+use nyx_theme::ThemeMode;
 
-/// Each app: what `nixe` calls it, its name, and the program that shows it's installed.
+/// Each app: what `nyx` calls it, its name, and the program that shows it's installed.
 const APPS: &[(&str, &str, &str, &str)] = &[
-    ("settings", "Settings", "nixe-settings", "A control panel for Omarchy"),
-    ("contacts", "Contacts", "nixe-contacts", "Contacts, favorites and lists"),
-    ("git", "Git", "nixe-git", "Git repositories and working changes"),
-    ("passwords", "Passwords", "nixe-passwords", "Your Vaultwarden vault"),
-    ("store", "Store", "nixe-store", "Discover, install and update apps"),
-    ("tasks", "Tasks", "nixe-tasks", "Processes, usage and startup apps"),
-    ("torrents", "Torrents", "nixe-torrents", "A BitTorrent client"),
-    ("pdf", "PDF", "nixe-pdf", "Read, fill in and mark up PDFs"),
-    ("notepad", "Notepad", "nixe-notepad", "Plain text, with tabs"),
-    ("music", "Music", "nixe-music", "Your music library, radio and podcasts"),
-    ("media-player", "Media Player", "nixe-media-player", "Movies and TV shows"),
-    ("chat", "Chat", "nixe-chat", "Chat with models on Ollama"),
-    ("fonts", "Fonts", "nixe-fonts", "Google Fonts and Nerd Fonts"),
-    ("archive", "Archive", "nixe-archive", "Open and make archives"),
-    ("office", "Office", "nixe-office", "Write, Sheets and Present"),
-    ("photos", "Photos", "nixe-photos", "A photo gallery and editor"),
-    ("weather", "Weather", "nixe-weather", "Forecasts, hourly conditions and alerts"),
+    ("settings", "Settings", "nyx-settings", "A control panel for Omarchy"),
+    ("contacts", "Contacts", "nyx-contacts", "Contacts, favorites and lists"),
+    ("git", "Git", "nyx-git", "Git repositories and working changes"),
+    ("passwords", "Passwords", "nyx-passwords", "Your Vaultwarden vault"),
+    ("store", "Store", "nyx-store", "Discover, install and update apps"),
+    ("tasks", "Tasks", "nyx-tasks", "Processes, usage and startup apps"),
+    ("torrents", "Torrents", "nyx-torrents", "A BitTorrent client"),
+    ("pdf", "PDF", "nyx-pdf", "Read, fill in and mark up PDFs"),
+    ("notepad", "Notepad", "nyx-notepad", "Plain text, with tabs"),
+    ("music", "Music", "nyx-music", "Your music library, radio and podcasts"),
+    ("media-player", "Media Player", "nyx-media-player", "Movies and TV shows"),
+    ("chat", "Chat", "nyx-chat", "Chat with models on Ollama"),
+    ("fonts", "Fonts", "nyx-fonts", "Google Fonts and Nerd Fonts"),
+    ("archive", "Archive", "nyx-archive", "Open and make archives"),
+    ("office", "Office", "nyx-office", "Write, Sheets and Present"),
+    ("photos", "Photos", "nyx-photos", "A photo gallery and editor"),
+    ("weather", "Weather", "nyx-weather", "Forecasts, hourly conditions and alerts"),
 ];
 
 fn installed(program: &str) -> bool {
     paths::home().join(".local/bin").join(program).is_file()
 }
 
-/// Run `nixe …` in a terminal: installing can ask for a password and takes a while.
+/// Run `nyx …` in a terminal: installing can ask for a password and takes a while.
 fn in_terminal(args: &str) {
-    let script = format!("nixe {args}; echo; read -rp 'Done. Press Enter to close.'");
+    let script = format!("nyx {args}; echo; read -rp 'Done. Press Enter to close.'");
     cmd::spawn(&["xdg-terminal-exec", "bash", "-lc", &script]);
 }
 
 pub fn build(page: &Page) {
-    let suite = nixe_theme::read_suite().unwrap_or_default();
+    let suite = nyx_theme::read_suite().unwrap_or_default();
 
     let g = page.group("Look");
-    g.note("Every Nixe app uses these, and follows a change within a second.");
+    g.note("Every Nyx app uses these, and follows a change within a second.");
     let follow = suite.mode == ThemeMode::Omarchy;
-    let themes: Vec<(String, String)> = nixe_theme::all().into_iter().map(|t| (t.id, t.name)).collect();
+    let themes: Vec<(String, String)> = nyx_theme::all().into_iter().map(|t| (t.id, t.name)).collect();
     let (theme_row, theme_dd) = widgets::choice_row(
         "Theme",
         "The colors to use when not following Omarchy.",
         themes,
         &suite.theme,
         |id| {
-            nixe_theme::update_suite(|s| {
+            nyx_theme::update_suite(|s| {
                 s.mode = ThemeMode::Theme;
                 s.theme = id;
             })
         },
     );
-    theme_dd.set_sensitive(!follow || !nixe_theme::omarchy_available());
-    if nixe_theme::omarchy_available() {
+    theme_dd.set_sensitive(!follow || !nyx_theme::omarchy_available());
+    if nyx_theme::omarchy_available() {
         let dd = theme_dd.clone();
         let (r, _) = widgets::switch_row(
             "Follow Omarchy theme",
@@ -65,30 +65,30 @@ pub fn build(page: &Page) {
             follow,
             move |on| {
                 dd.set_sensitive(!on);
-                nixe_theme::update_suite(|s| s.mode = if on { ThemeMode::Omarchy } else { ThemeMode::Theme });
+                nyx_theme::update_suite(|s| s.mode = if on { ThemeMode::Omarchy } else { ThemeMode::Theme });
             },
         );
         g.add(&r);
     }
     g.add(&theme_row);
-    let density = nixe_ui::widgets::segmented(
+    let density = nyx_ui::widgets::segmented(
         &[("comfortable".into(), "Comfortable".into()), ("compact".into(), "Compact".into())],
         &suite.density,
-        |d| nixe_theme::update_suite(|s| s.density = d),
+        |d| nyx_theme::update_suite(|s| s.density = d),
     );
     g.add(&widgets::row("Density", "Compact fits more rows on screen.", Some(density.upcast_ref())));
     let (r, _) = widgets::slider_row(
         "Text size",
-        "Larger or smaller text in every Nixe app.",
+        "Larger or smaller text in every Nyx app.",
         (90.0, 125.0, 5.0),
         (suite.text_scale * 100.0).round(),
         0,
         " %",
-        |v| nixe_theme::update_suite(|s| s.text_scale = (v / 5.0).round() * 5.0 / 100.0),
+        |v| nyx_theme::update_suite(|s| s.text_scale = (v / 5.0).round() * 5.0 / 100.0),
     );
     g.add(&r);
-    widgets::keywords("nixe theme density compact text size font scale suite");
-    g.add(&nixe_ui::widgets::start_row());
+    widgets::keywords("nyx theme density compact text size font scale suite");
+    g.add(&nyx_ui::widgets::start_row());
     widgets::keywords("open on start page last page home remember");
 
     let g = page.group("Apps");

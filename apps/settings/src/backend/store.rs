@@ -61,10 +61,10 @@ pub fn flush() {
     if let Ok(text) = serde_json::to_string_pretty(&state)
         && let Err(e) = cmd::atomic_write(&paths::state_file(), &text)
     {
-        eprintln!("nixe-settings: {e:#}");
+        eprintln!("nyx-settings: {e:#}");
     }
     if let Err(e) = hypr::write(&state) {
-        eprintln!("nixe-settings: {e:#}");
+        eprintln!("nyx-settings: {e:#}");
         crate::window::toast(&format!("Couldn't write Hyprland settings: {e}"));
     }
     if RELOAD_AFTER.with(|r| r.replace(false)) {
@@ -104,7 +104,7 @@ fn notify(key: &str, value: Option<&Value>) {
 /// Set a Hyprland option: apply it live, remember it, write soon.
 pub fn set_option(key: &str, value: Value) {
     if let Err(e) = hypr::apply_option(key, &value) {
-        eprintln!("nixe-settings: live apply of {key} failed: {e:#}");
+        eprintln!("nyx-settings: live apply of {key} failed: {e:#}");
     }
     notify(key, Some(&value));
     update(false, |s| {

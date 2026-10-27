@@ -165,7 +165,7 @@ def describe(pid):
 
 # ------------------------------------------------------------------ low battery
 
-TIMER = "nixe-headset-battery"
+TIMER = "nyx-headset-battery"
 UNIT_DIR = os.path.expanduser("~/.config/systemd/user")
 LOW = 15
 

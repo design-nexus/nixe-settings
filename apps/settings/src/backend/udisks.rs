@@ -831,7 +831,7 @@ mod tests {
         assert_eq!(package_for("frobnicate"), None);
     }
 
-    /// Prints what UDisks reports here: `cargo test -p nixe-settings drives_here -- --ignored --nocapture`.
+    /// Prints what UDisks reports here: `cargo test -p nyx-settings drives_here -- --ignored --nocapture`.
     #[test]
     #[ignore]
     fn drives_here() {
@@ -870,12 +870,12 @@ mod tests {
     }
 
     /// Runs every change on a throwaway disk image, never a real drive:
-    /// `NIXE_LOOP_TEST=/path/to/image cargo test -p nixe-settings loop_device_operations -- --ignored --nocapture`
+    /// `NYX_LOOP_TEST=/path/to/image cargo test -p nyx-settings loop_device_operations -- --ignored --nocapture`
     /// with the image attached by `udisksctl loop-setup -f`.
     #[test]
     #[ignore]
     fn loop_device_operations() {
-        let Ok(image) = std::env::var("NIXE_LOOP_TEST") else { return };
+        let Ok(image) = std::env::var("NYX_LOOP_TEST") else { return };
         let ctx = glib::MainContext::default();
         let drive = || load().unwrap().into_iter().find(|d| d.backing_file == image).expect("the image is attached");
         let d = drive();

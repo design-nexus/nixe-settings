@@ -5,8 +5,8 @@ use crate::widgets::{self, Page};
 use crate::{cmd, window};
 use gtk::prelude::*;
 
-const HELPER: &str = "/usr/local/lib/nixe-assistant/nixe-assistant-helper";
-const HELPER_INSTALL: &str = "sudo nixe-assistant install-helper";
+const HELPER: &str = "/usr/local/lib/nyx-assistant/nyx-assistant-helper";
+const HELPER_INSTALL: &str = "sudo nyx-assistant install-helper";
 
 const CAPABILITIES: &[(&str, &str, &str)] = &[
     ("permissions.launch_app", "Open apps", ""),

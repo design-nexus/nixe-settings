@@ -1,17 +1,17 @@
-//! Talking to Nixe Assistant: everything goes through its `nixe-assistant` command (JSON
+//! Talking to Nyx Assistant: everything goes through its `nyx-assistant` command (JSON
 //! out), so the assistant keeps checking its own settings and Settings never edits its files.
 
 use crate::cmd;
 use anyhow::{Context, Result};
 use serde_json::Value;
 
-pub const PROGRAM: &str = "nixe-assistant";
+pub const PROGRAM: &str = "nyx-assistant";
 
 pub fn installed() -> bool {
     cmd::present(PROGRAM)
 }
 
-/// Run `nixe-assistant ARGS…` and return its output.
+/// Run `nyx-assistant ARGS…` and return its output.
 pub fn run(args: &[&str]) -> Result<String> {
     let mut all = vec![PROGRAM];
     all.extend_from_slice(args);
@@ -74,11 +74,11 @@ pub fn status() -> Option<Value> {
 }
 
 pub fn running() -> bool {
-    cmd::run(&["systemctl", "--user", "is-active", "--quiet", "nixe-assistantd.service"]).is_ok()
+    cmd::run(&["systemctl", "--user", "is-active", "--quiet", "nyx-assistantd.service"]).is_ok()
 }
 
 pub fn service(action: &str) -> Result<()> {
-    cmd::run(&["systemctl", "--user", action, "nixe-assistantd.service"]).map(|_| ()).context("systemctl")
+    cmd::run(&["systemctl", "--user", action, "nyx-assistantd.service"]).map(|_| ()).context("systemctl")
 }
 
 #[cfg(test)]

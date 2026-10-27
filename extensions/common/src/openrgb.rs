@@ -301,7 +301,7 @@ impl Client {
         let mut c = Client { s };
         c.send(0, REQUEST_PROTOCOL_VERSION, &PROTOCOL.to_le_bytes())?;
         let _server = c.receive(REQUEST_PROTOCOL_VERSION)?;
-        c.send(0, SET_CLIENT_NAME, b"Nixe Settings\0")?;
+        c.send(0, SET_CLIENT_NAME, b"Nyx Settings\0")?;
         Ok(c)
     }
 
@@ -421,12 +421,12 @@ WantedBy=default.target\n";
 pub fn start_server() -> Result<()> {
     let dir = crate::sys::home().join(".config/systemd/user");
     std::fs::create_dir_all(&dir)?;
-    let unit = dir.join("nixe-openrgb.service");
+    let unit = dir.join("nyx-openrgb.service");
     if std::fs::read_to_string(&unit).ok().as_deref() != Some(SERVICE) {
         std::fs::write(&unit, SERVICE)?;
         crate::sys::run("systemctl", &["--user", "daemon-reload"])?;
     }
-    crate::sys::run("systemctl", &["--user", "enable", "--now", "nixe-openrgb.service"])?;
+    crate::sys::run("systemctl", &["--user", "enable", "--now", "nyx-openrgb.service"])?;
     Ok(())
 }
 

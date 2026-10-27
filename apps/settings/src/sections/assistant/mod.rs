@@ -1,5 +1,5 @@
-//! Nixe Assistant: its settings, what it's allowed to do, what it's doing and its models.
-//! Every value is read and written through `nixe-assistant config`, which checks it.
+//! Nyx Assistant: its settings, what it's allowed to do, what it's doing and its models.
+//! Every value is read and written through `nyx-assistant config`, which checks it.
 
 pub mod activity;
 pub mod client;
@@ -31,7 +31,7 @@ pub fn config_or_banner(page: &Page) -> Option<Value> {
     if cfg.is_object() {
         return Some(cfg);
     }
-    page.banner("Couldn't read the assistant's settings. Update Nixe Assistant (./install.sh assistant) and try again.", true);
+    page.banner("Couldn't read the assistant's settings. Update Nyx Assistant (./install.sh assistant) and try again.", true);
     None
 }
 

@@ -51,7 +51,7 @@ fn timing_bar(stages: Vec<(&'static str, u64)>) -> gtk::DrawingArea {
 }
 
 /// Lite, Balanced or Advanced: one choice that sets the model, its context, where speech
-/// runs and when the models unload (`nixe-assistant preset`).
+/// runs and when the models unload (`nyx-assistant preset`).
 fn presets(page: &Page) {
     let Some(p) = client::json(&["preset", "show", "--json"]) else {
         return;
@@ -190,6 +190,6 @@ pub fn build(page: &Page) {
     if let Some(battery) = perf["on_battery"].as_bool() {
         g.add(&widgets::info_row("Power", if battery { "Battery" } else { "Plugged in" }).0);
     }
-    g.note("For repeatable numbers run <tt>nixe-assistant bench load</tt>, <tt>bench duplex</tt>, <tt>bench vision</tt> or <tt>bench computer</tt> in a terminal.");
+    g.note("For repeatable numbers run <tt>nyx-assistant bench load</tt>, <tt>bench duplex</tt>, <tt>bench vision</tt> or <tt>bench computer</tt> in a terminal.");
     widgets::keywords("preset lite balanced advanced hardware performance latency speed timing vram gpu memory benchmark temperature power battery gaps");
 }

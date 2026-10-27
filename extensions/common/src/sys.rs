@@ -43,7 +43,7 @@ pub fn run_root(program: &str, args: &[&str]) -> Result<String> {
 pub fn state_dir() -> PathBuf {
     let dir = std::env::var_os("SETTINGS_EXTENSION_STATE")
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("nixe-extension-state"));
+        .unwrap_or_else(|| std::env::temp_dir().join("nyx-extension-state"));
     let _ = std::fs::create_dir_all(&dir);
     dir
 }

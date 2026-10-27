@@ -5,9 +5,9 @@
 use std::path::{Path, PathBuf};
 
 /// Lines Settings adds end with this, then the mount's id.
-pub const MARK: &str = "# nixe-settings:";
+pub const MARK: &str = "# nyx-settings:";
 /// SMB passwords, one root-only file per mount.
-pub const CREDENTIALS: &str = "/etc/nixe-settings/credentials";
+pub const CREDENTIALS: &str = "/etc/nyx-settings/credentials";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Kind {
@@ -243,7 +243,7 @@ pub const PASSWORD_FREE: &[&str] = &[
     "vacuum-journal",
 ];
 
-pub const RULE_FILE: &str = "/etc/polkit-1/rules.d/49-nixe-settings.rules";
+pub const RULE_FILE: &str = "/etc/polkit-1/rules.d/49-nyx-settings.rules";
 
 /// The polkit rule that lets `user` make disk, mount and cleanup changes
 /// without a password while signed in at the computer. Settings' helper is
@@ -255,7 +255,7 @@ pub fn password_free_rule(user: &str, helper: &str) -> String {
          polkit.addRule(function(action, subject) {{\n\
          \x20   if (subject.user != \"{user}\" || !subject.local || !subject.active) return;\n\
          \x20   if (action.id.indexOf(\"org.freedesktop.udisks2.\") == 0) return polkit.Result.YES;\n\
-         \x20   if (action.id == \"io.github.design_nexus.nixe.settings.admin\") {{\n\
+         \x20   if (action.id == \"io.github.design_nexus.nyx.settings.admin\") {{\n\
          \x20       var line = (action.lookup(\"command_line\") || \"\").split(\" \");\n\
          \x20       if (line[0] == \"{helper}\" && [{commands}].indexOf(line[1]) >= 0) return polkit.Result.YES;\n\
          \x20   }}\n\
@@ -354,7 +354,7 @@ pub fn ssh_unit_dir(home: &Path) -> PathBuf {
 }
 
 pub fn ssh_unit_name(id: &str) -> String {
-    format!("nixe-sshfs-{id}.service")
+    format!("nyx-sshfs-{id}.service")
 }
 
 /// Quote one argument for a systemd `ExecStart=` line.
@@ -399,7 +399,7 @@ pub fn ssh_folders(home: &Path) -> Vec<(String, String, String)> {
         .flatten()
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().to_string();
-            let id = name.strip_prefix("nixe-sshfs-")?.strip_suffix(".service")?.to_string();
+            let id = name.strip_prefix("nyx-sshfs-")?.strip_suffix(".service")?.to_string();
             let text = std::fs::read_to_string(e.path()).ok()?;
             let exec = text.lines().find(|l| l.starts_with("ExecStart="))?;
             let args: Vec<String> = exec
@@ -424,7 +424,7 @@ mod tests {
     #[test]
     fn reads_fstab() {
         let t = "# comment\nUUID=abc / btrfs rw,subvol=/@ 0 0\nUUID=b /boot vfat defaults 0 2\n\
-                 //nas/Photos\\040Old /mnt/photos cifs credentials=/x,nofail 0 0 # nixe-settings:photos\n\
+                 //nas/Photos\\040Old /mnt/photos cifs credentials=/x,nofail 0 0 # nyx-settings:photos\n\
                  nas:/export /mnt/nfs nfs defaults 0 0\n";
         let m = parse_fstab(t);
         assert_eq!(m.len(), 4);
@@ -448,7 +448,7 @@ mod tests {
         let line = network_line("photos", "cifs", &src, "/mnt/photos old", &opts, true, home).unwrap();
         assert_eq!(
             line,
-            "//nas.local/Photos\\040Old /mnt/photos\\040old cifs nofail,_netdev,x-systemd.automount,x-systemd.idle-timeout=10min,vers=3.0,uid=1000,credentials=/etc/nixe-settings/credentials/photos 0 0 # nixe-settings:photos"
+            "//nas.local/Photos\\040Old /mnt/photos\\040old cifs nofail,_netdev,x-systemd.automount,x-systemd.idle-timeout=10min,vers=3.0,uid=1000,credentials=/etc/nyx-settings/credentials/photos 0 0 # nyx-settings:photos"
         );
         let parsed = &parse_fstab(&line)[0];
         assert_eq!(parsed.dir, "/mnt/photos old");
@@ -480,8 +480,8 @@ mod tests {
 
     #[test]
     fn removes_only_its_own_line() {
-        let t = "a b c d 0 0\nx y cifs o 0 0 # nixe-settings:one\nq r nfs o 0 0 # nixe-settings:onetwo\n";
-        assert_eq!(without(t, "one"), "a b c d 0 0\nq r nfs o 0 0 # nixe-settings:onetwo\n");
+        let t = "a b c d 0 0\nx y cifs o 0 0 # nyx-settings:one\nq r nfs o 0 0 # nyx-settings:onetwo\n";
+        assert_eq!(without(t, "one"), "a b c d 0 0\nq r nfs o 0 0 # nyx-settings:onetwo\n");
     }
 
     #[test]
@@ -489,7 +489,7 @@ mod tests {
         let u = ssh_unit("Server", "ken", "box.lan", "/srv/files", "/home/ken/Remote/Server box").unwrap();
         assert!(u.contains("ExecStart=/usr/bin/sshfs -f -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3,BatchMode=yes,idmap=user \"ken@box.lan:/srv/files\" \"/home/ken/Remote/Server box\""));
         assert!(ssh_unit("x", "-oProxyCommand=evil", "h", "/", "/home/ken/x").is_err());
-        let dir = std::env::temp_dir().join(format!("nixe-ssh-test-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("nyx-ssh-test-{}", std::process::id()));
         let units = ssh_unit_dir(&dir);
         std::fs::create_dir_all(&units).unwrap();
         std::fs::write(units.join(ssh_unit_name("server")), &u).unwrap();
@@ -507,18 +507,18 @@ mod tests {
             ["nofail", "x-gvfs-show", "x-udisks-auth", "uid=1000", "umask=022"].iter().map(|s| s.to_string()).collect();
         assert_eq!(
             drive_line("photos", "B2C4-1F00", "/mnt/photos", "exfat", &opts, home).unwrap(),
-            "UUID=B2C4-1F00 /mnt/photos exfat nofail,x-gvfs-show,x-udisks-auth,uid=1000,umask=022 0 0 # nixe-settings:photos"
+            "UUID=B2C4-1F00 /mnt/photos exfat nofail,x-gvfs-show,x-udisks-auth,uid=1000,umask=022 0 0 # nyx-settings:photos"
         );
         assert!(drive_line("x", "abc;rm", "/mnt/x", "ext4", &[], home).is_err());
         assert!(drive_line("x", "abcd", "/mnt/x", "ext4 --x", &[], home).is_err());
         assert!(drive_line("x", "abcd", "/etc", "ext4", &[], home).is_err());
         assert!(drive_line("x", "abcd", "/mnt/x", "ext4", &["exec".into()], home).is_err());
-        assert!(drive_line("x", "abcd", "/mnt/x", "ext4", &[], home).unwrap().ends_with(" 0 2 # nixe-settings:x"));
+        assert!(drive_line("x", "abcd", "/mnt/x", "ext4", &[], home).unwrap().ends_with(" 0 2 # nyx-settings:x"));
     }
 
     #[test]
     fn password_free_rule_covers_only_disks_and_mounts() {
-        let r = password_free_rule("ken", "/usr/local/lib/nixe-settings/nixe-settings-helper");
+        let r = password_free_rule("ken", "/usr/local/lib/nyx-settings/nyx-settings-helper");
         assert!(r.contains("subject.user != \"ken\""));
         assert!(r.contains("\"mount-add-net\", \"mount-add-drive\""));
         assert!(!r.contains("add-user") && !r.contains("set-password") && !r.contains("firewall"));

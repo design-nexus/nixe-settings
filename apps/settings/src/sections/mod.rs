@@ -31,7 +31,7 @@ pub mod mounts;
 pub mod mouse;
 pub mod network;
 pub mod nightlight;
-pub mod nixe;
+pub mod nyx;
 pub mod online_accounts;
 pub mod cloud;
 pub mod plugins;
@@ -120,7 +120,7 @@ fn extension_sections(fresh: bool) -> Vec<Section> {
 }
 
 fn assistant_config() -> Vec<PathBuf> {
-    vec![paths::config_home().join("nixe-assistant/config.toml")]
+    vec![paths::config_home().join("nyx-assistant/config.toml")]
 }
 
 fn always() -> bool {
@@ -415,7 +415,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             title: "Online Accounts",
             icon: "network-workgroup-symbolic",
             group: "Accounts",
-            description: "Google, Microsoft, Nextcloud and other accounts used by Nixe apps.",
+            description: "Google, Microsoft, Nextcloud and other accounts used by Nyx apps.",
             keywords: "online accounts google microsoft nextcloud webdav imap oauth email calendar contacts notes storage cloud rclone drive dropbox onedrive sftp files goa",
             files: Vec::new,
             build: Build::Native(online_accounts::build),
@@ -427,7 +427,7 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             title: "Assistant",
             icon: "audio-input-microphone-symbolic",
             group: "Assistant",
-            description: "Turn Nixe Assistant on or off, and how you talk to it.",
+            description: "Turn Nyx Assistant on or off, and how you talk to it.",
             keywords: "assistant voice ai echo wake word conversation start stop autonomy",
             files: assistant_config,
             build: Build::Native(assistant::general::build),
@@ -556,14 +556,14 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             visible: always,
         },
         Section {
-            id: "nixe",
-            title: "Nixe apps",
+            id: "nyx",
+            title: "Nyx apps",
             icon: "applications-other-symbolic",
             group: "System",
-            description: "The look every Nixe app shares, and installing or updating the apps.",
-            keywords: "nixe apps suite theme density text size install update remove music pdf chat",
-            files: || vec![nixe_theme::suite_file()],
-            build: Build::Native(nixe::build),
+            description: "The look every Nyx app shares, and installing or updating the apps.",
+            keywords: "nyx apps suite theme density text size install update remove music pdf chat",
+            files: || vec![nyx_theme::suite_file()],
+            build: Build::Native(nyx::build),
             visible: always,
         },
         Section {

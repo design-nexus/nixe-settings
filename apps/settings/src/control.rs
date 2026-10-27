@@ -1,15 +1,15 @@
-//! Settings' tools on the control interface (`nixe_core::control`), for Nixe Assistant:
+//! Settings' tools on the control interface (`nyx_core::control`), for Nyx Assistant:
 //! which pages there are, and showing one. Read-only by design: nothing here changes a
 //! setting (computer use can't reach Settings either).
 
 use crate::{sections, window};
-use nixe_core::control::text;
+use nyx_core::control::text;
 use serde_json::{json, Value};
 
 pub fn tools() -> Value {
     json!([
-        {"name": "settings.pages", "description": "The pages of Nixe Settings (id, title, what each covers).", "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}}},
-        {"name": "settings.open", "description": "Show a page of Nixe Settings (by id or title from settings.pages) for the person to change something themselves.", "inputSchema": {"type": "object", "properties": {"page": {"type": "string"}}, "required": ["page"]}},
+        {"name": "settings.pages", "description": "The pages of Nyx Settings (id, title, what each covers).", "inputSchema": {"type": "object", "properties": {"query": {"type": "string"}}}},
+        {"name": "settings.open", "description": "Show a page of Nyx Settings (by id or title from settings.pages) for the person to change something themselves.", "inputSchema": {"type": "object", "properties": {"page": {"type": "string"}}, "required": ["page"]}},
     ])
 }
 

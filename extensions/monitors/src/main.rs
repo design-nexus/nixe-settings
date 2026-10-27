@@ -5,15 +5,15 @@
 //! so it never gets one.
 
 use anyhow::{Result, bail};
-use nixe_ext::page::{self, Page, desc, refreshes};
-use nixe_ext::{Extension, access, sys};
+use nyx_ext::page::{self, Page, desc, refreshes};
+use nyx_ext::{Extension, access, sys};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 const SETUP: &str = "setup";
 
 static RULE: access::Rule = access::Rule {
-    file: "45-nixe-ddc.rules",
+    file: "45-nyx-ddc.rules",
     text: "# Written by Settings: lets the signed-in user talk to monitors over DDC/CI.\nKERNEL==\"i2c-[0-9]*\", SUBSYSTEM==\"i2c-dev\", TAG+=\"uaccess\"\n",
     subsystems: &["i2c-dev"],
 };
@@ -211,7 +211,7 @@ impl Extension for Monitors {
     fn set(&self, page: &str, key: &str, value: &str) -> Result<Option<Value>> {
         if key == "access" {
             RULE.install()?;
-            return Ok(nixe_ext::reload("Monitor control allowed"));
+            return Ok(nyx_ext::reload("Monitor control allowed"));
         }
         let bus = page.trim_start_matches("bus").to_string();
         if bus.parse::<u32>().is_err() {
@@ -228,17 +228,17 @@ impl Extension for Monitors {
                     bail!("not a value this monitor offers");
                 }
                 sys::run("ddcutil", &["--bus", &bus, "setvcp", key, &format!("x{value}")])?;
-                Ok(nixe_ext::refresh())
+                Ok(nyx_ext::refresh())
             }
             "standby" => {
                 sys::run("ddcutil", &["--bus", &bus, "--noverify", "setvcp", "D6", "04"])?;
-                Ok(nixe_ext::toast("Monitor off"))
+                Ok(nyx_ext::toast("Monitor off"))
             }
             "match" => {
                 let pct = laptop_brightness().unwrap_or(100);
                 let max = parse_values(&sys::run("ddcutil", &["--bus", &bus, "getvcp", "10", "--terse"])?).get("10").map(|v| v.1).unwrap_or(100);
                 sys::run("ddcutil", &["--bus", &bus, "--noverify", "setvcp", "10", &(pct * max / 100).to_string()])?;
-                Ok(nixe_ext::refresh())
+                Ok(nyx_ext::refresh())
             }
             _ => bail!("unknown setting {key}"),
         }
@@ -254,7 +254,7 @@ fn laptop_brightness() -> Option<u32> {
 }
 
 fn main() {
-    nixe_ext::run(&Monitors);
+    nyx_ext::run(&Monitors);
 }
 
 #[cfg(test)]

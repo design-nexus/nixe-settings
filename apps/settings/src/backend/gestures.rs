@@ -193,7 +193,7 @@ fn action_lua(action: &str, arg: Option<&str>, loop_count: Option<u32>) -> Optio
         "brightness-up" => format!("action = {}", exec("omarchy-brightness-display +5%")),
         "brightness-down" => format!("action = {}", exec("omarchy-brightness-display 5%-")),
         "lock" => format!("action = {}", exec("omarchy-system-lock")),
-        "glimpse" => format!("action = {}", exec("nixe-glimpse --toggle")),
+        "glimpse" => format!("action = {}", exec("nyx-glimpse --toggle")),
         "app" => {
             let id = arg.map(str::trim).filter(|id| valid_app_id(id))?;
             format!("action = {}", exec(&format!("uwsm-app -- {id}")))
@@ -510,7 +510,7 @@ mod tests {
     fn glimpse_toggles_the_panel() {
         let mut g = Gestures { enabled: true, ..Gestures::default() };
         g.three.actions.insert("up".into(), "glimpse".into());
-        assert!(line(&lua(&g), 3, "up").contains("nixe-glimpse --toggle"));
+        assert!(line(&lua(&g), 3, "up").contains("nyx-glimpse --toggle"));
     }
 
     #[test]

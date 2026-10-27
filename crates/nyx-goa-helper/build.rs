@@ -9,11 +9,11 @@ fn main() {
             for p in &lib.include_paths {
                 b.include(p);
             }
-            b.compile("nixe_goa_native");
+            b.compile("nyx_goa_native");
             println!("cargo:rustc-cfg=has_goa_backend");
         }
         Err(e) => {
-            println!("cargo:warning=goa-backend-1.0 missing ({e}); nixe-goa-helper is a stub");
+            println!("cargo:warning=goa-backend-1.0 missing ({e}); nyx-goa-helper is a stub");
         }
     }
 }

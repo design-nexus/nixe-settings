@@ -1,6 +1,6 @@
 #!/bin/bash
 # install-rust.sh ID NAME: puts an extension's settings-ID helper in its bin/,
-# the released build matching its version (ext-ID-v<version> in nixe) when
+# the released build matching its version (ext-ID-v<version> in nyx) when
 # there is one, otherwise built from source (needs Rust).
 set -euo pipefail
 id=$1 name=$2
@@ -9,7 +9,7 @@ cd "$dir"
 mkdir -p bin
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' extension.toml)
 asset="settings-$id-$(uname -m)"
-url="https://github.com/design-nexus/nixe/releases/download/ext-$id-v$version/$asset"
+url="https://github.com/design-nexus/nyx/releases/download/ext-$id-v$version/$asset"
 if curl -fsSL --max-time 60 -o "bin/.settings-$id.tmp" "$url" 2>/dev/null; then
   chmod +x "bin/.settings-$id.tmp"
   mv "bin/.settings-$id.tmp" "bin/settings-$id"

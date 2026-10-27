@@ -6,7 +6,7 @@ window for everything you'd otherwise change by editing Lua files.
 ![Settings: Sound, with the 9-band equalizer and preamp](docs/audio.png)
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/install.sh | bash -s -- settings
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nyx-settings/main/install.sh | bash -s -- settings
 ```
 
 ## Features
@@ -23,7 +23,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/ins
   ![Settings: Home](docs/home.png)
 
 - **Organized and searchable**: pages are grouped into Connections, Hardware,
-  Personalization, Desktop, Input, Accounts, Assistant (when Nixe Assistant is
+  Personalization, Desktop, Input, Accounts, Assistant (when Nyx Assistant is
   installed) and System. Each group of settings
   sits on one card, and less-used groups fold away until you open them.
   <kbd>Ctrl</kbd>+<kbd>F</kbd> searches every setting on
@@ -121,7 +121,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/ins
     add printers;
   - the lid, power button and hibernate delay (Power), the built-in screen
     (Displays), and touchpad / touchscreen switches (Trackpad).
-- **Nixe Assistant**, when installed: start and stop it; wake word,
+- **Nyx Assistant**, when installed: start and stop it; wake word,
   conversation and how much it does on its own; speech recognition, talking over
   it and its voice (with a preview); what it may do (each capability, rules for
   single tools, apps it never touches); the approvals it's waiting for, its tasks
@@ -148,7 +148,7 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/ins
 - **Updates**: Settings checks GitHub once a day when it opens. A new version is
   offered on About (one click, then restart); extensions show "Update
   available" and can update together, or automatically if you switch that on.
-  `nixe-settings --update` does the same from a terminal (`--check` only reports).
+  `nyx-settings --update` does the same from a terminal (`--check` only reports).
 - **Keyboard backlight timeout** (any laptop with a keyboard backlight): turn it
   off after a set time without typing or touching the trackpad, and back on with
   the next key press.
@@ -169,21 +169,21 @@ curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/ins
 isn't a prebuilt one for your machine):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/install.sh | bash -s -- settings
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nyx-settings/main/install.sh | bash -s -- settings
 ```
 
 To also add a gear button to the Omarchy bar (left-click opens Settings,
 right-click opens Sound):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/design-nexus/nixe-settings/main/install.sh | bash -s -- settings --gear
+curl -fsSL https://raw.githubusercontent.com/design-nexus/nyx-settings/main/install.sh | bash -s -- settings --gear
 ```
 
 **From source:**
 
 ```sh
-git clone https://github.com/design-nexus/nixe-settings.git
-cd nixe-settings
+git clone https://github.com/design-nexus/nyx-settings.git
+cd nyx-settings
 ./install.sh          # add --gear for the bar button
 ```
 
@@ -201,16 +201,16 @@ all part of a standard Omarchy install.
 
 ## Usage
 
-Open **Settings** from the app launcher, or run `nixe-settings`.
+Open **Settings** from the app launcher, or run `nyx-settings`.
 
 | Command | What it does |
 | --- | --- |
-| `nixe-settings` | Open the window |
-| `nixe-settings --section audio` | Open (or jump) to a page: `theme`, `look`, `trackpad`, `audio`, `displays`, `keybindings`, … |
-| `nixe-settings --eq on\|off\|toggle\|status` | Turn the preamp and equalizer on or off, e.g. from a keybinding |
-| `nixe-settings --volume raise\|lower\|+N\|-N` | Change volume, going past 100% up to the maximum set in Sound |
-| `nixe-settings --kbd-timeout 30\|off` | Turn the keyboard backlight off after 30 idle seconds (or stop doing that) |
-| `nixe-settings --apply` | Regenerate the Hyprland file from saved settings |
+| `nyx-settings` | Open the window |
+| `nyx-settings --section audio` | Open (or jump) to a page: `theme`, `look`, `trackpad`, `audio`, `displays`, `keybindings`, … |
+| `nyx-settings --eq on\|off\|toggle\|status` | Turn the preamp and equalizer on or off, e.g. from a keybinding |
+| `nyx-settings --volume raise\|lower\|+N\|-N` | Change volume, going past 100% up to the maximum set in Sound |
+| `nyx-settings --kbd-timeout 30\|off` | Turn the keyboard backlight off after 30 idle seconds (or stop doing that) |
+| `nyx-settings --apply` | Regenerate the Hyprland file from saved settings |
 
 ## How it changes your config
 
@@ -239,9 +239,9 @@ Settings never parses or rewrites your own config files:
 - **Extensions** live in `~/.local/share/settings/extensions/<id>` (a git
   checkout each). Settings runs each one's helper program and draws the page;
   each can be turned off without removing it (its pages are hidden), and
-  `nixe-settings --ext list|install|update|enable|disable|remove` does the same from
+  `nyx-settings --ext list|install|update|enable|disable|remove` does the same from
   a terminal.
-- **Nixe Assistant** settings go through its own `nixe-assistant config set`, which
+- **Nyx Assistant** settings go through its own `nyx-assistant config set`, which
   checks each value, keeps the comments in its `config.toml` and reloads it.
 - **Omarchy features** (themes, fonts, the bar, idle, night light, default apps,
   plugins) are changed through Omarchy's own commands and config.
@@ -276,12 +276,12 @@ light = false
 ## Uninstall
 
 ```sh
-nixe uninstall settings
+nyx uninstall settings
 ```
 
 This removes the app, the keyboard backlight timeout service, and the theme-set
 hook. These all run the app, so they can't stay behind without it. Your
-nixe-settings are kept, so reinstalling brings the timeout back.
+nyx-settings are kept, so reinstalling brings the timeout back.
 
 Add `-s -- --purge` to also remove everything Settings configured: its
 Hyprland file and the line that loads it, the equalizer service, and its saved

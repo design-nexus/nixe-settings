@@ -1,4 +1,4 @@
-/* Settings' own parts, on top of the shared Nixe 2.0 sheet (buttons, inputs,
+/* Settings' own parts, on top of the shared Nyx 2.0 sheet (buttons, inputs,
  * segmented controls, banners, the sidebar and the header come from there).
  * Cards are a fill with no outline; rows inside them are split by spacing. */
 
@@ -64,7 +64,7 @@
 /* One card per group. */
 .settings-card {
   background: @theme_card;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   padding: 2px 0;
 }
 
@@ -85,7 +85,7 @@
 .settings-page > .settings-option,
 .plain-list > .settings-option:not(.bare) {
   background: @theme_card;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
 }
 
 .settings-option.bare {
@@ -100,7 +100,7 @@
 
 window.settings-window button.group-toggle {
   padding: 10px 14px;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: @theme_card;
   border: none;
 }
@@ -166,7 +166,7 @@ window.settings-window button.disclosure .settings-option-description {
 .disclosure-row:not(.card-row),
 .settings-page > .disclosure-row {
   background: @theme_card;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
 }
 
 /* Buttons for a whole group, on the line of its title. */
@@ -222,7 +222,7 @@ window.settings-window button.show-all {
 .gesture-grid,
 .bar-section {
   background: mix(@theme_card, @theme_bg, 0.5);
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
 }
 
 .eq-panel {
@@ -302,7 +302,7 @@ window.settings-window .fader.preamp .fader-scale > trough > highlight {
 .theme-card {
   background: @theme_card;
   border: 1px solid transparent;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
 }
 
 .theme-card.selected {
@@ -311,7 +311,7 @@ window.settings-window .fader.preamp .fader-scale > trough > highlight {
 }
 
 .theme-strip {
-  border-radius: var(--nixe-radius-card) var(--nixe-radius-card) 0 0;
+  border-radius: var(--nyx-radius-card) var(--nyx-radius-card) 0 0;
 }
 
 /* The tick on the theme in use. */
@@ -357,7 +357,7 @@ window.settings-window button.swatch-button.selected {
 
 .bar-item {
   padding: 6px 8px 6px 12px;
-  border-radius: var(--nixe-radius-small);
+  border-radius: var(--nyx-radius-small);
   background: @theme_card;
   border: 1px solid transparent;
   transition: border-color 120ms ease-out, opacity 120ms ease-out;
@@ -389,7 +389,7 @@ window.settings-window button.swatch-button.selected {
 
 .bar-drop-end {
   min-height: 12px;
-  border-radius: var(--nixe-radius-small);
+  border-radius: var(--nyx-radius-small);
 }
 
 .bar-drop-end.drop-before {
@@ -404,7 +404,7 @@ window.settings-window button.swatch-button.selected {
 
 .home-hero {
   padding: 22px 24px;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: @theme_card;
 }
 
@@ -420,7 +420,7 @@ window.settings-window button.swatch-button.selected {
 window.settings-window button.home-badge {
   min-width: 150px;
   padding: 16px;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: @theme_raised;
 }
 
@@ -456,7 +456,7 @@ window.settings-window button.home-badge.pending {
 .chart-card,
 .update-list {
   padding: 16px;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: @theme_card;
   transition: background 120ms ease-out;
 }
@@ -485,7 +485,7 @@ window.settings-window button.home-badge.pending {
 }
 
 .chart {
-  border-radius: var(--nixe-radius-small);
+  border-radius: var(--nyx-radius-small);
   background: mix(@theme_card, @theme_bg, 0.5);
 }
 
@@ -508,7 +508,7 @@ window.settings-window button.home-badge.pending {
 
 .arrange-canvas {
   margin: 8px 0;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: mix(@theme_card, @theme_bg, 0.5);
 }
 
@@ -581,7 +581,7 @@ window.identify-window {
 window.settings-window button.picture-card {
   padding: 8px 8px 10px;
   border: 1px solid transparent;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: @theme_raised;
 }
 
@@ -610,7 +610,7 @@ button.picture-card:checked .picture-card-label {
 
 .preview-card {
   padding: 10px;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: @theme_card;
 }
 
@@ -660,7 +660,7 @@ window.settings-window button.health-bad {
 .part-panel {
   margin-top: 2px;
   padding: 14px;
-  border-radius: var(--nixe-radius-card);
+  border-radius: var(--nyx-radius-card);
   background: mix(@theme_card, @theme_bg, 0.5);
 }
 

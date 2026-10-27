@@ -32,7 +32,7 @@ enum Update {
     Done(String, Result<(), String>),
 }
 
-/// Download each URL in turn (a model, then its projector) with `nixe-assistant models download`.
+/// Download each URL in turn (a model, then its projector) with `nyx-assistant models download`.
 fn download(urls: Vec<String>, name: String) {
     let urls: Vec<String> = urls.into_iter().filter(|u| !DOWNLOADS.with(|d| d.borrow().contains_key(u))).collect();
     if urls.is_empty() {
@@ -195,7 +195,7 @@ fn details(into: &gtk::Box, m: &Value, current: &str) {
 
 pub fn build(page: &Page) {
     let Some(list) = client::json(&["models", "list", "--json"]) else {
-        page.banner("Couldn't list the models. Update Nixe Assistant (./install.sh assistant) and try again.", true);
+        page.banner("Couldn't list the models. Update Nyx Assistant (./install.sh assistant) and try again.", true);
         return;
     };
     let current = list["current"].as_str().unwrap_or("");

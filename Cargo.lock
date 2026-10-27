@@ -1003,9 +1003,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixe-accounts"
+name = "nyx-accounts"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-core.git?rev=87682e6c936b6a4f006639b1a1c099e96346c07c#87682e6c936b6a4f006639b1a1c099e96346c07c"
+source = "git+https://github.com/design-nexus/nyx-core.git?rev=52cba5e27a3dd5f00c780f53e423302b4b5f9c9c#52cba5e27a3dd5f00c780f53e423302b4b5f9c9c"
 dependencies = [
  "anyhow",
  "gio",
@@ -1015,9 +1015,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixe-cloud"
+name = "nyx-cloud"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-cloud.git?rev=053a31d9704c5f0379c1b17e70a659b353357881#053a31d9704c5f0379c1b17e70a659b353357881"
+source = "git+https://github.com/design-nexus/nyx-cloud.git?rev=072cb06bf7a975e536b8fcdd2d19ec7a911e14d7#072cb06bf7a975e536b8fcdd2d19ec7a911e14d7"
 dependencies = [
  "anyhow",
  "reqwest",
@@ -1029,9 +1029,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixe-core"
+name = "nyx-core"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-core.git?rev=87682e6c936b6a4f006639b1a1c099e96346c07c#87682e6c936b6a4f006639b1a1c099e96346c07c"
+source = "git+https://github.com/design-nexus/nyx-core.git?rev=52cba5e27a3dd5f00c780f53e423302b4b5f9c9c#52cba5e27a3dd5f00c780f53e423302b4b5f9c9c"
 dependencies = [
  "anyhow",
  "gtk4",
@@ -1041,7 +1041,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixe-goa-helper"
+name = "nyx-goa-helper"
 version = "0.1.0"
 dependencies = [
  "cc",
@@ -1049,16 +1049,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixe-settings"
+name = "nyx-settings"
 version = "0.1.1"
 dependencies = [
  "anyhow",
  "gtk4",
- "nixe-accounts",
- "nixe-cloud",
- "nixe-core",
- "nixe-theme",
- "nixe-ui",
+ "nyx-accounts",
+ "nyx-cloud",
+ "nyx-core",
+ "nyx-theme",
+ "nyx-ui",
  "serde",
  "serde_json",
  "toml",
@@ -1067,24 +1067,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "nixe-theme"
+name = "nyx-theme"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-design.git?rev=d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb#d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb"
+source = "git+https://github.com/design-nexus/nyx-design.git?rev=938c638951a53f5874a8276d07ac9dcd68b191ad#938c638951a53f5874a8276d07ac9dcd68b191ad"
 dependencies = [
  "gtk4",
- "nixe-core",
+ "nyx-core",
  "serde",
  "toml",
 ]
 
 [[package]]
-name = "nixe-ui"
+name = "nyx-ui"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-design.git?rev=d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb#d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb"
+source = "git+https://github.com/design-nexus/nyx-design.git?rev=938c638951a53f5874a8276d07ac9dcd68b191ad#938c638951a53f5874a8276d07ac9dcd68b191ad"
 dependencies = [
  "gtk4",
- "nixe-core",
- "nixe-theme",
+ "nyx-core",
+ "nyx-theme",
 ]
 
 [[package]]

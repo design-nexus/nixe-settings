@@ -363,6 +363,12 @@ pub fn set_nav_badge(id: &'static str, text: Option<&str>) {
 }
 
 /// The sidebar entries: a heading per group, a button per page.
+/// The theme's name for a group of pages (`[sections.settings]`): Home's pages
+/// have no group.
+fn section_key(group: &str) -> String {
+    if group.is_empty() { "home".into() } else { group.to_lowercase().replace(' ', "-") }
+}
+
 fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
     let mut nav_items = HashMap::new();
     let mut nav_groups: Vec<(gtk::Label, Vec<&'static str>)> = Vec::new();
@@ -377,8 +383,12 @@ fn fill_nav(list: &gtk::Box, sections: &[Section]) -> NavParts {
             let divider = gtk::Separator::new(gtk::Orientation::Horizontal);
             divider.add_css_class("nav-divider");
             divider.set_visible(false);
+            // The group's section colour (from the theme) on its heading and divider.
+            let section = format!("section-{}", section_key(s.group));
+            divider.add_css_class(&section);
             list.append(&divider);
             let g = widgets::label(&s.group.to_uppercase(), "nav-group");
+            g.add_css_class(&section);
             compact_items.push(g.clone().upcast());
             list.append(&g);
             nav_groups.push((g, Vec::new()));
@@ -825,8 +835,7 @@ pub fn navigate(id: &str) {
     u.current = id;
     if let Some(s) = u.sections.iter().find(|s| s.id == id) {
         u.header.set_subtitle(s.title);
-        let group = if s.group.is_empty() { "home".to_string() } else { s.group.to_lowercase() };
-        nixe_theme::set_section(Some(&group));
+        nixe_theme::set_section(Some(&section_key(s.group)));
         u.status.set_text(s.description);
         while let Some(c) = u.edit.first_child() {
             u.edit.remove(&c);

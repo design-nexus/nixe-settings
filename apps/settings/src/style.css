@@ -4,10 +4,13 @@
 
 /* ---------- Sidebar ---------- */
 
+/* The icon-only sidebar's mark where a group starts: a short bar in the
+ * group's section colour (set by the theme on `.section-<name>`). */
 .settings-navigation separator.nav-divider {
-  margin: 6px 10px;
-  min-height: 1px;
-  background: transparent;
+  margin: 8px 14px 6px;
+  min-height: 2px;
+  border-radius: 1px;
+  background: @theme_divider;
 }
 
 .settings-navigation.compact .nav-group {

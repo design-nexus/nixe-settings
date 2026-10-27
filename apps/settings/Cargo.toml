@@ -11,8 +11,8 @@ default-run = "nixe-settings"
 [dependencies]
 nixe-cloud = { git = "https://github.com/design-nexus/nixe-cloud.git", rev = "053a31d9704c5f0379c1b17e70a659b353357881" }
 nixe-core = { git = "https://github.com/design-nexus/nixe-core.git", rev = "87682e6c936b6a4f006639b1a1c099e96346c07c" }
-nixe-ui = { git = "https://github.com/design-nexus/nixe-design.git", rev = "614039e2491b377d881a28ef97db5eb3a94c5ea8" }
-nixe-theme = { git = "https://github.com/design-nexus/nixe-design.git", rev = "614039e2491b377d881a28ef97db5eb3a94c5ea8" }
+nixe-ui = { git = "https://github.com/design-nexus/nixe-design.git", rev = "d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb" }
+nixe-theme = { git = "https://github.com/design-nexus/nixe-design.git", rev = "d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb" }
 nixe-accounts = { git = "https://github.com/design-nexus/nixe-core.git", rev = "87682e6c936b6a4f006639b1a1c099e96346c07c" }
 anyhow = "1.0.104"
 gtk = { version = "0.11", package = "gtk4", features = ["v4_18"] }

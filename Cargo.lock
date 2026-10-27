@@ -1069,7 +1069,7 @@ dependencies = [
 [[package]]
 name = "nixe-theme"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-design.git?rev=614039e2491b377d881a28ef97db5eb3a94c5ea8#614039e2491b377d881a28ef97db5eb3a94c5ea8"
+source = "git+https://github.com/design-nexus/nixe-design.git?rev=d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb#d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb"
 dependencies = [
  "gtk4",
  "nixe-core",
@@ -1080,7 +1080,7 @@ dependencies = [
 [[package]]
 name = "nixe-ui"
 version = "0.1.0"
-source = "git+https://github.com/design-nexus/nixe-design.git?rev=614039e2491b377d881a28ef97db5eb3a94c5ea8#614039e2491b377d881a28ef97db5eb3a94c5ea8"
+source = "git+https://github.com/design-nexus/nixe-design.git?rev=d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb#d6c3ce8635a1b3ed002b45559f5a2dfee0cd5cbb"
 dependencies = [
  "gtk4",
  "nixe-core",

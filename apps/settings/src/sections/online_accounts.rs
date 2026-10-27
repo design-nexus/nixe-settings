@@ -1,7 +1,10 @@
 //! Connected online accounts via GNOME Online Accounts.
 
+use super::account_icons::{self, Logo};
+use super::online_presets::Preset;
 use crate::widgets::{self, Page};
-use crate::{cmd, window};
+use crate::{cmd, theme, window};
+use gtk::glib::variant::ToVariant;
 use gtk::prelude::*;
 use nyx_accounts::{self as goa, Account, Error, ServiceState};
 use std::cell::{Cell, RefCell};
@@ -43,16 +46,110 @@ pub fn build(page: &Page) {
     }
 }
 
+/// A provider on the Add account page.
+struct Provider {
+    name: &'static str,
+    desc: &'static str,
+    logo: Logo,
+    kind: Kind,
+}
+
+enum Kind {
+    Goa(&'static str),
+    Preset(Preset),
+}
+
+/// The Add account page, in this order.
+const PROVIDERS: &[Provider] = &[
+    Provider { name: "Google", desc: "Gmail, Calendar, Contacts and Drive", logo: Logo::Google, kind: Kind::Goa("google") },
+    Provider {
+        name: "Microsoft 365",
+        desc: "Outlook calendar, contacts and OneDrive",
+        logo: Logo::Microsoft,
+        kind: Kind::Goa("ms_graph"),
+    },
+    Provider {
+        name: "Fastmail",
+        desc: "Mail, calendar and contacts with an app password",
+        logo: Logo::Fastmail,
+        kind: Kind::Preset(Preset::Fastmail),
+    },
+    Provider {
+        name: "Nextcloud",
+        desc: "Files, calendar and contacts on your server",
+        logo: Logo::Nextcloud,
+        kind: Kind::Goa("owncloud"),
+    },
+    Provider { name: "Zoho", desc: "Zoho Mail, Calendar and Contacts", logo: Logo::Zoho, kind: Kind::Preset(Preset::Zoho) },
+    Provider { name: "IMAP and SMTP", desc: "Any other mail provider", logo: Logo::Mail, kind: Kind::Goa("imap_smtp") },
+    Provider { name: "WebDAV", desc: "Calendars, contacts and files on a server", logo: Logo::WebDav, kind: Kind::Goa("webdav") },
+];
+
+/// GOA providers left off the Add account page.
+const HIDDEN: &[&str] = &["kerberos", "exchange"];
+
+fn account_icon(account: &Account, brand: Option<Preset>, size: i32) -> gtk::Image {
+    let logo = brand.map(Logo::from).unwrap_or_else(|| account_icons::logo_for_goa(&account.provider_type));
+    account_icons::image(logo, size)
+}
+
+/// Fastmail and Zoho are IMAP and WebDAV accounts to GOA; their servers say which.
+fn brand_of(conn: &gtk::gio::DBusConnection, account: &Account) -> Option<Preset> {
+    let lookups: &[(&str, &str)] = match account.provider_type.as_str() {
+        "imap_smtp" => &[("org.gnome.OnlineAccounts.Mail", "ImapHost")],
+        "webdav" => &[
+            ("org.gnome.OnlineAccounts.Calendar", "Uri"),
+            ("org.gnome.OnlineAccounts.Contacts", "Uri"),
+            ("org.gnome.OnlineAccounts.Files", "Uri"),
+        ],
+        _ => return None,
+    };
+    let ty = gtk::glib::VariantTy::new("(v)").expect("reply type");
+    lookups.iter().find_map(|(iface, prop)| {
+        let reply = conn
+            .call_sync(
+                Some(goa::BUS_NAME),
+                &account.path,
+                "org.freedesktop.DBus.Properties",
+                "Get",
+                Some(&(*iface, *prop).to_variant()),
+                Some(ty),
+                gtk::gio::DBusCallFlags::NONE,
+                3000,
+                gtk::gio::Cancellable::NONE,
+            )
+            .ok()?;
+        let host = reply.child_value(0).as_variant()?.str()?.to_string();
+        Preset::for_host(&host)
+    })
+}
+
+fn provider_label(account: &Account, brand: Option<Preset>) -> String {
+    brand.map(|b| b.name().to_string()).unwrap_or_else(|| account.provider_name.clone())
+}
+
+/// Back to the account list (after adding one elsewhere).
+pub fn show_list() {
+    show(Screen::List);
+}
+
 fn list(page: &Page) {
     let g = page.group("Accounts");
-    g.note("Google, Microsoft, Nextcloud and other accounts this computer uses for mail, calendar, contacts and files.");
+    g.note("Mail, calendar, contacts and files from your online accounts.");
     let holder = widgets::vbox(0);
     holder.append(&widgets::label("Looking for accounts…", "dim"));
     g.add(&holder);
     cmd::background(
         || {
             let client = goa::Client::connect().map_err(|_| Error::Unavailable)?;
-            let accounts = client.list()?;
+            let accounts = client
+                .list()?
+                .into_iter()
+                .map(|a| {
+                    let brand = brand_of(client.connection(), &a);
+                    (a, brand)
+                })
+                .collect();
             Ok(Listed { accounts, keyring: goa::keyring_available() })
         },
         {
@@ -64,7 +161,7 @@ fn list(page: &Page) {
 }
 
 struct Listed {
-    accounts: Vec<Account>,
+    accounts: Vec<(Account, Option<Preset>)>,
     keyring: bool,
 }
 
@@ -96,27 +193,30 @@ fn fill_list(g: &widgets::Group, holder: &gtk::Box, listed: Result<Listed, Error
                 ));
             }
             if accounts.is_empty() {
-                holder.append(&widgets::label("No online accounts.", "dim"));
+                let empty = widgets::row("No accounts yet", "Add one to use its mail, calendar, contacts and files.", None);
+                empty.prepend(&account_icons::image(Logo::Generic, 32));
+                holder.append(&empty);
             } else {
-                for account in &accounts {
-                    holder.append(&row(account));
+                for (account, brand) in &accounts {
+                    holder.append(&row(account, *brand));
                 }
             }
-            let (r, _) = widgets::button_row(
-                "Add account",
-                "Choose Google, Microsoft, Nextcloud or another provider, then sign in with your browser.",
-                "Add",
-                |_| show(Screen::Add),
-            );
-            widgets::keywords("add connect sign in google microsoft nextcloud webdav oauth");
+            let (r, b) =
+                widgets::button_row("Add account", "Google, Microsoft 365, Fastmail, Nextcloud, Zoho and more", "Add…", |_| {
+                    show(Screen::Add)
+                });
+            b.add_css_class("suggested-action");
+            r.add_css_class("add-account-row");
+            widgets::keywords("add connect sign in google microsoft fastmail nextcloud zoho imap webdav oauth");
             holder.append(&r);
         }
     }
 }
 
-fn row(account: &Account) -> gtk::Box {
+fn row(account: &Account, brand: Option<Preset>) -> gtk::Box {
     let services = service_line(&account.services);
-    let desc = match (account.provider_name.as_str(), services.as_str()) {
+    let provider = provider_label(account, brand);
+    let desc = match (provider.as_str(), services.as_str()) {
         ("", "") => String::new(),
         (p, "") => p.to_string(),
         ("", s) => s.to_string(),
@@ -124,20 +224,19 @@ fn row(account: &Account) -> gtk::Box {
     };
     let desc = gtk::glib::markup_escape_text(&desc).to_string();
     let controls = widgets::hbox(6);
-    let status = gtk::Label::new(Some(account.status().label()));
-    status.add_css_class("dim");
-    if account.attention_needed {
-        status.add_css_class("danger");
-    }
+    let status = widgets::tag(account.status().label());
+    status.add_css_class(if account.attention_needed { "warn-tag" } else { "ok-tag" });
     controls.append(&status);
-    let open = gtk::Button::with_label("Settings…");
+    let open = widgets::icon_button("emblem-system-symbolic", "Account settings");
     let id = account.id.clone();
     open.connect_clicked(move |_| account_popup(id.clone()));
     controls.append(&open);
     let r = widgets::row(account.label(), &desc, Some(controls.upcast_ref()));
+    r.add_css_class("account-row");
+    r.prepend(&account_icon(account, brand, 32));
     widgets::keywords(&format!(
-        "{} {} {} google microsoft nextcloud webdav oauth",
-        account.provider_type, account.identity, account.presentation
+        "{} {} {} {} google microsoft fastmail nextcloud zoho webdav oauth",
+        account.provider_type, account.identity, account.presentation, provider
     ));
     r
 }
@@ -161,7 +260,10 @@ fn account_popup(id: String) {
     cmd::background(
         move || {
             let client = goa::Client::connect().map_err(|_| Error::Unavailable)?;
-            client.get(&id)
+            Ok(client.get(&id)?.map(|a| {
+                let brand = brand_of(client.connection(), &a);
+                (a, brand)
+            }))
         },
         {
             let holder = holder.clone();
@@ -172,13 +274,18 @@ fn account_popup(id: String) {
     );
 }
 
-fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, found: Result<Option<Account>, Error>) {
+fn fill_detail(
+    info: &widgets::Group,
+    holder: &gtk::Box,
+    page_body: &gtk::Box,
+    found: Result<Option<(Account, Option<Preset>)>, Error>,
+) {
     widgets::begin_section("online-accounts");
     widgets::forget_rows(holder);
     while let Some(c) = holder.first_child() {
         holder.remove(&c);
     }
-    let account = match found {
+    let (account, brand) = match found {
         Err(e) => {
             holder.append(&widgets::banner(&glib_markup(&e.to_string()), true));
             return;
@@ -201,12 +308,11 @@ fn fill_detail(info: &widgets::Group, holder: &gtk::Box, page_body: &gtk::Box, f
         info.top(&widgets::banner(&text, false));
     }
 
-    let (r, _) = widgets::info_row("Account", account.label());
-    holder.append(&r);
-    if !account.provider_name.is_empty() {
-        let (r, _) = widgets::info_row("Provider", &account.provider_name);
-        holder.append(&r);
-    }
+    let provider = gtk::glib::markup_escape_text(&provider_label(&account, brand)).to_string();
+    let head = widgets::row(account.label(), &provider, None);
+    head.add_css_class("account-head");
+    head.prepend(&account_icon(&account, brand, 40));
+    holder.append(&head);
     let (r, _) = widgets::info_row("Status", account.status().label());
     holder.append(&r);
 
@@ -332,10 +438,14 @@ fn group_on(body: &gtk::Box, title: &str) -> widgets::Group {
 }
 
 fn add_page(page: &Page) {
-    let (back, _) = widgets::button_row("All accounts", "", "Back", |_| show(Screen::List));
-    page.group("").add(&back);
-    let g = page.group("Add account");
-    g.note("Sign in with your browser. Google and Microsoft will still say GNOME is asking for access.");
+    let back = widgets::labeled_button("go-previous-symbolic", "All accounts");
+    back.add_css_class("flat");
+    back.add_css_class("back-button");
+    back.set_halign(gtk::Align::Start);
+    back.connect_clicked(|_| show(Screen::List));
+    page.body.append(&back);
+    let g = page.plain_group("Add account");
+    g.note("Choose a provider, then sign in. Google and Microsoft still name GNOME as the app asking.");
     let holder = widgets::vbox(0);
     holder.append(&widgets::label("Looking for providers…", "dim"));
     g.add(&holder);
@@ -343,6 +453,29 @@ fn add_page(page: &Page) {
         let holder = holder.clone();
         move |list| fill_providers(&holder, list)
     });
+}
+
+fn provider_card(name: &str, desc: &str, logo: Logo, on_click: impl Fn() + 'static) -> gtk::Button {
+    let b = gtk::Button::new();
+    b.add_css_class("picture-card");
+    b.add_css_class("add-account");
+    let c = widgets::vbox(6);
+    let i = account_icons::image(logo, 48);
+    i.set_halign(gtk::Align::Center);
+    c.append(&i);
+    let t = widgets::label(name, "picture-card-title");
+    t.set_halign(gtk::Align::Center);
+    c.append(&t);
+    let d = widgets::label(desc, "picture-card-label");
+    d.set_wrap(true);
+    d.set_justify(gtk::Justification::Center);
+    d.set_halign(gtk::Align::Center);
+    d.set_max_width_chars(24);
+    c.append(&d);
+    b.set_child(Some(&c));
+    b.set_tooltip_text(Some(&format!("Add a {name} account")));
+    b.connect_clicked(move |_| on_click());
+    b
 }
 
 fn fill_providers(holder: &gtk::Box, list: Result<Vec<goa::ProviderInfo>, Error>) {
@@ -373,12 +506,33 @@ fn fill_providers(holder: &gtk::Box, list: Result<Vec<goa::ProviderInfo>, Error>
             holder.append(&widgets::label("No providers on this computer.", "dim"));
         }
         Ok(providers) => {
-            for p in providers {
-                let ty = p.provider_type.clone();
-                let (r, _) = widgets::button_row(&p.name, "", "Add", move |_| start_job(&["add", &ty]));
-                widgets::keywords(&format!("{} google microsoft nextcloud webdav imap oauth", p.provider_type));
-                holder.append(&r);
+            let has = |ty: &str| providers.iter().any(|p| p.provider_type == ty);
+            let flow = gtk::FlowBox::new();
+            flow.set_selection_mode(gtk::SelectionMode::None);
+            flow.set_homogeneous(true);
+            flow.set_min_children_per_line(2);
+            flow.set_max_children_per_line(3);
+            flow.set_column_spacing(10);
+            flow.set_row_spacing(10);
+            flow.add_css_class("picture-cards");
+            flow.add_css_class("provider-cards");
+            for p in PROVIDERS {
+                match p.kind {
+                    Kind::Goa(ty) if has(ty) => {
+                        flow.append(&provider_card(p.name, p.desc, p.logo, move || start_job(&["add", ty])));
+                    }
+                    Kind::Preset(preset) if has("imap_smtp") => {
+                        flow.append(&provider_card(p.name, p.desc, p.logo, move || super::online_presets::open(preset)));
+                    }
+                    _ => {}
+                }
             }
+            let known = |ty: &str| PROVIDERS.iter().any(|p| matches!(p.kind, Kind::Goa(t) if t == ty));
+            for p in providers.iter().filter(|p| !known(&p.provider_type) && !HIDDEN.contains(&p.provider_type.as_str())) {
+                let ty = p.provider_type.clone();
+                flow.append(&provider_card(&p.name, "", Logo::Generic, move || start_job(&["add", &ty])));
+            }
+            holder.append(&flow);
         }
     }
 }
@@ -408,7 +562,16 @@ fn start_job(args: &[&str]) {
     let mut argv: Vec<std::ffi::OsString> = vec![bin.into_os_string()];
     argv.extend(args.iter().map(|a| std::ffi::OsString::from(*a)));
     let refs: Vec<&std::ffi::OsStr> = argv.iter().map(|s| s.as_os_str()).collect();
-    match gtk::gio::Subprocess::newv(&refs, gtk::gio::SubprocessFlags::STDERR_PIPE) {
+    let launcher = gtk::gio::SubprocessLauncher::new(gtk::gio::SubprocessFlags::STDERR_PIPE);
+    let palette = theme::palette();
+    let css = crate::paths::cache_dir().join("goa-dialog.css");
+    let written = std::fs::create_dir_all(crate::paths::cache_dir())
+        .and_then(|_| std::fs::write(&css, theme::adwaita_css(&palette, &theme::look())));
+    if written.is_ok() {
+        launcher.setenv("NYX_GOA_CSS", &css, true);
+    }
+    launcher.setenv("ADW_DEBUG_COLOR_SCHEME", if palette.light { "prefer-light" } else { "prefer-dark" }, true);
+    match launcher.spawn(&refs) {
         Ok(proc) => {
             JOB.with(|j| *j.borrow_mut() = Some(proc.clone()));
             SCREEN.with(|s| *s.borrow_mut() = Screen::Wait);
@@ -470,7 +633,12 @@ fn microsoft_note(account: &Account) -> Option<String> {
 }
 
 fn service_line(services: &[ServiceState]) -> String {
-    services.iter().filter(|s| s.enabled).map(|s| s.service.label()).collect::<Vec<_>>().join(", ")
+    services
+        .iter()
+        .filter(|s| s.enabled && !matches!(s.service, goa::Service::Unknown(_)))
+        .map(|s| s.service.label())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn glib_markup(text: &str) -> String {

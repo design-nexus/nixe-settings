@@ -624,6 +624,45 @@ button.picture-card:checked .picture-card-label {
   margin-right: 2px;
 }
 
+/* ---------- Online accounts ---------- */
+
+.account-icon {
+  margin-right: 2px;
+}
+
+.account-head .settings-option-title {
+  font-size: 1.08em;
+  font-weight: 600;
+}
+
+window.settings-window button.back-button {
+  margin: 0 0 6px -6px;
+  padding-left: 6px;
+  padding-right: 10px;
+}
+
+window.settings-window button.picture-card.add-account {
+  padding: 16px 10px 14px;
+}
+
+.add-account .picture-card-title {
+  margin-top: 4px;
+}
+
+.preset-form entry,
+.preset-form passwordentry,
+.preset-form dropdown {
+  min-width: 320px;
+}
+
+.preset-form .danger {
+  color: @theme_danger;
+}
+
+.preset-form label > link {
+  color: @theme_accent;
+}
+
 /* ---------- Disks and mounts ---------- */
 
 .drive-card {

@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 pub mod about;
+pub mod account_icons;
 pub mod accounts;
 pub mod apps;
 pub mod arrange;
@@ -33,6 +34,7 @@ pub mod network;
 pub mod nightlight;
 pub mod nyx;
 pub mod online_accounts;
+pub mod online_presets;
 pub mod cloud;
 pub mod plugins;
 pub mod power;

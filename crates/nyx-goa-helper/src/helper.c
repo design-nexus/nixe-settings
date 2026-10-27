@@ -24,6 +24,25 @@ json_str(FILE *out, const char *s)
     fputc('"', out);
 }
 
+/* Nyx Settings passes its theme as a stylesheet in NYX_GOA_CSS. Above USER
+ * priority so it wins over ~/.config/gtk-4.0/gtk.css. */
+static void
+apply_style(void)
+{
+    const char *path = g_getenv("NYX_GOA_CSS");
+    GdkDisplay *display = gdk_display_get_default();
+    GtkCssProvider *provider;
+
+    if (path == NULL || *path == '\0' || display == NULL) {
+        return;
+    }
+    provider = gtk_css_provider_new();
+    gtk_css_provider_load_from_path(provider, path);
+    gtk_style_context_add_provider_for_display(display, GTK_STYLE_PROVIDER(provider),
+                                               GTK_STYLE_PROVIDER_PRIORITY_USER + 1);
+    g_object_unref(provider);
+}
+
 typedef struct {
     GMainLoop *loop;
     GList *providers;
@@ -160,6 +179,7 @@ cmd_add(const char *type)
     TaskData d = { 0 };
 
     gtk_init();
+    apply_style();
     provider = goa_provider_get_for_provider_type(type);
     if (provider == NULL) {
         fprintf(stderr, "Unknown provider\n");
@@ -195,6 +215,7 @@ cmd_refresh(const char *id)
     const char *type;
 
     gtk_init();
+    apply_style();
     client = goa_client_new_sync(NULL, &err);
     if (client == NULL) {
         fprintf(stderr, "%s\n", err->message);

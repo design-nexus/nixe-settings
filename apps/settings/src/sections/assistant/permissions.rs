@@ -135,6 +135,20 @@ pub fn build(page: &Page) {
     }
     widgets::keywords("tool rule mcp");
 
+    let g=page.group("Capability health");
+    if let Some(status)=client::status() {
+        let (search_row,search)=widgets::entry_row("Find capability","Search registered tools and current permission reasons.","","Search tools",|_|{});g.add(&search_row);
+        let list=gtk::ListBox::new();list.set_selection_mode(gtk::SelectionMode::None);
+        let mut rows=Vec::new();
+        for item in status["capability_health"].as_array().into_iter().flatten(){
+            let name=item["name"].as_str().unwrap_or("");let permission=item["permission"].as_str().unwrap_or("unknown");let reason=item["reason"].as_str().unwrap_or("");
+            let row=widgets::row(name,&format!("{permission} · {reason}"),None);list.append(&row);rows.push((name.to_lowercase(),row));
+        }
+        search.connect_changed(move |entry|{let query=entry.text().to_lowercase();for (name,row) in &rows{row.set_visible(query.is_empty()||name.contains(&query));}});
+        let scroll=gtk::ScrolledWindow::new();scroll.set_max_content_height(360);scroll.set_propagate_natural_height(true);scroll.set_child(Some(&list));g.add(&scroll);
+        for error in status["mcp_errors"].as_array().into_iter().flatten(){g.note(&gtk::glib::markup_escape_text(&format!("Unavailable: {error}")));}
+    }else{g.note("Start the assistant to inspect current capability health.");}
+
     let g = page.group("Using apps for you");
     g.add(&words(&cfg, "computer.deny_classes", "Never touch these apps", "Window classes, comma-separated. Password managers, terminals and lock screens are never touched anyway.", "e.g. keepassxc"));
     g.add(&words(&cfg, "computer.confirm_words", "Always ask before clicking", "Buttons with these words ask first, even during an approved task.", "send, buy, delete"));

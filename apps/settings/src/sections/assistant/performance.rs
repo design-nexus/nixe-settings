@@ -107,6 +107,12 @@ fn file_name(v: &Value) -> String {
 }
 
 pub fn build(page: &Page) {
+    if let Some(failure)=client::json(&["privacy","failure"]).filter(|v|v.get("turn_id").is_some()) {
+        let g=page.group("Last failure");
+        g.note(&format!("Turn {} · stage {} · {} registered tools",failure["turn_id"],failure["stage"],failure["registered_tools"]));
+        g.note("This record contains timing and status only. Utterances, prompts and tool arguments are excluded.");
+    }
+
     let Some(perf) = client::json(&["perf", "--json"]) else {
         page.banner("The assistant isn't running, or needs updating. Start it on the Assistant page.", false);
         return;

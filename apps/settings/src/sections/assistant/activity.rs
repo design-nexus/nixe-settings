@@ -117,6 +117,11 @@ fn task_row(t: &Value) -> gtk::Box {
     if let Some(d) = t["detail"].as_str() {
         content.append(&dim(d));
     }
+    if matches!(state,"failed"|"partially_completed"|"paused") {
+        let resume=gtk::Button::with_label("Resume from checkpoint");let task_id=id.clone();
+        resume.set_halign(gtk::Align::Start);resume.connect_clicked(move |button|{button.set_sensitive(false);let id=task_id.clone();cmd::background(move ||client::run(&["tasks","resume",&id]),|result|{if let Err(error)=result{window::toast(&format!("Couldn't resume: {error}"));}window::rebuild("assistant-activity");});});
+        content.append(&resume);
+    }
     if active(state) {
         let id = id.clone();
         let stop = gtk::Button::with_label("Stop this task");

@@ -175,6 +175,27 @@ pub fn build(page: &Page) {
     g.note("What it may do is set on the Permissions page.");
     widgets::keywords("autonomy autonomous assisted manual agent budget");
 
+    let g = page.group("Privacy and storage");
+    g.note("Normal logs contain timing and status, not recognized speech or answers. Temporary content diagnostics expire after ten minutes. Existing system journal entries are not erased.");
+    g.add(&switch(&cfg,"privacy.save_history","Save conversation history","Off by default. Saves searchable conversations locally; task records, undo backups and learned words are stored separately."));
+    g.add(&slider(&cfg,"privacy.retention_days","Keep history for","Conversation history, completed task/audit records and undo backups.",(1.0,365.0,1.0),0," days"));
+    g.add(&slider(&cfg,"privacy.backup_limit_mb","Undo storage limit","Oldest file backups expire when this limit is exceeded.",(16.0,2048.0,16.0),0," MiB"));
+    let buttons=gtk::Box::new(gtk::Orientation::Horizontal,8);
+    for (label,args) in [("Prune expired data",vec!["privacy","prune"]),("Log content for 10 minutes",vec!["privacy","diagnostics","on"]),("Stop content logging",vec!["privacy","diagnostics","off"])] {
+        let b=gtk::Button::with_label(label);let args:Vec<String>=args.into_iter().map(String::from).collect();b.connect_clicked(move |_|run_then_redraw(args.clone(),"Couldn't update privacy controls"));buttons.append(&b);
+    }
+    g.add(&widgets::row("Maintenance","Clearing history does not delete your personal dictionary.",Some(buttons.upcast_ref())));
+    let clear=gtk::Button::with_label("Clear stored history…");let armed=std::rc::Rc::new(std::cell::Cell::new(false));
+    clear.connect_clicked(move |b|{if !armed.replace(true){b.set_label("Confirm clear history and undo backups");b.add_css_class("destructive-action");return;}run_then_redraw(vec!["privacy".into(),"clear".into()],"Couldn't clear stored history");});
+    g.add(&widgets::row("Delete stored history","Removes saved conversations, finalized task/audit records and file undo backups. Does not erase the system journal.",Some(clear.upcast_ref())));
+    let (row,search)=widgets::entry_row("Search saved conversations","Only available for conversations saved while history is enabled.","","Search history", |_|{});
+    let results=gtk::Label::new(None);results.set_wrap(true);results.set_xalign(0.0);results.set_selectable(true);
+    let button=gtk::Button::with_label("Search");let out=results.clone();button.connect_clicked(move |_|{let query=search.text().to_string();let out=out.clone();cmd::background(move ||client::json(&["history",&query]).ok_or_else(||anyhow::anyhow!("History unavailable")),move |result|{
+        let text=result.ok().and_then(|v|v.as_array().cloned()).unwrap_or_default().iter().rev().take(10).map(|v|format!("{}\n{}",v["user"].as_str().unwrap_or(""),v["assistant"].as_str().unwrap_or(""))).collect::<Vec<_>>().join("\n\n");out.set_text(if text.is_empty(){"No saved conversations found."}else{&text});
+    });});
+    g.add(&row);g.add(&button);g.add(&results);
+    widgets::keywords("privacy retention history diagnostics content logging clear delete storage");
+
     let g = page.group("Helpers");
     g.add(&choice(
         &cfg,

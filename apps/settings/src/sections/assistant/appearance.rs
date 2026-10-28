@@ -1,6 +1,6 @@
 //! Aura appearance. Values live in Assistant's validated configuration.
 
-use super::{choice, slider, switch};
+use super::{choice, slider, switch, client, save};
 use crate::widgets::{self, Page};
 
 pub fn build(page: &Page) {
@@ -25,5 +25,7 @@ pub fn build(page: &Page) {
     g.add(&choice(&cfg, "ui.aura_monitor_mode", "Displays", "Choose where Aura appears; headless displays are skipped.", &[
         ("active", "Active display"), ("primary", "Primary display"), ("all", "All displays"),
     ]));
+    let (row,_)=widgets::entry_row("Primary output","Used by Primary display mode. Leave empty to use the display at the layout origin.",&client::get_str(&cfg,"ui.aura_primary_monitor"),"e.g. eDP-2",|text|save("ui.aura_primary_monitor",client::quoted(text.trim())));
+    g.add(&row);
     widgets::keywords("assistant appearance aura border glow full edge flow conversation display monitor motion");
 }

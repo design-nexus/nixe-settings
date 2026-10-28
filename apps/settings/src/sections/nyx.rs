@@ -13,7 +13,7 @@ const APPS: &[(&str, &str, &str, &str)] = &[
     ("git", "Git", "nyx-git", "Git repositories and working changes"),
     ("passwords", "Passwords", "nyx-passwords", "Your Vaultwarden vault"),
     ("store", "Store", "nyx-store", "Discover, install and update apps"),
-    ("tasks", "Tasks", "nyx-tasks", "Processes, usage and startup apps"),
+    ("activity", "Activity", "nyx-activity", "Processes, usage and startup apps"),
     ("torrents", "Torrents", "nyx-torrents", "A BitTorrent client"),
     ("pdf", "PDF", "nyx-pdf", "Read, fill in and mark up PDFs"),
     ("notepad", "Notepad", "nyx-notepad", "Plain text, with tabs"),

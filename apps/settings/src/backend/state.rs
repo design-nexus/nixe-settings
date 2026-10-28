@@ -94,7 +94,8 @@ pub struct State {
 }
 
 /// The suite's programs by the names they had before it was called Nixe (and
-/// then Nyx). Any other `nixe-<name>` is now `nyx-<name>`.
+/// then Nyx), and Tasks by its name before Activity. Any other `nixe-<name>` is
+/// now `nyx-<name>`.
 const OLD_PROGRAMS: &[(&str, &str)] = &[
     ("archive", "nyx-archive"),
     ("chat", "nyx-chat"),
@@ -104,7 +105,9 @@ const OLD_PROGRAMS: &[(&str, &str)] = &[
     ("notepad", "nyx-notepad"),
     ("pdf", "nyx-pdf"),
     ("settings", "nyx-settings"),
-    ("tasks", "nyx-tasks"),
+    ("tasks", "nyx-activity"),
+    ("nixe-tasks", "nyx-activity"),
+    ("nyx-tasks", "nyx-activity"),
     ("torrents", "nyx-torrents"),
     ("nexus-photos", "nyx-photos"),
     ("npv", "nyx-viewer"),
@@ -136,10 +139,12 @@ fn renamed_class(class: &str) -> String {
     let class = class.replace("io.github.nexus.photos.viewer", "io.github.design_nexus.nyx.PhotoViewer");
     let class = class.replace("io.github.nexus.photos", "io.github.design_nexus.nyx.Photos");
     let class = class.replace("io\\.github\\.nexus\\.photos", "io\\.github\\.design_nexus\\.nyx\\.Photos");
-    if class.contains("design_nexus.nyx") || class.contains("design_nexus\\.nyx") {
-        return class;
-    }
-    class.replace("design_nexus.", "design_nexus.nyx.").replace("design_nexus\\.", "design_nexus\\.nyx\\.")
+    let class = if class.contains("design_nexus.nyx") || class.contains("design_nexus\\.nyx") {
+        class
+    } else {
+        class.replace("design_nexus.", "design_nexus.nyx.").replace("design_nexus\\.", "design_nexus\\.nyx\\.")
+    };
+    class.replace("design_nexus.nyx.Tasks", "design_nexus.nyx.Activity").replace("design_nexus\\.nyx\\.Tasks", "design_nexus\\.nyx\\.Activity")
 }
 
 impl State {
@@ -175,18 +180,21 @@ mod rename_tests {
 
     #[test]
     fn renames_the_suite_programs() {
-        assert_eq!(renamed_command("tasks").as_deref(), Some("nyx-tasks"));
+        assert_eq!(renamed_command("tasks").as_deref(), Some("nyx-activity"));
+        assert_eq!(renamed_command("nyx-tasks --toggle").as_deref(), Some("nyx-activity --toggle"));
         assert_eq!(renamed_command("settings --section audio").as_deref(), Some("nyx-settings --section audio"));
         assert_eq!(renamed_command("/home/u/.local/bin/notepad --toggle").as_deref(), Some("/home/u/.local/bin/nyx-notepad --toggle"));
         assert_eq!(renamed_command("/usr/bin/music"), None);
         assert_eq!(renamed_command("taskset -c 1 foo"), None);
-        assert_eq!(renamed_command("nyx-tasks"), None);
-        assert_eq!(renamed_command("nixe-tasks").as_deref(), Some("nyx-tasks"));
+        assert_eq!(renamed_command("nyx-notepad"), None);
+        assert_eq!(renamed_command("nixe-tasks").as_deref(), Some("nyx-activity"));
         assert_eq!(renamed_command("/home/u/.local/bin/nixe-files /tmp").as_deref(), Some("/home/u/.local/bin/nyx-files /tmp"));
         assert_eq!(renamed_class("^io\\.github\\.design_nexus\\.nixe\\.Notepad$"), "^io\\.github\\.design_nexus\\.nyx\\.Notepad$");
         assert_eq!(renamed_class("io.github.design_nexus.nixe.Music"), "io.github.design_nexus.nyx.Music");
         assert_eq!(renamed_class("^io\\.github\\.design_nexus\\.Notepad$"), "^io\\.github\\.design_nexus\\.nyx\\.Notepad$");
         assert_eq!(renamed_class("io.github.design_nexus.nyx.Music"), "io.github.design_nexus.nyx.Music");
         assert_eq!(renamed_class("firefox"), "firefox");
+        assert_eq!(renamed_class("^io\\.github\\.design_nexus\\.nyx\\.Tasks$"), "^io\\.github\\.design_nexus\\.nyx\\.Activity$");
+        assert_eq!(renamed_class("io.github.design_nexus.Tasks"), "io.github.design_nexus.nyx.Activity");
     }
 }

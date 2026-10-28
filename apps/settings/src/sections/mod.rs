@@ -436,6 +436,17 @@ pub fn all_with(fresh: bool) -> Vec<Section> {
             visible: assistant::client::installed,
         },
         Section {
+            id: "assistant-appearance",
+            title: "Aura",
+            icon: "focus-windows-symbolic",
+            group: "Assistant",
+            description: "Aura border, movement and displays.",
+            keywords: "assistant aura glow border full edge flow appearance monitor",
+            files: assistant_config,
+            build: Build::Native(assistant::appearance::build),
+            visible: assistant::client::installed,
+        },
+        Section {
             id: "assistant-voice",
             title: "Voice",
             icon: "audio-speakers-symbolic",

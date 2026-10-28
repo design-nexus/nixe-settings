@@ -2,6 +2,7 @@
 //! Every value is read and written through `nyx-assistant config`, which checks it.
 
 pub mod activity;
+pub mod appearance;
 pub mod client;
 pub mod general;
 pub mod models;

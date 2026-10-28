@@ -199,6 +199,58 @@ pub fn build(page: &Page) {
     g.add(&r);
     widgets::keywords("coding agent claude codex cursor antigravity search duckduckgo location city weather");
 
+    let g = page.group("Personal dictionary");
+    g.note("Words and hearing corrections stay on this device. Strong matches are used automatically; uncertain matches get a brief confirmation. Place words apply to place names.");
+    let (row, word) = widgets::entry_row("Word or name", "The correct spelling. You can add the same word again with another hearing variant.", "", "Calera", |_| {});
+    word.set_max_length(80);g.add(&row);
+    let (row, heard) = widgets::entry_row("Heard as", "Optional: what Assistant mistakenly hears.", "", "Chalira", |_| {});
+    heard.set_max_length(80);g.add(&row);
+    let context=std::rc::Rc::new(std::cell::RefCell::new("word".to_string()));
+    let context_change=context.clone();
+    let (row,_) = widgets::choice_row("Use for", "Keep place names separate from general vocabulary.", vec![("word".into(),"General vocabulary".into()),("place".into(),"Place names".into())], "word", move |id| *context_change.borrow_mut()=id);
+    g.add(&row);
+    let add=gtk::Button::with_label("Add / update");
+    add.connect_clicked(move |_| {
+        let word=word.text().trim().to_string();let heard=heard.text().trim().to_string();
+        if word.is_empty() {window::toast("Enter a word first.");return;}
+        let mut args=vec!["dictionary".into(),"add".into(),word,"--context".into(),context.borrow().clone()];
+        if !heard.is_empty() {args.extend(["--heard".into(),heard]);}
+        run_then_redraw(args,"Couldn't save dictionary word");
+    });
+    g.add(&widgets::row("Save word", "Available immediately; no restart needed.",Some(add.upcast_ref())));
+    let corrections=client::json(&["dictionary","list"]).and_then(|v|v.as_array().cloned()).unwrap_or_default();
+    let mut words:std::collections::BTreeMap<(String,String),(String,Vec<String>)>=Default::default();
+    for correction in corrections {
+        let word=correction["corrected"].as_str().unwrap_or("").to_string();
+        let scope=correction["context"].as_str().unwrap_or("word").to_string();
+        let heard=correction["wrong"].as_str().unwrap_or("").to_string();
+        let (_,aliases)=words.entry((word.to_lowercase(),scope)).or_insert_with(||(word.clone(),Vec::new()));
+        if !heard.eq_ignore_ascii_case(&word) {aliases.push(heard);}
+    }
+    let (search_row,search)=widgets::entry_row("Find word", "Search saved words and hearing variants.","","Search dictionary", |_| {});
+    g.add(&search_row);
+    let mut search_rows=Vec::new();
+    if words.is_empty() {g.note("No dictionary words yet.");}
+    for ((_,scope),(word,aliases)) in &words {
+        let delete=gtk::Button::from_icon_name("user-trash-symbolic");delete.set_tooltip_text(Some("Delete word and its hearing variants"));
+        delete.connect_clicked({let word=word.clone();let scope=scope.clone();move |_| run_then_redraw(vec!["dictionary".into(),"remove".into(),word.clone(),scope.clone()],"Couldn't delete word")});
+        let detail=if scope=="place" {"Place name"}else{"General vocabulary"};
+        let row=widgets::row(word,detail,Some(delete.upcast_ref()));
+        search_rows.push((row.clone(),format!("{word} {}",aliases.join(" ")).to_lowercase()));g.add(&row);
+        for alias in aliases {
+            let delete=gtk::Button::from_icon_name("user-trash-symbolic");delete.set_tooltip_text(Some("Forget this hearing variant"));
+            delete.connect_clicked({let alias=alias.clone();let scope=scope.clone();move |_| run_then_redraw(vec!["corrections".into(),"delete".into(),alias.clone(),scope.clone()],"Couldn't forget hearing variant")});
+            let row=widgets::row(&format!("{alias} → {word}"),"Learned hearing variant",Some(delete.upcast_ref()));
+            search_rows.push((row.clone(),format!("{word} {alias}").to_lowercase()));g.add(&row);
+        }
+    }
+    search.connect_changed(move |entry| {let text=entry.text().to_lowercase();for (row,words) in &search_rows {row.set_visible(words.contains(&text));}});
+    if !words.is_empty() {
+        let clear=gtk::Button::with_label("Clear all");clear.connect_clicked(|_|run_then_redraw(vec!["corrections".into(),"clear".into()],"Couldn't clear dictionary"));
+        g.add(&widgets::row("Forget all words and hearing variants", "Future requests will no longer use these entries.",Some(clear.upcast_ref())));
+    }
+    widgets::keywords("dictionary vocabulary speech understanding spelling learned corrections forget memory did you mean best guess");
+
     let keys = binds();
     if !keys.is_empty() {
         let g = page.group("Keys");

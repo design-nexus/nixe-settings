@@ -11,8 +11,8 @@ default-run = "nyx-settings"
 [dependencies]
 nyx-cloud = { git = "https://github.com/design-nexus/nyx-cloud.git", rev = "072cb06bf7a975e536b8fcdd2d19ec7a911e14d7" }
 nyx-core = { git = "https://github.com/design-nexus/nyx-core.git", rev = "52cba5e27a3dd5f00c780f53e423302b4b5f9c9c" }
-nyx-ui = { git = "https://github.com/design-nexus/nyx-design.git", rev = "9465abd2daa4433bc6ba47820417b57f62cdfb82" }
-nyx-theme = { git = "https://github.com/design-nexus/nyx-design.git", rev = "9465abd2daa4433bc6ba47820417b57f62cdfb82" }
+nyx-ui = { git = "https://github.com/design-nexus/nyx-design.git", rev = "144e77df1b6561fd8d0667e0d58306696c3e4d63" }
+nyx-theme = { git = "https://github.com/design-nexus/nyx-design.git", rev = "144e77df1b6561fd8d0667e0d58306696c3e4d63" }
 nyx-accounts = { git = "https://github.com/design-nexus/nyx-core.git", rev = "52cba5e27a3dd5f00c780f53e423302b4b5f9c9c" }
 anyhow = "1.0.104"
 gtk = { version = "0.11", package = "gtk4", features = ["v4_18"] }

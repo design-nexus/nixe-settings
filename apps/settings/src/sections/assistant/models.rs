@@ -211,6 +211,38 @@ pub fn build(page: &Page) {
         None => g.add(&widgets::row(current.rsplit('/').next().unwrap_or("none"), &format!("Not one of the recommended models. {vision}"), None)),
     }
 
+    let g = page.group("Installed models");
+    let installed: Vec<Value> = list["installed"].as_array().into_iter().flatten().filter(|m| {
+        let name=m["name"].as_str().unwrap_or("").to_ascii_lowercase();
+        m["path"].is_string() && name.ends_with(".gguf")
+            && !["mmproj", "drafter", "dflash", "codec", ".encoder.", ".decoder."].iter().any(|part|name.contains(part))
+    }).cloned().collect();
+    if installed.is_empty() {
+        g.note("No local language models found.");
+    } else {
+        let options: Vec<(String,String)> = installed.iter().map(|m| {
+            let path=m["path"].as_str().unwrap_or("");
+            let name=m["name"].as_str().unwrap_or("Model").trim_end_matches(".gguf");
+            (path.to_string(),if path==current{format!("{name} (in use)")}else{name.to_string()})
+        }).collect();
+        let selected=options.iter().find(|(path,_)|path==current).map(|(path,_)|path.as_str()).unwrap_or(&options[0].0);
+        let picker=widgets::dropdown(&options,selected);
+        picker.set_enable_search(true);
+        picker.set_hexpand(true);
+        let actions=gtk::Box::new(gtk::Orientation::Horizontal,8);
+        let update={let actions=actions.clone();let installed=installed.clone();let current=current.to_string();move |index:usize| {
+            while let Some(child)=actions.first_child(){actions.remove(&child);}
+            let Some(model)=installed.get(index) else{return};let path=model["path"].as_str().unwrap_or("");
+            if path==current {actions.append(&widgets::tag("In use"));}else{actions.append(&use_button(path));}
+            actions.set_tooltip_text(Some(path));
+        }};
+        update(picker.selected() as usize);
+        picker.connect_selected_notify(move |picker|update(picker.selected() as usize));
+        g.add(&widgets::row("Model","Includes downloaded models outside the recommended list.",Some(picker.upcast_ref())));
+        g.add(&actions);
+        g.note("Selecting a model does not change the default. Use switches the assistant and restarts it.");
+    }
+
     let g = page.group("Recommended models");
     let models = list["recommended"].as_array().cloned().unwrap_or_default();
     if models.is_empty() {
@@ -249,5 +281,5 @@ pub fn build(page: &Page) {
         details(&info, m, &current);
     });
     g.note("Switching restarts the assistant. The graphics card also holds the speech and voice models, and the conversation's context.");
-    widgets::keywords("model llm gguf download gemma qwen vision");
+    widgets::keywords("model llm gguf download installed available gemma nemotron bolt qwen vision");
 }

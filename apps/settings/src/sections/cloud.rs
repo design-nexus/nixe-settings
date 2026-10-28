@@ -96,26 +96,10 @@ fn append_account(holder: &gtk::Box, remote: Remote) {
         if remote.error.is_empty() { String::new() } else { format!(" · {}", remote.error) }
     );
     let controls = widgets::hbox(6);
-    for (label, action) in [("Settings…", 3)] {
-        let button = gtk::Button::with_label(label);
-        let r = remote.clone();
-        button.connect_clicked(move |_| match action {
-            0 => {
-                let id = r.id.clone();
-                work(move |c| c.mount(&id));
-            }
-            1 => {
-                let id = r.id.clone();
-                work(move |c| c.unmount(&id));
-            }
-            2 => {
-                let id = r.id.clone();
-                work(move |c| c.test(&id));
-            }
-            _ => account_dialog(r.clone()),
-        });
-        controls.append(&button);
-    }
+    let button = gtk::Button::with_label("Settings…");
+    let r = remote.clone();
+    button.connect_clicked(move |_| account_dialog(r.clone()));
+    controls.append(&button);
     holder.append(&widgets::row(&remote.name, &glib::markup_escape_text(&status), Some(controls.upcast_ref())));
 }
 pub(super) fn dialog(title: &str) -> (gtk::Window, gtk::Box) {
@@ -191,8 +175,8 @@ fn append_preferences(body: &gtk::Box, remote: Remote, close: glib::WeakRef<gtk:
         |_| {},
     );
     body.append(&row);
-    let cache = field(&body, "Cache target (MiB, soft limit)", &remote.preferences.cache_mib.to_string(), false);
-    let bandwidth = field(&body, "Bandwidth limit (rclone format; blank is unlimited)", &remote.preferences.bandwidth, false);
+    let cache = field(body, "Cache target (MiB, soft limit)", &remote.preferences.cache_mib.to_string(), false);
+    let bandwidth = field(body, "Bandwidth limit (rclone format; blank is unlimited)", &remote.preferences.bandwidth, false);
     body.append(&widgets::label(
         "Cache and bandwidth changes take effect on the next connection. Pending uploads are retained.",
         "dim",
@@ -304,21 +288,21 @@ fn onboarding(replace: Option<Remote>, link_account: Option<String>) {
             setup.request(json!({"action":"providers"}))
         },
         move |result: anyhow::Result<Value>| {
-            if let Ok(catalog) = result {
-                if let Some(providers) = catalog["providers"].as_array() {
-                    let ids: Vec<String> = providers.iter().filter_map(|p| p["Name"].as_str().map(str::to_string)).collect();
-                    let names: Vec<String> = providers
-                        .iter()
-                        .map(|p| format!("{} — {}", p["Name"].as_str().unwrap_or(""), p["Description"].as_str().unwrap_or("")))
-                        .collect();
-                    let labels: Vec<&str> = names.iter().map(String::as_str).collect();
-                    provider_catalog.set_model(Some(&gtk::StringList::new(&labels)));
-                    provider_catalog.connect_selected_notify(move |catalog| {
-                        if let Some(id) = ids.get(catalog.selected() as usize) {
-                            provider_entry.set_text(id);
-                        }
-                    });
-                }
+            if let Ok(catalog) = result
+                && let Some(providers) = catalog["providers"].as_array()
+            {
+                let ids: Vec<String> = providers.iter().filter_map(|p| p["Name"].as_str().map(str::to_string)).collect();
+                let names: Vec<String> = providers
+                    .iter()
+                    .map(|p| format!("{} — {}", p["Name"].as_str().unwrap_or(""), p["Description"].as_str().unwrap_or("")))
+                    .collect();
+                let labels: Vec<&str> = names.iter().map(String::as_str).collect();
+                provider_catalog.set_model(Some(&gtk::StringList::new(&labels)));
+                provider_catalog.connect_selected_notify(move |catalog| {
+                    if let Some(id) = ids.get(catalog.selected() as usize) {
+                        provider_entry.set_text(id);
+                    }
+                });
             }
         },
     );
@@ -449,6 +433,7 @@ fn onboarding(replace: Option<Remote>, link_account: Option<String>) {
         glib::Propagation::Proceed
     });
 }
+#[allow(clippy::too_many_arguments)]
 fn setup_step(
     body: &gtk::Box,
     status: &gtk::Label,

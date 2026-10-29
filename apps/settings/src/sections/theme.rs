@@ -253,44 +253,9 @@ pub fn build(page: &Page) {
     }
     g.add(&theme_row);
 
-    let swatches = widgets::hbox(4);
-    let refresh_swatches = {
-        let swatches = swatches.clone();
-        move || {
-            while let Some(c) = swatches.first_child() {
-                swatches.remove(&c);
-            }
-            let pal = theme::current_palette();
-            for c in [&pal.bg, &pal.surface, &pal.muted, &pal.text, &pal.accent, &pal.danger] {
-                let s = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-                s.add_css_class("swatch");
-                let provider = gtk::CssProvider::new();
-                provider.load_from_string(&format!("box {{ background: {c}; }}"));
-                #[allow(deprecated)]
-                s.style_context().add_provider(&provider, gtk::STYLE_PROVIDER_PRIORITY_USER);
-                swatches.append(&s);
-            }
-        }
-    };
-    refresh_swatches();
-    let last = std::cell::RefCell::new(theme::current_palette());
-    glib::timeout_add_seconds_local(1, move || {
-        let now = theme::current_palette();
-        if *last.borrow() != now {
-            *last.borrow_mut() = now;
-            refresh_swatches();
-        }
-        glib::ControlFlow::Continue
-    });
-    g.add(&widgets::row("Current colors", "", Some(swatches.upcast_ref())));
     g.add(&nyx_ui::widgets::accent_row("settings"));
     widgets::keywords("accent colour color swatch highlight");
 
-    let (r, _) = widgets::switch_row("Glow", "Soft accent glow around focused and selected elements.", p.glow, |on| {
-        prefs::update(|p| p.glow = on);
-        theme::apply();
-    });
-    g.add(&r);
     let (r, _) =
         widgets::switch_row("Reduce motion", "Turn off transitions and animations in this window.", p.reduce_motion, |on| {
             prefs::update(|p| p.reduce_motion = on);

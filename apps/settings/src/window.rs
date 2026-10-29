@@ -1,6 +1,6 @@
 //! The main window: the unified header (the app and the page, the sidebar
 //! toggle, search, the page's config files), the navigation sidebar, a stack of
-//! section pages built the first time they're shown, and a status bar.
+//! section pages built the first time they're shown.
 
 use crate::sections::{self, Section};
 use crate::widgets::{self, SEARCH};
@@ -32,8 +32,6 @@ struct Ui {
     header: nyx_ui::chrome::AppHeader,
     /// Holds the current page's "open the config file" button.
     edit: gtk::Box,
-    /// The page's description, in the status bar.
-    status: gtk::Label,
     /// The "nothing matches" page's message.
     empty_label: gtk::Label,
     /// The toast on screen, if any: a new one replaces it.
@@ -193,29 +191,10 @@ fn build(app: &gtk::Application) {
     let edit = widgets::hbox(0);
     header.end.append(&edit);
 
-    // ----- Status bar: the shortcuts, and what the page is for -----
-    let status_bar = widgets::hbox(16);
-    status_bar.add_css_class("status-bar");
-    let help = gtk::Button::new();
-    help.add_css_class("status-help");
-    let help_content = widgets::hbox(10);
-    help_content.append(&widgets::label("F1", "status-key"));
-    help_content.append(&widgets::label("Shortcuts", ""));
-    help.set_child(Some(&help_content));
-    help.set_tooltip_text(Some("Show the keyboard shortcuts"));
-    help.connect_clicked(|_| show_shortcuts());
-    status_bar.append(&help);
-    let status = widgets::label("", "status-readout");
-    status.set_hexpand(true);
-    status.set_xalign(1.0);
-    status.set_ellipsize(gtk::pango::EllipsizeMode::End);
-    status_bar.append(&status);
-
     let frame = widgets::vbox(0);
     frame.add_css_class("window-frame");
     frame.append(&header.root);
     frame.append(&body);
-    frame.append(&status_bar);
 
     let overlay = gtk::Overlay::new();
     overlay.set_child(Some(&frame));
@@ -321,7 +300,6 @@ fn build(app: &gtk::Application) {
         collapse_button,
         header,
         edit,
-        status,
         empty_label,
         toast: None,
     };
@@ -836,7 +814,6 @@ pub fn navigate(id: &str) {
     if let Some(s) = u.sections.iter().find(|s| s.id == id) {
         u.header.set_subtitle(s.title);
         nyx_theme::set_section(Some(&section_key(s.group)));
-        u.status.set_text(s.description);
         while let Some(c) = u.edit.first_child() {
             u.edit.remove(&c);
         }

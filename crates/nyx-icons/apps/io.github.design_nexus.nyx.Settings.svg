@@ -1,20 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="tile" x1="8" y1="8" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#2a2f45"/>
-      <stop offset="1" stop-color="#16182a"/>
-    </linearGradient>
-    <linearGradient id="ink" x1="32" y1="32" x2="96" y2="96" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7aa2f7"/>
-      <stop offset="1" stop-color="#c58bd6"/>
-    </linearGradient>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#26262a"/><stop offset="1" stop-color="#121214"/></linearGradient>
+    <radialGradient id="glow" cx=".2" cy=".1" r=".9"><stop stop-color="#a7b1c7" stop-opacity=".22"/><stop offset="1" stop-color="#a7b1c7" stop-opacity="0"/></radialGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#a7b1c7"/><stop offset="1" stop-color="#8590a8"/></linearGradient>
   </defs>
-  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#tile)"/>
-  <rect x="8.5" y="8.5" width="111" height="111" rx="25.5" fill="none" stroke="#7aa2f7" stroke-opacity="0.4"/>
-  <g fill="none" stroke="url(#ink)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M36 44H92M36 64H92M36 84H92"/>
-    <circle cx="52" cy="44" r="7" fill="#1f2337"/>
-    <circle cx="76" cy="64" r="7" fill="#1f2337"/>
-    <circle cx="58" cy="84" r="7" fill="#1f2337"/>
-  </g>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#tile)"/>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#glow)"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="#a7b1c7" stroke-opacity=".3"/>
+  <path d="M33 45h62a3 3 0 0 1 0 6H33a3 3 0 0 1 0-6zM33 61h62a3 3 0 0 1 0 6H33a3 3 0 0 1 0-6zM33 77h62a3 3 0 0 1 0 6H33a3 3 0 0 1 0-6z" fill="#a7b1c7" fill-opacity=".35"/>
+  <path d="M49 48a9 9 0 1 0 18 0a9 9 0 1 0-18 0zM71 64a9 9 0 1 0 18 0a9 9 0 1 0-18 0zM39 80a9 9 0 1 0 18 0a9 9 0 1 0-18 0z" fill="url(#ink)"/>
+  <path d="" fill="none" stroke="#151517" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

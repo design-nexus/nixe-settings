@@ -61,6 +61,16 @@ fn confirm_or_revert(previous: BTreeMap<String, Monitor>) {
         done2.set(true);
         d2.close();
     });
+    let keys = gtk::EventControllerKey::new();
+    let revert_on_escape = do_revert.clone();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk::gdk::Key::Escape {
+            revert_on_escape();
+            return glib::Propagation::Stop;
+        }
+        glib::Propagation::Proceed
+    });
+    dialog.add_controller(keys);
     let left = Rc::new(Cell::new(15));
     let r2 = do_revert.clone();
     let done3 = done.clone();

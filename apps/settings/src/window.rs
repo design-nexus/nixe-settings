@@ -601,6 +601,15 @@ pub fn show_shortcuts() {
     let d = dialog.clone();
     close.connect_clicked(move |_| d.close());
     card.append(&close);
+    let close = gtk::Button::with_label("Close");
+    close.set_halign(gtk::Align::End);
+    let weak = dialog.downgrade();
+    close.connect_clicked(move |_| {
+        if let Some(dialog) = weak.upgrade() {
+            dialog.close();
+        }
+    });
+    card.append(&close);
     dialog.present();
 }
 

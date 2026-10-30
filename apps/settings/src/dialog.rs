@@ -131,8 +131,26 @@ pub fn ask(
             e.connect_activate(move |_| s());
         }
     }
+
+    escape(&dialog);
     dialog.present();
     if let Some(first) = first {
         first.grab_focus();
     }
+}
+
+/// Let focused controls handle Escape first, then dismiss through close-request guards.
+fn escape(window: &gtk::Window) {
+    let keys = gtk::EventControllerKey::new();
+    let weak = window.downgrade();
+    keys.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk::gdk::Key::Escape {
+            if let Some(window) = weak.upgrade() {
+                window.close();
+            }
+            return gtk::glib::Propagation::Stop;
+        }
+        gtk::glib::Propagation::Proceed
+    });
+    window.add_controller(keys);
 }
